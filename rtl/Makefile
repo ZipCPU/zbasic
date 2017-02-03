@@ -2,7 +2,7 @@
 ##
 ## Filename:	Makefile
 ##
-## Project:	
+## Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 ##
 ## Purpose:	To direct the Verilator build of the SoC sources.  The result
 ##		is C++ code (built by Verilator), that is then built (herein)
@@ -25,6 +25,11 @@
 ## ANY WARRANTY; without even the implied warranty of MERCHANTIBILITY or
 ## FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 ## for more details.
+##
+## You should have received a copy of the GNU General Public License along
+## with this program.  (It's in the $(ROOT)/doc directory, run make with no
+## target there if the PDF file isn't present.)  If not, see
+## <http://www.gnu.org/licenses/> for a copy.
 ##
 ## License:	GPL, v3, as defined and found on www.gnu.org,
 ##		http:##www.gnu.org/licenses/gpl.html
@@ -66,7 +71,7 @@ $(VDIRFB)/Vbusmaster__ALL.a: $(VDIRFB)/Vbusmaster.mk
 $(VDIRFB)/Vbusmaster.h: $(VDIRFB)/Vbusmaster.cpp
 $(VDIRFB)/Vbusmaster.mk: $(VDIRFB)/Vbusmaster.cpp
 $(VDIRFB)/Vbusmaster.cpp: $(SLOWSRC)
-	verilator -cc -y $(CPUDR) busmaster.v
+	verilator -trace -cc -y $(CPUDR) busmaster.v
 
 
 
