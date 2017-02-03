@@ -1,4 +1,4 @@
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	rtclight.v
 //		
@@ -16,9 +16,9 @@
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
 //
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015, Gisselquist Technology, LLC
+// Copyright (C) 2015,2017, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -39,7 +39,9 @@
 //		http://www.gnu.org/licenses/gpl.html
 //
 //
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//
+//
 module	rtclight(i_clk, 
 		// Wishbone interface
 		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
@@ -66,11 +68,11 @@ module	rtclight(i_clk,
 	reg	[25:0]	timer;
 	
 	wire	ck_sel, tm_sel, sw_sel, sp_sel, al_sel;
-	assign	ck_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b000));
-	assign	tm_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b001));
-	assign	sw_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b010));
-	assign	al_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b011));
-	assign	sp_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
+	assign	ck_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b000));
+	assign	tm_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b001));
+	assign	sw_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b010));
+	assign	al_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b011));
+	assign	sp_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
 
 	reg		ck_carry;
 	reg	[39:0]	ck_counter;
