@@ -2,7 +2,7 @@
 //
 // Filename:	busmaster.v
 //
-// Project:	ZipCPU-generic, a generic toplevel impl using the full ZipCPU
+// Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	This is the top level project file as far as Verilator is
 //		concerned.  In particular, no high impedence values are allowed
@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2016, Gisselquist Technology, LLC
+// Copyright (C) 2015-2017, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -74,7 +74,7 @@ module	busmaster(i_clk, i_rst,
 			i_sd_cmd, i_sd_data, i_sd_detect,
 		// Console port
 		i_rx_uart, o_tx_uart);
-	parameter	ZIP_ADDRESS_WIDTH=24,
+	parameter	ZIP_ADDRESS_WIDTH=25,
 			LGMEMSZ = 24, LGFLASHSZ = 22,
 			ZA=ZIP_ADDRESS_WIDTH;
 	input			i_clk, i_rst;
@@ -109,6 +109,7 @@ module	busmaster(i_clk, i_rst,
 	//
 	wire		wb_cyc, wb_stb, wb_we, wb_stall, wb_ack, wb_err;
 	wire	[31:0]	wb_data, wb_idata, wb_addr;
+	wire	[3:0]	wb_sel;
 
 	//
 	//
@@ -163,19 +164,21 @@ module	busmaster(i_clk, i_rst,
 	wire		zip_cyc, zip_stb, zip_we, zip_cpu_int;
 	wire	[(ZA-1):0]	w_zip_addr;
 	wire	[31:0]	zip_addr, zip_data;
+	wire	[3:0]	zip_sel;
 	// and then coming from devices
 	wire		zip_ack, zip_stall, zip_err;
 	wire	dwb_we, dwb_stb, dwb_cyc, dwb_ack, dwb_stall, dwb_err;
 	wire	[31:0]	dwb_addr, dwb_odata;
+	wire	[3:0]	dwb_sel;
 	wire	[8:0]	w_ints_to_zip_cpu;
 `ifdef	ZIP_SCOPE
 	wire	[31:0]	zip_debug;
 `endif
 
-	zipsystem #(24'h2000,ZA,10,1,9)
-		zippy(i_clk, 1'b0,
+	zipsystem #(25'h400000,ZA,10,0,9)
+		swic(i_clk, 1'b0,
 			// Zippys wishbone interface
-			zip_cyc, zip_stb, zip_we, w_zip_addr, zip_data,
+			zip_cyc, zip_stb, zip_we, w_zip_addr, zip_data, zip_sel,
 				zip_ack, zip_stall, dwb_idata, zip_err,
 			w_ints_to_zip_cpu, zip_cpu_int,
 			// Debug wishbone interface
@@ -203,15 +206,15 @@ module	busmaster(i_clk, i_rst,
 `ifdef	DEBUG_ACCESS
 	wbpriarbiter #(32,32) wbu_zip_arbiter(i_clk,
 		// The ZIP CPU Master -- gets priority in the arbiter
-		zip_cyc, zip_stb, zip_we, zip_addr, zip_data,
+		zip_cyc, zip_stb, zip_we, zip_addr, zip_data, zip_sel,
 			zip_ack, zip_stall, zip_err,
 		// The JTAG interface Master, secondary priority,
 		// will suffer a 1clk delay in arbitration
 		(wbu_cyc)&&(~wbu_zip_sel), (wbu_stb)&&(~wbu_zip_sel), wbu_we,
-			wbu_addr, wbu_data,
+			wbu_addr, wbu_data, 4'hf,
 			wbu_ack, wbu_stall, wbu_err,
 		// Common bus returns
-		dwb_cyc, dwb_stb, dwb_we, dwb_addr, dwb_odata,
+		dwb_cyc, dwb_stb, dwb_we, dwb_addr, dwb_odata, dwb_sel,
 			dwb_ack, dwb_stall, dwb_err);
 `else
 	// But ... if there is no wbubus (TTY-based debug bus controller), then
@@ -240,6 +243,7 @@ module	busmaster(i_clk, i_rst,
 	assign	wb_we     = dwb_we;
 	assign	wb_addr   = dwb_addr;
 	assign	wb_data   = dwb_odata;
+	assign	wb_sel    = dwb_sel;
 	assign	dwb_idata = wb_idata;
 	assign	dwb_ack   = wb_ack;
 	assign	dwb_stall = wb_stall;
@@ -248,7 +252,7 @@ module	busmaster(i_clk, i_rst,
 	busdelay	wbu_zip_delay(i_clk,
 			dwb_cyc, dwb_stb, dwb_we, dwb_addr, dwb_odata,
 				dwb_ack, dwb_stall, dwb_idata, dwb_err,
-			wb_cyc, wb_stb, wb_we, wb_addr, wb_data,
+			wb_cyc, wb_stb, wb_we, wb_addr, wb_data, wb_sel,
 				wb_ack, wb_stall, wb_idata, wb_err);
 `endif
 
@@ -366,18 +370,21 @@ module	busmaster(i_clk, i_rst,
 	//
 
 	wire	[8:0]	skipaddr;
-	assign	skipaddr = { wb_addr[LGMEMSZ], wb_addr[LGFLASHSZ], wb_addr[7],
-				wb_addr[6:1] };
+	assign	skipaddr = { wb_addr[LGMEMSZ], wb_addr[LGFLASHSZ],
+				wb_addr[7:1] };
 	//
 	// This might not be the most efficient way in hardware, but it will
-	// work for our purposes here
+	// work for our purposes here.  There are two phantom bits for each
+	// of these ... bits that tell the CPU which byte within the word, and
+	// another phantom bit because we allocated a minimum of two words to
+	// every device.
 	//
-	assign	io_sel   = (skipaddr[8:3] == 6'b00_1000);
-	assign	scop_sel = (skipaddr[8:0] == 9'b00_1001_000);
-	assign	uart_sel = (skipaddr[8:1] == 8'b00_1010_00);
-	assign	rtc_sel  = (skipaddr[8:1] == 8'b00_1010_00);
-	assign	flctl_sel= (skipaddr[8:1] == 8'b00_1010_00);
-	assign	sdcard_sel=(skipaddr[8:1] == 8'b00_1101_00);
+	assign	io_sel   = (skipaddr[8:3] == 6'b001_00);	// 0x0100-0x013f
+	assign	scop_sel = (skipaddr[8:1] == 8'b001_0100);	// 0x0100-0x0120
+	assign	uart_sel = (skipaddr[8:1] == 8'b001_0101);
+	assign	rtc_sel  = (skipaddr[8:1] == 8'b001_0110);
+	assign	flctl_sel= (skipaddr[8:1] == 8'b001_0111);
+	assign	sdcard_sel=(skipaddr[8:1] == 8'b001_1000);
 	assign	flash_sel= (skipaddr[8:7] == 2'b01);
 	assign	mem_sel  = (skipaddr[8]   == 1'b1);
 
@@ -498,7 +505,7 @@ module	busmaster(i_clk, i_rst,
 	wire	[31:0]	uart_debug;
 	wbuart	consoleport(i_clk, 1'b0,
 			wb_cyc, (wb_stb)&&(uart_sel), wb_we,
-					{ ~wb_addr[2], wb_addr[0]}, wb_data,
+				wb_addr[1:0], wb_data,
 			uart_ack, uart_stall, uart_data,
 			i_rx_uart, o_tx_uart,
 			uart_rx_int, uart_tx_int,
@@ -577,7 +584,7 @@ module	busmaster(i_clk, i_rst,
 	//	RAM MEMORY ACCESS
 	//
 	memdev	#(LGMEMSZ) ram(i_clk, wb_cyc, (wb_stb)&&(mem_sel), wb_we,
-			wb_addr[(LGMEMSZ-1):0], wb_data,
+			wb_addr[(LGMEMSZ-1):0], wb_data, wb_sel,
 			mem_ack, mem_stall, mem_data);
 
 
