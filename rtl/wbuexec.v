@@ -67,7 +67,6 @@ module	wbuexec(i_clk, i_rst, i_stb, i_codword, o_busy,
 	// And our codeword outputs
 	output	reg		o_stb;
 	output	reg	[35:0]	o_codword;
-	// output	wire		o_dbg;
 
 
 	wire	w_accept, w_eow, w_newwr, w_new_err;
@@ -338,7 +337,7 @@ module	wbuexec(i_clk, i_rst, i_stb, i_codword, o_busy,
 		zero_acks <= (~o_wb_stb)&&(r_acks_needed == 10'h00);
 
 	always @(posedge i_clk)
-		if (~o_wb_stb) // (~o_wb_cyc)&&(i_codword[35:34] == 2'b11))
+		if (~o_wb_cyc) // &&(i_codword[35:34] == 2'b11))
 			r_len <= i_codword[9:0];
 		else if ((o_wb_stb)&&(~i_wb_stall)&&(|r_len))
 			r_len <= r_len - 10'h01;
@@ -352,16 +351,5 @@ module	wbuexec(i_clk, i_rst, i_stb, i_codword, o_busy,
 			&&((~r_len[1])
 				||((~r_len[0])&&(~i_wb_stall)));
 	end
-
-	/*
-	reg	[5:0]	count;
-	always @(posedge i_clk)
-		if (~o_wb_cyc)
-			count <= 0;
-		else
-			count <= count+1;
-	assign o_dbg = (count > 6'd10);
-	*/
-	// assign	o_dbg = (wb_state == `WB_ACK);
 
 endmodule

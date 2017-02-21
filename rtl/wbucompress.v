@@ -210,14 +210,13 @@ module	wbucompress(i_clk, i_stb, i_codword, o_stb, o_cword, i_busy);
 	reg			dmatch, // Match, on clock 'd'
 				vaddr;	// Was the address valid then?
 	reg	[(DW-1):0]	cword;
-	reg	[(TBITS-1):0]	caddr, daddr, maddr;
+	reg	[(TBITS-1):0]	caddr, maddr;
 	always @(posedge i_clk)
 	begin
 		cword <= compression_tbl[rd_addr];
 		caddr <= rd_addr;
 
 		dmatch <= (cword == { r_word[32:31], r_word[29:0] });
-		daddr  <= caddr;
 		maddr  <= tbl_addr - caddr;
 
 		vaddr <= ( {1'b0, caddr} < {tbl_filled, tbl_addr} )
@@ -255,10 +254,8 @@ module	wbucompress(i_clk, i_stb, i_codword, o_stb, o_cword, i_busy);
 		end
 
 	// Did we find something?
-	wire	[(TBITS-1):0]	adr_diff;
 	wire	[9:0]		adr_dbld;
 	wire	[2:0]		adr_hlfd;
-	assign	adr_diff = matchaddr;
 	assign	adr_hlfd = matchaddr[2:0]- 3'd2;
 	assign	adr_dbld = matchaddr- 10'd10;
 	reg	[(CW-1):0]	r_cword; // Record our result
