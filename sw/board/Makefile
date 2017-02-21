@@ -56,5 +56,6 @@ hellosim: hellosim.s
 	$(AS) $< -o hellosim.o
 	$(LD) -T$(LDSCRIPT) hellosim.o -o $@
 
-libg.txt:
-	$(NM) $(NLIBD)/libg.a
+.PHONY: clean
+clean:
+	rm -f hello hellosim
