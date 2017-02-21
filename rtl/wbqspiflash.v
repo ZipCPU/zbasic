@@ -678,7 +678,7 @@ module	wbqspiflash(i_clk_100mhz,
 
 		spi_wr <= 1'b1; // Non-stop
 		spi_in <= { 8'ha0, 24'h00 }; // Mode byte, then 2 bytes dummy
-		spi_len <= 2'b10; // Write 8 bits
+		spi_len <= 2'b10; // Write 24 bits
 		spi_spd <= 1'b1;
 		spi_dir <= 1'b0; // Still writing
 		spi_hold <= 1'b0;
