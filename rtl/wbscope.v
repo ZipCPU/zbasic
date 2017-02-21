@@ -2,7 +2,7 @@
 //
 // Filename: 	wbscope.v
 //
-// Project:	FPGA Library of Routines
+// Project:	WBScope, a wishbone hosted scope
 //
 // Purpose:	This is a generic/library routine for providing a bus accessed
 //	'scope' or (perhaps more appropriately) a bus accessed logic analyzer.
@@ -59,7 +59,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015, Gisselquist Technology, LLC
+// Copyright (C) 2015-2017, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -113,7 +113,7 @@ module wbscope(i_clk, i_ce, i_trigger, i_data,
 	wire	[19:0]	bw_holdoff;
 	initial	br_config = DEFAULT_HOLDOFF;
 	always @(posedge i_wb_clk)
-		if ((i_wb_cyc)&&(i_wb_stb)&&(~i_wb_addr))
+		if ((i_wb_stb)&&(~i_wb_addr))
 		begin
 			if (i_wb_we)
 				br_config <= { i_wb_data[31],
@@ -194,23 +194,25 @@ module wbscope(i_clk, i_ce, i_trigger, i_data,
 	//
 	// Writes take place on the data clock
 	reg		dr_stopped;
-	reg	[19:0]	counter;	// This is unsigned
+	(* ASYNC_REG="TRUE" *) reg	[19:0]	counter;// This is unsigned
 	initial	dr_stopped = 1'b0;
 	initial	counter = 20'h0000;
 	always @(posedge i_clk)
 		if (dw_reset)
-		begin
 			counter <= 0;
-			dr_stopped <= 1'b0;
-		end else if ((i_ce)&&(dr_triggered))
+		else if ((i_ce)&&(dr_triggered)&&(~dr_stopped))
 		begin // MUST BE a < and not <=, so that we can keep this w/in
 			// 20 bits.  Else we'd need to add a bit to comparison 
 			// here.
-			if (counter < bw_holdoff)
-				counter <= counter + 20'h01;
-			else
-				dr_stopped <= 1'b1;
+			counter <= counter + 20'h01;
 		end
+	always @(posedge i_clk)
+		if ((~dr_triggered)||(dw_reset))
+			dr_stopped <= 1'b0;
+		else if (i_ce)
+			dr_stopped <= (counter+20'd1 >= bw_holdoff);
+		else
+			dr_stopped <= (counter >= bw_holdoff);
 
 	//
 	//	Actually do our writes to memory.  Record, via 'primed' when
@@ -230,14 +232,14 @@ module wbscope(i_clk, i_ce, i_trigger, i_data,
 		begin
 			waddr <= 0; // upon reset.
 			dr_primed <= 1'b0;
-		end else if ((i_ce)&&((~dr_triggered)||(counter < bw_holdoff)))
+		end else if ((i_ce)&&((~dr_triggered)||(!dr_stopped)))
 		begin
 			// mem[waddr] <= i_data;
 			waddr <= waddr + {{(LGMEM-1){1'b0}},1'b1};
 			dr_primed <= (dr_primed)||(&waddr);
 		end
 	always @(posedge i_clk)
-		if ((i_ce)&&((~dr_triggered)||(counter < bw_holdoff)))
+		if ((i_ce)&&((~dr_triggered)||(!dr_stopped)))
 			mem[waddr] <= i_data;
 
 	//
@@ -279,7 +281,7 @@ module wbscope(i_clk, i_ce, i_trigger, i_data,
 	reg	br_wb_ack;
 	initial	br_wb_ack = 1'b0;
 	wire	bw_cyc_stb;
-	assign	bw_cyc_stb = ((i_wb_cyc)&&(i_wb_stb));
+	assign	bw_cyc_stb = (i_wb_stb);
 	always @(posedge i_wb_clk)
 	begin
 		if ((bw_reset_request)
