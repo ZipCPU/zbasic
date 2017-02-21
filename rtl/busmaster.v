@@ -74,8 +74,8 @@ module	busmaster(i_clk, i_rst,
 			i_sd_cmd, i_sd_data, i_sd_detect,
 		// Console port
 		i_rx_uart, o_tx_uart);
-	parameter	ZIP_ADDRESS_WIDTH=25,
-			LGMEMSZ = 24, LGFLASHSZ = 22,
+	parameter	ZIP_ADDRESS_WIDTH=28, RESET_ADDRESS=32'h01000000,
+			LGMEMSZ = 28, LGFLASHSZ = 24,
 			ZA=ZIP_ADDRESS_WIDTH;
 	input			i_clk, i_rst;
 `ifdef	DEBUG_ACCESS
@@ -175,7 +175,7 @@ module	busmaster(i_clk, i_rst,
 	wire	[31:0]	zip_debug;
 `endif
 
-	zipsystem #(25'h400000,ZA,10,0,9)
+	zipsystem #(RESET_ADDRESS,ZA,10,0,9)
 		swic(i_clk, 1'b0,
 			// Zippys wishbone interface
 			zip_cyc, zip_stb, zip_we, w_zip_addr, zip_data, zip_sel,
@@ -370,7 +370,7 @@ module	busmaster(i_clk, i_rst,
 	//
 
 	wire	[8:0]	skipaddr;
-	assign	skipaddr = { wb_addr[LGMEMSZ], wb_addr[LGFLASHSZ],
+	assign	skipaddr = { wb_addr[LGMEMSZ-2], wb_addr[LGFLASHSZ-2],
 				wb_addr[7:1] };
 	//
 	// This might not be the most efficient way in hardware, but it will
@@ -503,11 +503,14 @@ module	busmaster(i_clk, i_rst,
 	//	UART device: our console
 	//
 	wire	[31:0]	uart_debug;
-	wbuart	consoleport(i_clk, 1'b0,
+	wire	cts_ignored, rts;
+	assign	rts = 1'b0;
+	wbuart	#(.HARDWARE_FLOW_CONTROL_PRESENT(1'b0))
+		consoleport(i_clk, 1'b0,
 			wb_cyc, (wb_stb)&&(uart_sel), wb_we,
 				wb_addr[1:0], wb_data,
 			uart_ack, uart_stall, uart_data,
-			i_rx_uart, o_tx_uart,
+			i_rx_uart, o_tx_uart, rts, cts_ignored,
 			uart_rx_int, uart_tx_int,
 			uart_rxfifo_int, uart_txfifo_int);
 
@@ -523,9 +526,9 @@ module	busmaster(i_clk, i_rst,
 `endif
 `ifdef	FLASH_ACCESS
 	assign	flash_sel = (!wb_addr[24])&&(wb_addr[22]);
-	wbqspiflash #(24)	flashmem(i_clk,
+	wbqspiflash #(LGFLASHSZ)	flashmem(i_clk,
 		wb_cyc,(wb_stb)&&(flash_sel),(wb_stb)&&(flctl_sel),wb_we,
-			wb_addr[21:0], wb_data,
+			wb_addr[(LGFLASHSZ-3):0], wb_data,
 		flash_ack, flash_stall, flash_data,
 		o_qspi_sck, o_qspi_cs_n, o_qspi_mod, o_qspi_dat, i_qspi_dat,
 		flash_interrupt);
@@ -584,7 +587,7 @@ module	busmaster(i_clk, i_rst,
 	//	RAM MEMORY ACCESS
 	//
 	memdev	#(LGMEMSZ) ram(i_clk, wb_cyc, (wb_stb)&&(mem_sel), wb_we,
-			wb_addr[(LGMEMSZ-1):0], wb_data, wb_sel,
+			wb_addr[(LGMEMSZ-3):0], wb_data, wb_sel,
 			mem_ack, mem_stall, mem_data);
 
 
