@@ -59,13 +59,13 @@
 #include "zipelf.h"
 #include "port.h"
 
-#define LGMEMSZ		24
-#define LGFLASHSZ	22
+#define LGMEMSZ		28
+#define LGFLASHSZ	24
 
-#define FLASH_ADDRESS	(1<<(LGFLASHSZ+2))
-#define FLASH_LENGTH	(1<<(LGFLASHSZ+2))
-#define RAM_ADDRESS	(1<<(LGMEMSZ+2))
-#define RAM_LENGTH	(1<<(LGMEMSZ+2))
+#define FLASH_ADDRESS	(1<<(LGFLASHSZ))
+#define FLASH_LENGTH	(1<<(LGFLASHSZ))
+#define RAM_ADDRESS	(1<<(LGMEMSZ))
+#define RAM_LENGTH	(1<<(LGMEMSZ))
 
 // Add a reset line, since Vbusmaster doesn't have one
 class	Vbusmasterr : public Vbusmaster {
@@ -130,6 +130,11 @@ public:
 		m_core->eval();
 	}
 
+	void	trace(const char *vcd_trace_file_name) {
+		fprintf(stderr, "Opening TRACE(%s)\n", vcd_trace_file_name);
+		opentrace(vcd_trace_file_name);
+	}
+
 	void	close(void) {
 		TESTB<Vbusmasterr>::closetrace();
 	}
@@ -141,6 +146,28 @@ public:
 		printf("LOADING SDCARD FROM: \'%s\'\n", fn);
 	}
 */
+
+	void	loadelf(const char *elfname) {
+		ELFSECTION	**secpp, *secp;
+		uint32_t	entry;
+
+		elfread(elfname, entry, secpp);
+
+		for(int s=0; secpp[s]->m_len; s++) {
+			secp = secpp[s];
+
+			if ((secp->m_start >= FLASH_ADDRESS)
+				&&(secp->m_start < FLASH_LENGTH+FLASH_ADDRESS)){
+				m_flash.load(secp->m_start,
+						secp->m_data, secp->m_len);
+			} else if ((secp->m_start >= RAM_ADDRESS)
+				&&(secp->m_start < RAM_LENGTH+RAM_ADDRESS)) {
+				memcpy(((char *)&m_core->v__DOT__ram__DOT__mem[0])
+					+secp->m_start - RAM_ADDRESS,
+					&secp->m_data[0], secp->m_len);
+			}
+		}
+	}
 
 	bool	gie(void) {
 		return (m_core->v__DOT__swic__DOT__thecpu__DOT__r_gie);
@@ -206,6 +233,9 @@ public:
 		int		rbase;
 		rbase = (gie())?16:0;
 
+		fflush(stdout);
+		if ((imm & 0x03fffff)==0)
+			return;
 		// fprintf(stderr, "SIM-INSN(0x%08x)\n", imm);
 		if ((imm & 0x0fffff)==0x00100) {
 			// SIM Exit(0)
@@ -298,8 +328,46 @@ public:
 			execsim(m_core->v__DOT__swic__DOT__thecpu__DOT__op_sim_immv);
 		}
 
+#ifdef	DEBUGGING
+if (m_core->v__DOT__wb_err) {
+	printf("BUS-ERR: Addr = 0x%08x\n", m_core->v__DOT__wb_err);
+	printf("BUS-ERR: PC   = 0x%08x / 0x%08x\n",
+		m_core->v__DOT__swic__DOT__thecpu__DOT__ipc,
+		m_core->v__DOT__swic__DOT__thecpu__DOT__r_upc);
+} else if (m_core->v__DOT__dwb_stb) {
+	char	line[128];
+	static	char	lastline[128] = "";
+
+	sprintf(line, " %s  %s [",
+		(m_core->v__DOT__dwb_we) ? "W":"R",
+		(m_core->v__DOT__wb_stall) ? "STALL":"     ");
+	if (m_core->v__DOT__dwb_we)
+		sprintf(line, "%s%08x / ", line, (m_core->v__DOT__dwb_odata));
+	else	sprintf(line, "%s%8s / ", line, "");
+	if (m_core->v__DOT__wb_ack)
+		sprintf(line, "%s%08x ]@0x", line, m_core->v__DOT__wb_idata);
+	else	sprintf(line, "%s%8s ]@0x", line, "");
+	sprintf(line, "%s%08x -- 0x%08x / 0x%08x\n",line,
+		(m_core->v__DOT__dwb_addr<<2),
+		m_core->v__DOT__swic__DOT__thecpu__DOT__ipc,
+		m_core->v__DOT__swic__DOT__thecpu__DOT__r_upc);
+	if (strcmp(line, lastline)!=0) {
+		printf("%s", line);
+		strcpy(lastline, line);
+	}
+} else if (m_core->v__DOT__wb_ack) {
+	printf("(%s) %5s [",
+		(m_core->v__DOT__dwb_we) ? "W":"R", "");
+	printf("%8s / ", "");
+	printf("%08x ]   ", m_core->v__DOT__wb_idata);
+	printf("%8s -- 0x%08x / 0x%08x\n", "",
+		m_core->v__DOT__swic__DOT__thecpu__DOT__ipc,
+		m_core->v__DOT__swic__DOT__thecpu__DOT__r_upc);
+}
+#endif
 if (m_core->v__DOT__swic__DOT__cpu_break) {
 	m_bomb++;
+	dump(m_core->v__DOT__swic__DOT__thecpu__DOT__regset);
 } else if (m_bomb) {
 	if (m_bomb++ > 12)
 		m_done = true;
@@ -307,28 +375,6 @@ if (m_core->v__DOT__swic__DOT__cpu_break) {
 		(m_done)?" -- DONE!":"");
 }
 
-	}
-
-	void	loadelf(const char *elfname) {
-		ELFSECTION	**secpp, *secp;
-		uint32_t	entry;
-
-		elfread(elfname, entry, secpp);
-
-		for(int s=0; secpp[s]->m_len; s++) {
-			secp = secpp[s];
-
-			if ((secp->m_start >= FLASH_ADDRESS)
-				&&(secp->m_start < FLASH_LENGTH+FLASH_ADDRESS)){
-				m_flash.load(secp->m_start,
-						secp->m_data, secp->m_len);
-			} else if ((secp->m_start >= RAM_ADDRESS)
-				&&(secp->m_start < RAM_LENGTH+RAM_ADDRESS)) {
-				memcpy(((char *)&m_core->v__DOT__ram__DOT__mem[0])
-					+secp->m_start - RAM_ADDRESS,
-					&secp->m_data[0], secp->m_len);
-			}
-		}
 	}
 
 	bool	done(void) {
