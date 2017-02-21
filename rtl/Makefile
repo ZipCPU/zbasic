@@ -72,6 +72,9 @@ $(VDIRFB)/Vbusmaster.h $(VDIRFB)/Vbusmaster.cpp $(VDIRFB)/Vbusmaster.mk: $(SOURC
 $(VDIRFB)/V%.cpp $(VDIRFB)/V%.h $(VDIRFB)/V%.mk: $(FBDIR)/%.v
 	verilator -trace -cc -y $(CPUDR) $*.v
 
+$(VDIRFB)/Vbusmaster.cpp $(VDIRFB)/Vbusmaster.h $(VDIRFB)/Vbusmaster.mk: \
+	$(SLOWSRC) $(JTAGBUS) $(CPUSOURCES)
+
 $(VDIRFB)/V%__ALL.a: $(VDIRFB)/V%.mk
 	cd $(VDIRFB); make -f V$*.mk
 
