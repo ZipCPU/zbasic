@@ -93,7 +93,8 @@ module	wbuart(i_clk, i_rst,
 	// baud rate are all captured within this uart_setup register.
 	//
 	reg	[30:0]	uart_setup;
-	initial	uart_setup = INITIAL_SETUP;
+	initial	uart_setup = INITIAL_SETUP
+		| ((HARDWARE_FLOW_CONTROL_PRESENT==1'b0)? 31'h40000000 : 0);
 	always @(posedge i_clk)
 		// Under wishbone rules, a write takes place any time i_wb_stb
 		// is high.  If that's the case, and if the write was to the
@@ -336,7 +337,8 @@ module	wbuart(i_clk, i_rst,
 	// starting to transmit a new byte.)
 	txuart	#(INITIAL_SETUP) tx(i_clk, 1'b0, uart_setup,
 			r_tx_break, (tx_empty_n), tx_data,
-			i_rts, o_uart_tx, tx_busy);
+			((i_rts)||(!HARDWARE_FLOW_CONTROL_PRESENT)),
+			o_uart_tx, tx_busy);
 
 	// Now that we are done with the chain, pick some wires for the user
 	// to read on any read of the transmit port.
@@ -353,7 +355,7 @@ module	wbuart(i_clk, i_rst,
 	wire	[31:0]	wb_tx_data;
 	assign	wb_tx_data = { 16'h00, 
 				i_rts, txf_status[1:0], txf_err,
-				ck_uart, o_uart_tx, r_tx_break, (tx_busy|txf_status[0]),
+				ck_uart, o_uart_tx, r_tx_break, (tx_busy|tx_empty_n),
 				(tx_busy|txf_status[0])?txf_wb_data:8'b00};
 
 	// Each of the FIFO's returns a 16 bit status value.  This value tells
