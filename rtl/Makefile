@@ -67,13 +67,10 @@ SLOWSRC := busmaster.v builddate.v					\
 
 $(VDIRFB)/Vbusmaster__ALL.a: $(VDIRFB)/Vbusmaster.h $(VDIRFB)/Vbusmaster.cpp
 $(VDIRFB)/Vbusmaster__ALL.a: $(VDIRFB)/Vbusmaster.mk
+$(VDIRFB)/Vbusmaster.h $(VDIRFB)/Vbusmaster.cpp $(VDIRFB)/Vbusmaster.mk: $(SOURCES)
 
-$(VDIRFB)/Vbusmaster.h: $(VDIRFB)/Vbusmaster.cpp
-$(VDIRFB)/Vbusmaster.mk: $(VDIRFB)/Vbusmaster.cpp
-$(VDIRFB)/Vbusmaster.cpp: $(SLOWSRC)
-	verilator -trace -cc -y $(CPUDR) busmaster.v
-
-
+$(VDIRFB)/V%.cpp $(VDIRFB)/V%.h $(VDIRFB)/V%.mk: $(FBDIR)/%.v
+	verilator -trace -cc -y $(CPUDR) $*.v
 
 $(VDIRFB)/V%__ALL.a: $(VDIRFB)/V%.mk
 	cd $(VDIRFB); make -f V$*.mk
