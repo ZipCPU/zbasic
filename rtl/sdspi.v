@@ -97,7 +97,7 @@ module	sdspi(i_clk,
 	//
 	reg	r_cmd_busy;
 	wire	wb_stb, write_stb, cmd_stb; // read_stb
-	assign	wb_stb    = ((i_wb_cyc)&&(i_wb_stb)&&(~o_wb_stall));
+	assign	wb_stb    = ((i_wb_stb)&&(~o_wb_stall));
 	assign	write_stb = ((wb_stb)&&( i_wb_we));
 	// assign	read_stb  = ((wb_stb)&&(~i_wb_we));
 	assign	cmd_stb  = (~r_cmd_busy)&&(write_stb)
