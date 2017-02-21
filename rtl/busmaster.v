@@ -379,14 +379,20 @@ module	busmaster(i_clk, i_rst,
 	// another phantom bit because we allocated a minimum of two words to
 	// every device.
 	//
-	assign	io_sel   = (skipaddr[8:3] == 6'b001_00);	// 0x0100-0x013f
-	assign	scop_sel = (skipaddr[8:1] == 8'b001_0100);	// 0x0100-0x0120
-	assign	uart_sel = (skipaddr[8:1] == 8'b001_0101);
-	assign	rtc_sel  = (skipaddr[8:1] == 8'b001_0110);
-	assign	flctl_sel= (skipaddr[8:1] == 8'b001_0111);
-	assign	sdcard_sel=(skipaddr[8:1] == 8'b001_1000);
-	assign	flash_sel= (skipaddr[8:7] == 2'b01);
-	assign	mem_sel  = (skipaddr[8]   == 1'b1);
+	wire	idle_n;
+`ifdef	ZERO_ON_IDLE
+	assign idle_n = wb_stb;
+`else
+	assign idle_n = 1'b1;
+`endif
+	assign	io_sel   = ((idle_n)&&(skipaddr[8:3] == 6'b001_00));	// 0x0100-0x013f
+	assign	scop_sel = ((idle_n)&&(skipaddr[8:1] == 8'b001_0100));	// 0x0100-0x0120
+	assign	uart_sel = ((idle_n)&&(skipaddr[8:1] == 8'b001_0101));
+	assign	rtc_sel  = ((idle_n)&&(skipaddr[8:1] == 8'b001_0110));
+	assign	flctl_sel= ((idle_n)&&(skipaddr[8:1] == 8'b001_0111));
+	assign	sdcard_sel=((idle_n)&&(skipaddr[8:1] == 8'b001_1000));
+	assign	flash_sel= ((idle_n)&&(skipaddr[8:7] == 2'b01));
+	assign	mem_sel  = ((idle_n)&&(skipaddr[8]   == 1'b1));
 
 	//
 	// none_sel
@@ -504,8 +510,8 @@ module	busmaster(i_clk, i_rst,
 	//
 	wire	[31:0]	uart_debug;
 	wire	cts_ignored, rts;
-	assign	rts = 1'b0;
-	wbuart	#(.HARDWARE_FLOW_CONTROL_PRESENT(1'b0))
+	assign	rts = 1'b1;
+	wbuart	#(.INITIAL_SETUP(25), .HARDWARE_FLOW_CONTROL_PRESENT(1'b0))
 		consoleport(i_clk, 1'b0,
 			wb_cyc, (wb_stb)&&(uart_sel), wb_we,
 				wb_addr[1:0], wb_data,
