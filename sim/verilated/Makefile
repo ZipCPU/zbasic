@@ -68,9 +68,6 @@ HEADERS := $(CLSHEADERS)
 
 $(OBJDIR)/%.o: %.cpp
 	$(CXX) $(CFLAGS) $< -o $@
-$(OBJDIR)/busmaster_tb.o: busmaster_tb.cpp pipecmdr.h
-$(OBJDIR)/busmaster_tb.o: port.h $(VOBJDR)/Vbusmaster.h
-	$(CXX) $(CFLAGS) busmaster_tb.cpp -o $@
 $(OBJDIR)/%.o: $(VROOT)/include/%.cpp
 	$(CXX) $(CFLAGS) $< -o $@
 
