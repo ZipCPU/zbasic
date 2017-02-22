@@ -58,4 +58,4 @@ hellosim: hellosim.s
 
 .PHONY: clean
 clean:
-	rm -f hello hellosim
+	rm -f hello hellosim *.o
