@@ -48,7 +48,7 @@ YYMMDD   := `date +%Y%m%d`
 VOBJDR   := ../../rtl/obj_dir
 VROOT   ?= $(shell bash -c 'verilator -V|grep VERILATOR_ROOT | head -1 | sed -e " s/^.*=\s*//"')
 VINC     := -I$(VROOT)/include -I$(VROOT)/include/vltstd -I$(VOBJDR)
-CFLAGS   :=  -c -g -Wall -I. $(VINC)
+CFLAGS   :=  -c -g -Wall -I. -I../../rtl $(VINC)
 # Now return to the "all" target, and fill in some details
 all:	$(OBJDIR)/ programs archive
 
@@ -94,7 +94,7 @@ clean:
 #
 define	build-depends
 	@echo "Building dependency file"
-	@$(CXX) -I. $(VINC) -MM busmaster_tb.cpp $(SOURCES) > $(OBJDIR)/xdepends.txt
+	@$(CXX) -I. -I../../rtl $(VINC) -MM busmaster_tb.cpp $(SOURCES) > $(OBJDIR)/xdepends.txt
         @sed -e 's/^.*.o: /$(OBJDIR)\/&/' < $(OBJDIR)/xdepends.txt > $(OBJDIR)/depends.txt
         @rm $(OBJDIR)/xdepends.txt
 endef
