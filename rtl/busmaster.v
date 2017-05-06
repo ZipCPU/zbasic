@@ -309,10 +309,10 @@ module	busmaster(i_clk, i_rst,
 	//
 	// wb_idata
 	//
-	// This is the data returned on the bus.  Here, we select between a 
-	// series of bus sources to select what data to return.  The basic 
+	// This is the data returned on the bus.  Here, we select between a
+	// series of bus sources to select what data to return.  The basic
 	// logic is simply this: the data we return is the data for which the
-	// ACK line is high. 
+	// ACK line is high.
 	//
 	// The last item on the list is chosen by default if no other ACK's are
 	// true.  Although we might choose to return zeros in that case, by
@@ -369,6 +369,17 @@ module	busmaster(i_clk, i_rst,
 	//
 	//
 
+
+	//
+	// The skipaddr bitfield below is our cheaters way of handling
+	// device selection.  We grab particular wires from the bus to do
+	// this, and ignore all others.  While this may lead to some
+	// surprising results for the CPU when it tries to access an
+	// inappropriate address, it also minimizes our logic while also
+	// placing every address at the right address.  The only problem is
+	// ... devices will also be at some unexpected addresses, but ... this
+	// is still within our spec.
+	//
 	wire	[8:0]	skipaddr;
 	assign	skipaddr = { wb_addr[LGMEMSZ-2], wb_addr[LGFLASHSZ-2],
 				wb_addr[7:1] };
