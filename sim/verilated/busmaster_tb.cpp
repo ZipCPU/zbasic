@@ -47,6 +47,8 @@
 #include <stdint.h>
 
 #include "verilated.h"
+#include "design.h"
+#include "cpudefs.h"
 #include "Vbusmaster.h"
 
 #include "testb.h"
