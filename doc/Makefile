@@ -2,7 +2,7 @@
 ##
 ## Filename: 	Makefile
 ##
-## Project:	tttt, a simple 4x4x4 Tic-Tac-Toe Program
+## Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 ##
 ## Purpose:	To coordinate the build of documentation PDFs from their
 ##		LaTeX sources.
@@ -34,7 +34,7 @@
 ## for more details.
 ##
 ## You should have received a copy of the GNU General Public License along
-## with this program.  (It's in the $(ROOT)/doc directory, run make with no
+## with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 ## target there if the PDF file isn't present.)  If not, see
 ## <http://www.gnu.org/licenses/> for a copy.
 ##

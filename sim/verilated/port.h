@@ -40,8 +40,6 @@
 #ifndef	PORT_H
 #define	PORT_H
 
-// #include "usbi.h"
-
 // There are two ways to connect: via a serial port, and via a TCP socket
 // connected to a serial port.  This way, we can connect the device on one
 // computer, test it, and when/if it doesn't work we can replace the device
@@ -51,10 +49,6 @@
 #define	FPGATTY		"/dev/ttyUSB1"
 #define	FPGAPORT	7239	// Just some random port number ....
 
-#ifdef	USBI_H
-#define	FPGAOPEN(V) V= new FPGA(new USBI())
-#else
 #define FPGAOPEN(V) V= new FPGA(new NETCOMMS(FPGAHOST, FPGAPORT))
-#endif
 
 #endif

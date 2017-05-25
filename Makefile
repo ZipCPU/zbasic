@@ -38,7 +38,7 @@
 ##
 ##
 .PHONY: all
-all:	archive datestamp rtl sim sw
+all:	archive datestamp autodata rtl sim sw
 # all:	datestamp archive rtl sw sim bench bit
 #
 # Could also depend upon load, if desired, but not necessary
@@ -54,9 +54,10 @@ DEVSW := `find sw-board -name "*.cpp"` `find sw-board -name "*.h"` \
 	`find sw-board -name Makefile`
 PROJ  := 
 BIN  := # `find xilinx -name "*.bit"`
-CONSTRAINTS :=
+AUTODATA := `find auto-data -name "*.txt"`
+CONSTRAINTS := `find . -name "*.xdc"`
 YYMMDD:=`date +%Y%m%d`
-SUBMAKE := $(MAKE) --no-print-directory
+SUBMAKE:= $(MAKE) --no-print-directory -C
 
 .PHONY: datestamp
 datestamp:
@@ -65,36 +66,61 @@ datestamp:
 
 .PHONY: archive
 archive:
-	tar --transform s,^,$(YYMMDD)-arty/, -chjf $(YYMMDD)-arty.tjz $(BENCH) $(SW) $(RTL) $(SIM) $(NOTES) $(PROJ) $(BIN) $(CONSTRAINTS) README.md
+	tar --transform s,^,$(YYMMDD)-arty/, -chjf $(YYMMDD)-zbasic.tjz $(BENCH) $(SW) $(RTL) $(SIM) $(NOTES) $(PROJ) $(BIN) $(CONSTRAINTS) README.md
+
+.PHONY: autodata
+autodata:
+	$(MAKE) --no-print-directory --directory=auto-data
+	$(call copyif-changed,auto-data/toplevel.v,rtl/toplevel.v)
+	$(call copyif-changed,auto-data/main.v,rtl/main.v)
+	$(call copyif-changed,auto-data/regdefs.h,sw/host/regdefs.h)
+	$(call copyif-changed,auto-data/regdefs.cpp,sw/host/regdefs.cpp)
+	$(call copyif-changed,auto-data/board.h,sw/zlib/board.h)
+	$(call copyif-changed,auto-data/board.ld,sw/board/board.ld)
+	$(call copyif-changed,auto-data/rtl.make.inc,rtl/make.inc)
+	$(call copyif-changed,auto-data/main_tb.cpp,sim/verilated/main_tb.cpp)
 
 .PHONY: verilated
-verilated: datestamp
-	$(SUBMAKE) --no-print-directory --directory=rtl
+verilated: datestamp autodata
+	$(SUBMAKE) rtl
 
 .PHONY: rtl
 rtl: verilated
 
 .PHONY: sim
 sim: rtl
-	$(SUBMAKE) --directory=sim/verilated
+	$(SUBMAKE) sim/verilated
 
 # .PHONY: bench
 # bench: sw
 #	cd sim/verilated ; $(MAKE) --no-print-directory
 
 .PHONY: sw
-sw: sw-board
+sw: sw-host sw-zlib sw-board
+
+.PHONY: sw-zlib
+sw-zlib: autodata
+	$(SUBMAKE) sw/zlib
 
 .PHONY: sw-board
-sw-board: # sw-zlib -- included already in newlib by default
-	$(SUBMAKE) --directory=sw/board
+sw-board: sw-zlib
+	$(SUBMAKE) sw/board
+
+.PHONY: sw-host
+sw-host:
+	$(SUBMAKE) sw/host
 
 .PHONY: hello
 hello: sim sw
-	sim/verilated/busmaster_tb sw/board/hello
+	sim/verilated/main_tb sw/board/hello
 
 .PHONY: test
 test: hello
+
+define	copyif-changed
+	@bash -c 'cmp $(1) $(2); if [[ $$? != 0 ]]; then echo "Copying $(1) to $(2)"; cp $(1) $(2); fi'
+endef
+
 
 # .PHONY: bit
 # bit:
@@ -102,6 +128,8 @@ test: hello
 
 .PHONY: clean
 clean:
-	$(SUBMAKE) --directory=sim/verilated clean
-	$(SUBMAKE) --directory=rtl           clean
-	$(SUBMAKE) --directory=sw/board      clean
+	$(SUBMAKE) sim/verilated clean
+	$(SUBMAKE) rtl           clean
+	$(SUBMAKE) sw/zlib       clean
+	$(SUBMAKE) sw/board      clean
+	$(SUBMAKE) sw/host       clean

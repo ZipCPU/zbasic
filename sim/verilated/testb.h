@@ -41,15 +41,19 @@
 #include <stdint.h>
 #include <verilated_vcd_c.h>
 
+#define	TBASSERT(TB,A) do { if (!(A)) { (TB).closetrace(); } assert(A); } while(0);
+
 template <class VA>	class TESTB {
 public:
 	VA	*m_core;
 	VerilatedVcdC*	m_trace;
-	unsigned long	m_tickcount;
+	unsigned long	m_traceticks;
 
-	TESTB(void) : m_trace(NULL), m_tickcount(0l) {
+	TESTB(void) : m_trace(NULL), m_traceticks(0l) {
 		m_core = new VA;
 		Verilated::traceEverOn(true);
+		m_core->i_clk = 0;
+		eval(); // Get our initial values set properly.
 	}
 	virtual ~TESTB(void) {
 		if (m_trace) m_trace->close();
@@ -58,9 +62,11 @@ public:
 	}
 
 	virtual	void	opentrace(const char *vcdname) {
-		m_trace = new VerilatedVcdC;
-		m_core->trace(m_trace, 99);
-		m_trace->open(vcdname);
+		if (!m_trace) {
+			m_trace = new VerilatedVcdC;
+			m_core->trace(m_trace, 99);
+			m_trace->open(vcdname);
+		}
 	}
 
 	virtual	void	closetrace(void) {
@@ -75,23 +81,30 @@ public:
 	}
 
 	virtual	void	tick(void) {
-		m_tickcount++;
+		m_traceticks++;
 
+		// Make sure we have our evaluations straight before the top
+		// of the clock.  This is necessary since some of the 
+		// connection modules may have made changes, for which some
+		// logic depends.  This forces that logic to be recalculated
+		// before the top of the clock.
 		eval();
-		if (m_trace) m_trace->dump(10*m_tickcount-2);
+		if (m_trace) m_trace->dump(10*m_traceticks-2);
 		m_core->i_clk = 1;
 		eval();
-		if (m_trace) m_trace->dump(10*m_tickcount);
+		if (m_trace) m_trace->dump(10*m_traceticks);
 		m_core->i_clk = 0;
 		eval();
-		if (m_trace) m_trace->dump(10*m_tickcount+5);
-
+		if (m_trace) {
+			m_trace->dump(10*m_traceticks+5);
+			m_trace->flush();
+		}
 	}
 
 	virtual	void	reset(void) {
-		m_core->i_rst = 1;
+		m_core->i_reset = 1;
 		tick();
-		m_core->i_rst = 0;
+		m_core->i_reset = 0;
 		// printf("RESET\n");
 	}
 };

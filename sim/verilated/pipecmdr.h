@@ -54,6 +54,18 @@
 
 #define	PIPEBUFLEN	256
 
+#define	i_rx_stb	i_host_rx_stb
+#define	i_rx_data	i_host_rx_data
+#define	o_tx_stb	o_host_tx_stb
+#define	o_tx_data	o_host_tx_data
+#define	i_tx_busy	i_host_tx_busy
+
+//
+// UARTLEN (a macro)
+//
+// Attempt to approximate our responses to the number of ticks a UART command
+// would respond.
+//
 // At 115200 Baud, 8 bits of data, no parity and one stop bit, there will
 // bit ten bits per character and therefore 8681 clocks per transfer
 //	8681 ~= 100 MHz / 115200 (bauds / second) * 10 bauds / character
@@ -62,18 +74,17 @@
 //
 // At 4MBaud, each bit takes 25 clocks.  10 bits would thus take 250 clocks
 //		
-// #define	UARTLEN		250 // Minimum ticks per character, 4M Baud
-// #define	UARTLEN		1000 // Minimum ticks per character, 1M Hz
-// #define	UARTLEN		8 // Minimum ticks per character
-#define	UARTLEN		4096	//
+#define	UARTLEN		732	// Ticks per character: 1MBaud, 81.25MHz clock
 
 template <class VA>	class	PIPECMDR : public TESTB<VA> {
+	bool	m_debug;
+
 	void	setup_listener(const int port) {
 		struct	sockaddr_in	my_addr;
 
 		signal(SIGPIPE, SIG_IGN);
 
-		printf("Listening on port %d\n", port);
+		if (m_debug) printf("Listening on port %d\n", port);
 
 		m_skt = socket(AF_INET, SOCK_STREAM, 0);
 		if (m_skt < 0) {
@@ -112,8 +123,11 @@ public:
 	char	m_txbuf[PIPEBUFLEN], m_rxbuf[PIPEBUFLEN];
 	int	m_ilen, m_rxpos, m_txpos, m_uart_wait, m_tx_busy;
 	bool	m_started_flag;
+	bool	m_copy;
 
-	PIPECMDR(const int port) : TESTB<VA>() {
+	PIPECMDR(const int port, const bool copy_to_stdout=true)
+			: TESTB<VA>(), m_copy(copy_to_stdout) {
+		m_debug = false;
 		m_con = m_skt = -1;
 		setup_listener(port);
 		m_rxpos = m_txpos = m_ilen = 0;
@@ -126,7 +140,6 @@ public:
 		// Close any active connection
 		if (m_con >= 0)	close(m_con);
 		if (m_skt >= 0) close(m_skt);
-		TESTB<VA>::closetrace();
 	}
 
 	virtual	void	tick(void) {
@@ -166,9 +179,11 @@ public:
 						m_rxbuf[m_ilen] = '\0';
 						if (m_rxbuf[m_ilen-1] == '\n') {
 							m_rxbuf[m_ilen-1] = '\0';
-							printf("< \'%s\'\n", m_rxbuf);
+							if (m_copy)
+								printf("< \'%s\'\n", m_rxbuf);
 							m_rxbuf[m_ilen-1] = '\n';
-						} else printf("< \'%s\'\n", m_rxbuf);
+						} else if (m_copy)
+							printf("< \'%s\'\n", m_rxbuf);
 						TESTB<VA>::m_core->i_rx_stb = 1;
 						TESTB<VA>::m_core->i_rx_data = m_rxbuf[0];
 						m_rxpos = 1; m_ilen--;
@@ -194,19 +209,11 @@ public:
 			m_uart_wait = m_uart_wait - 1;
 		}
 
-		/*
-		if (TESTB<VA>::m_core->i_rx_stb) {
-			putchar(TESTB<VA>::m_core->i_rx_data);
-			fflush(stdout);
-		}
-		*/
 		TESTB<VA>::tick();
 
-		bool tx_accepted = false;
 		if (m_tx_busy == 0) {
 			if ((TESTB<VA>::m_core->o_tx_stb)&&(m_con > 0)) {
 				m_txbuf[m_txpos++] = TESTB<VA>::m_core->o_tx_data;
-				tx_accepted = true;
 				if ((TESTB<VA>::m_core->o_tx_data == '\n')||(m_txpos >= (int)sizeof(m_txbuf))) {
 					int	snt = 0;
 					snt = send(m_con, m_txbuf, m_txpos, 0);
@@ -216,7 +223,7 @@ public:
 						snt = 0;
 					}
 					m_txbuf[m_txpos] = '\0';
-					printf("> %s", m_txbuf);
+					if (m_copy) printf("> %s", m_txbuf);
 					if (snt < m_txpos) {
 						fprintf(stderr, "Only sent %d bytes of %d!\n",
 							snt, m_txpos);
@@ -230,18 +237,6 @@ public:
 		if ((TESTB<VA>::m_core->o_tx_stb)&&(TESTB<VA>::m_core->i_tx_busy==0))
 			m_tx_busy = UARTLEN;
 		TESTB<VA>::m_core->i_tx_busy = (m_tx_busy != 0);
-
-		if (0) {
-			if ((m_tx_busy!=0)||(TESTB<VA>::m_core->i_tx_busy)
-				||(TESTB<VA>::m_core->o_tx_stb)
-				||(tx_accepted))
-				printf("%4d %d %d %02x %s\n",
-					m_tx_busy,
-					TESTB<VA>::m_core->i_tx_busy,
-					TESTB<VA>::m_core->o_tx_stb,
-					TESTB<VA>::m_core->o_tx_data,
-					(tx_accepted)?"READ!":"");
-		}
 	}
 };
 

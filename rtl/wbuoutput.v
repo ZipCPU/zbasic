@@ -42,6 +42,7 @@
 module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 		i_wb_cyc, i_int, i_bus_busy,
 		o_stb, o_char, i_tx_busy, o_fifo_err);
+	parameter	LGOUTPUT_FIFO = 10;
 	input			i_clk, i_rst;
 	input			i_stb;
 	input		[35:0]	i_codword;
@@ -62,17 +63,23 @@ module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 	wire	[35:0]	cw_codword, cp_word;
 	wire	[6:0]	dw_bits, ln_bits;
 
-// `define	SKIP_FIFO
-`ifdef	SKIP_FIFO
-	assign	fifo_rd = i_stb;
-	assign	fifo_codword = i_codword;
-	assign	fifo_err = 1'b0;
-`else
-	assign	fifo_rd = (fifo_empty_n)&&(~cw_busy);
-	wbufifo #(36,10) busoutfifo(i_clk, i_rst, i_stb, i_codword, 
+	generate
+	if (LGOUTPUT_FIFO < 2)
+	begin
+
+		assign	fifo_rd = i_stb;
+		assign	fifo_codword = i_codword;
+		assign	fifo_err = 1'b0;
+
+	end else begin
+
+		assign	fifo_rd = (fifo_empty_n)&&(~cw_busy);
+		wbufifo #(36,LGOUTPUT_FIFO)
+			busoutfifo(i_clk, i_rst, i_stb, i_codword,
 				fifo_rd, fifo_codword, fifo_empty_n,
 				fifo_err);
-`endif
+
+	end endgenerate
 
 	assign	o_fifo_err = fifo_err;
 

@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename: 	spiflashsim.h
+// Filename: 	qspiflashsim.h
 //
 // Project:	Wishbone Controlled Quad SPI Flash Controller
 //
@@ -69,15 +69,33 @@ class	QSPIFLASHSIM {
 	char		*m_mem, *m_pmem;
 	int		m_last_sck;
 	unsigned	m_write_count, m_ireg, m_oreg, m_sreg, m_addr,
-			m_count, m_config, m_mode_byte, m_creg;
+			m_count, m_config, m_mode_byte, m_creg, m_membytes,
+			m_memmask;
 	bool		m_quad_mode, m_debug;
 
 public:
-	QSPIFLASHSIM(void);
-	void	load(const char *fname);
+	QSPIFLASHSIM(const int lglen = 24, bool debug = false);
+	void	load(const char *fname) { load(0, fname); }
+	void	load(const unsigned addr, const char *fname);
 	void	load(const uint32_t offset, const char *data, const uint32_t len);
 	void	debug(const bool dbg) { m_debug = dbg; }
 	bool	debug(void) const { return m_debug; }
+	unsigned operator[](const int index) {
+		unsigned char	*cptr = (unsigned char *)&m_mem[index<<2];
+		unsigned	v;
+		v = (*cptr++);
+		v = (v<<8)|(*cptr++);
+		v = (v<<8)|(*cptr++);
+		v = (v<<8)|(*cptr);
+
+		return v; }
+	void set(const unsigned addr, const unsigned val) {
+		unsigned char	*cptr = (unsigned char *)&m_mem[addr<<2];
+		*cptr++ = (val>>24);
+		*cptr++ = (val>>16);
+		*cptr++ = (val>> 8);
+		*cptr   = (val);
+		return;}
 	int	operator()(const int csn, const int sck, const int dat);
 };
 

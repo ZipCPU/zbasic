@@ -41,10 +41,11 @@ AS=zip-as
 LD=zip-ld
 NM=zip-nm
 OBJDUMP=zip-objdump
-INSTALLD=/home/dan/work/rnd/zipcpu/branch8b/sw/install
+INSTALLD=/home/dan/work/rnd/zipcpu/sw/install
 NLIBD=$(INSTALLD)/cross-tools/zip/lib
-LIBS=$(NLIBD)/crt0.o $(NLIBD)/libzipbasic.a $(NLIBD)/libg.a $(NLIBD)/libc.a
-LDSCRIPT=zbasic.ld
+ZLIBD=../zlib
+LIBS=$(ZLIBD)/libzbasic.a $(NLIBD)/libg.a $(NLIBD)/libc.a
+LDSCRIPT=board.ld
 
 hello: hello.c
 	$(CC) $(CFLAGS) -T$(LDSCRIPT) $< $(LIBS) -o $@

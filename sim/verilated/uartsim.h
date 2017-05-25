@@ -4,7 +4,10 @@
 //
 // Project:	wbuart32, a full featured UART with simulator
 //
-// Purpose:	
+// Purpose:	To forward a Verilator simulated UART link over a TCP/IP pipe.
+//
+//	This file provides the description of the interface between the UARTSIM
+//	and the rest of the world.  See below for more detailed descriptions.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC

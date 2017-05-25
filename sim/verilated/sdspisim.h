@@ -42,6 +42,8 @@
 #ifndef	SDSPISIM_H
 #define	SDSPISIM_H
 
+#include <stdio.h>
+
 typedef enum	eRESET_STATES {
 	SDSPI_POWERUP_RESET,
 	SDSPI_CMD0_IDLE,
@@ -75,7 +77,7 @@ class	SDSPISIM {
 	char		m_csd[SDSPI_CSDLEN], m_cid[SDSPI_CIDLEN];
 
 public:
-	SDSPISIM(void);
+	SDSPISIM(const bool debug = false);
 	void	load(const char *fname);
 	void	debug(const bool dbg) { m_debug = dbg; }
 	bool	debug(void) const { return m_debug; }

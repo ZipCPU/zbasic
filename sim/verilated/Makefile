@@ -1,6 +1,6 @@
 ################################################################################
 ##
-## Filename: 	Makefile
+## Filename:	Makefile
 ##
 ## Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 ##
@@ -48,13 +48,14 @@ YYMMDD   := `date +%Y%m%d`
 VOBJDR   := ../../rtl/obj_dir
 VROOT   ?= $(shell bash -c 'verilator -V|grep VERILATOR_ROOT | head -1 | sed -e " s/^.*=\s*//"')
 VINC     := -I$(VROOT)/include -I$(VROOT)/include/vltstd -I$(VOBJDR)
-CFLAGS   :=  -c -g -Wall -I. -I../../rtl $(VINC)
+INCS     :=  -I. -I../../rtl -I../../sw/host $(VINC)
+CFLAGS   :=  -c -g -Wall $(INCS)
 # Now return to the "all" target, and fill in some details
-all:	$(OBJDIR)/ programs archive
+all:	$(OBJDIR)/ programs
 
 
 .PHONY: programs
-programs:	busmaster_tb
+programs:	main_tb
 
 $(OBJDIR)/:
 	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi"
@@ -71,11 +72,12 @@ $(OBJDIR)/%.o: %.cpp
 $(OBJDIR)/%.o: $(VROOT)/include/%.cpp
 	$(CXX) $(CFLAGS) $< -o $@
 
-busmaster_tb: $(OBJDIR)/qspiflashsim.o $(OBJDIR)/sdspisim.o
-busmaster_tb: $(OBJDIR)/uartsim.o
-busmaster_tb: $(OBJDIR)/verilated.o $(OBJDIR)/verilated_vcd_c.o
-busmaster_tb: $(OBJDIR)/zipelf.o $(VOBJDR)/Vbusmaster__ALL.a
-busmaster_tb: $(OBJDIR)/busmaster_tb.o
+main_tb: $(OBJDIR)/qspiflashsim.o $(OBJDIR)/sdspisim.o
+main_tb: $(OBJDIR)/uartsim.o
+main_tb: $(OBJDIR)/verilated.o $(OBJDIR)/verilated_vcd_c.o
+main_tb: $(OBJDIR)/zipelf.o $(VOBJDR)/Vmain__ALL.a
+main_tb: $(OBJDIR)/byteswap.o
+main_tb: $(OBJDIR)/main_tb.o $(OBJDIR)/automaster_tb.o
 	$(CXX) -g -o $@ $^ -lelf
 
 
@@ -112,11 +114,5 @@ tags:	$(SOURCES) $(HEADERS)
 	@echo "Generating tags"
 	@ctags $(SOURCES) $(HEADERS)
 
-#
-# The "archive" target
-#
-.PHONY: archive
-archive:
-	tar --transform s,^,$(YYMMDD)-vsim/, -chjf $(YYMMDD)-vsim.tjz Makefile *.cpp *.h
 
 -include $(OBJDIR)/depends.txt
