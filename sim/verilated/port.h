@@ -2,7 +2,7 @@
 //
 // Filename:	port.h
 //
-// Project:	XuLA2 board
+// Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	Defines the communication parameters necessary for communicating
 //		with the device.
@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015,2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2017, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -46,8 +46,7 @@
 // with the test-bench.  Across the network, no one will know any better that
 // anything had changed.
 #define	FPGAHOST	"localhost"	// A random hostname,back from the grave
-#define	FPGATTY		"/dev/ttyUSB1"
-#define	FPGAPORT	7239	// Just some random port number ....
+#define	FPGAPORT	8845
 
 #define FPGAOPEN(V) V= new FPGA(new NETCOMMS(FPGAHOST, FPGAPORT))
 

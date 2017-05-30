@@ -74,21 +74,21 @@ module	sdspi(i_clk,
 		// And some wires for debugging it all
 		o_debug);
 	parameter	LGFIFOLN = 7;
-	input	i_clk;
+	input	wire		i_clk;
 	//
-	input			i_wb_cyc, i_wb_stb, i_wb_we;
-	input		[1:0]	i_wb_addr;
-	input		[31:0]	i_wb_data;
+	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire	[1:0]	i_wb_addr;
+	input	wire	[31:0]	i_wb_data;
 	output	reg		o_wb_ack;
 	output	wire		o_wb_stall;
 	output	reg	[31:0]	o_wb_data;
 	//
 	output	wire		o_cs_n, o_sck, o_mosi;
-	input			i_miso;
+	input	wire		i_miso;
 	// The interrupt
 	output	reg		o_int;
 	// .. and whether or not we can use the SPI port
-	input			i_bus_grant;
+	input	wire		i_bus_grant;
 	//
 	output	wire	[31:0]	o_debug;
 

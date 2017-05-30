@@ -43,16 +43,16 @@ module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 		i_wb_cyc, i_int, i_bus_busy,
 		o_stb, o_char, i_tx_busy, o_fifo_err);
 	parameter	LGOUTPUT_FIFO = 10;
-	input			i_clk, i_rst;
-	input			i_stb;
-	input		[35:0]	i_codword;
+	input	wire		i_clk, i_rst;
+	input	wire		i_stb;
+	input	wire	[35:0]	i_codword;
 	// Not Idle indicators
-	input			i_wb_cyc, i_int, i_bus_busy;
+	input	wire		i_wb_cyc, i_int, i_bus_busy;
 	// Outputs to our UART transmitter
 	output	wire		o_stb;
 	output	wire	[7:0]	o_char;
 	// Miscellaneous I/O: UART transmitter busy, and fifo error
-	input			i_tx_busy;
+	input	wire		i_tx_busy;
 	output	wire		o_fifo_err;
 
 	wire		fifo_rd, dw_busy, fifo_empty_n, fifo_err;

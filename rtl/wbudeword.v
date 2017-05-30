@@ -41,9 +41,9 @@
 //
 //
 module	wbudeword(i_clk, i_stb, i_word, i_tx_busy, o_stb, o_nl_hexbits, o_busy);
-	input			i_clk, i_stb;
-	input		[35:0]	i_word;
-	input			i_tx_busy;
+	input	wire		i_clk, i_stb;
+	input	wire	[35:0]	i_word;
+	input	wire		i_tx_busy;
 	output	reg		o_stb;
 	output	reg	[6:0]	o_nl_hexbits;
 	output	reg		o_busy;

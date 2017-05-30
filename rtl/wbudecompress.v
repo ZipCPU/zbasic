@@ -42,8 +42,8 @@
 //
 //
 module	wbudecompress(i_clk, i_stb, i_word, o_stb, o_word);
-	input			i_clk, i_stb;
-	input		[35:0]	i_word;
+	input	wire		i_clk, i_stb;
+	input	wire	[35:0]	i_word;
 	output	reg		o_stb;
 	output	reg	[35:0]	o_word;
 

@@ -66,7 +66,7 @@ datestamp:
 
 .PHONY: archive
 archive:
-	tar --transform s,^,$(YYMMDD)-arty/, -chjf $(YYMMDD)-zbasic.tjz $(BENCH) $(SW) $(RTL) $(SIM) $(NOTES) $(PROJ) $(BIN) $(CONSTRAINTS) README.md
+	tar --transform s,^,$(YYMMDD)-zbasic/, -chjf $(YYMMDD)-zbasic.tjz $(BENCH) $(SW) $(RTL) $(SIM) $(NOTES) $(PROJ) $(BIN) $(CONSTRAINTS) README.md
 
 .PHONY: autodata
 autodata:
@@ -128,6 +128,7 @@ endef
 
 .PHONY: clean
 clean:
+	$(SUBMAKE) auto-data     clean
 	$(SUBMAKE) sim/verilated clean
 	$(SUBMAKE) rtl           clean
 	$(SUBMAKE) sw/zlib       clean

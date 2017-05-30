@@ -45,7 +45,7 @@
 
 void
 _outbyte(char v) {
-#ifdef	_ZIP_HAS_WBUART
+#if	defined(_BOARD_HAS_WBUART)
 	if (v == '\n') {
 		// Depend upon the WBUART, not the PIC
 		while(_uart->u_fifo & 0x010000)
@@ -58,14 +58,27 @@ _outbyte(char v) {
 		;
 	uint8_t c = v;
 	_uarttx = (unsigned)c;
-#else
-#ifdef	_ZIP_HAS_UARTTX
+#elif	defined(_BOARD_HAS_BUSCONSOLE)
+	if (v == '\n') {
+		// Depend upon the WBUART, not the PIC
+		while(_uart->u_fifo & 0x010000)
+			;
+		_uart->u_tx = (unsigned)'\r';
+	}
+
+	// Depend upon the WBUART, not the PIC
+	while(_uart->u_fifo & 0x010000)
+		;
+	uint8_t c = v;
+	_uart->u_tx = (unsigned)c;
+#elif	defined(_ZIP_HAS_UARTTX)
 	// Depend upon the WBUART, not the PIC
 	while(UARTTX & 0x100)
 		;
 	uint8_t c = v;
 	UARTTX = (unsigned)c;
-#endif
+#else
+#error	"No console"
 #endif
 }
 
@@ -374,3 +387,25 @@ _sbrk_r(struct _reent *reent, int sz) {
 	return	prev;
 }
 
+__attribute__((__noreturn__))
+void	_exit(int rcode) {
+	void	_hw_shutdown(int rcode) _ATTRIBUTE((__noreturn__));
+
+	// Wait for any serial ports to flush their buffers
+#if	defined(_BOARD_HAS_WBUART)
+	while(_uart->u_tx & 0x0100)
+		;
+#elif	defined(_BOARD_HAS_BUSCONSOLE)
+	while(_uart->u_tx & 0x0100)
+		;
+#elif	defined(_ZIP_HAS_UARTTX)
+	// Depend upon the WBUART, not the PIC
+	while(UARTTX & 0x100)
+		;
+	uint8_t c = v;
+	UARTTX = (unsigned)c;
+#else
+// #error	"No console"
+#endif
+	_hw_shutdown(rcode);
+}

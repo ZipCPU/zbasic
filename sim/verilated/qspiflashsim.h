@@ -78,10 +78,14 @@ public:
 	void	load(const char *fname) { load(0, fname); }
 	void	load(const unsigned addr, const char *fname);
 	void	load(const uint32_t offset, const char *data, const uint32_t len);
+	bool	write_protect(void) { return ((m_sreg & QSPIF_WEL_FLAG)==0); }
+	bool	write_in_progress(void) { return ((m_sreg | QSPIF_WIP_FLAG)!=0); }
+	bool	xip_mode(void) { return (QSPIF_QUAD_READ_IDLE == m_state); }
+	bool	quad_mode(void) { return m_quad_mode; }
 	void	debug(const bool dbg) { m_debug = dbg; }
 	bool	debug(void) const { return m_debug; }
 	unsigned operator[](const int index) {
-		unsigned char	*cptr = (unsigned char *)&m_mem[index<<2];
+		unsigned char	*cptr = (unsigned char *)&m_mem[index];
 		unsigned	v;
 		v = (*cptr++);
 		v = (v<<8)|(*cptr++);
@@ -90,7 +94,7 @@ public:
 
 		return v; }
 	void set(const unsigned addr, const unsigned val) {
-		unsigned char	*cptr = (unsigned char *)&m_mem[addr<<2];
+		unsigned char	*cptr = (unsigned char *)&m_mem[addr];
 		*cptr++ = (val>>24);
 		*cptr++ = (val>>16);
 		*cptr++ = (val>> 8);

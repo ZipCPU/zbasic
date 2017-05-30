@@ -28,7 +28,7 @@
 // for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this program.  (It's in the $(ROOT)/doc directory, run make with no
+// with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
 //
@@ -38,6 +38,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
+//
+`default_nettype	none
 //
 `define	QSPI_IDLE	3'h0
 `define	QSPI_START	3'h1
@@ -58,17 +60,17 @@ module	llqspi(i_clk,
 			o_word, o_valid, o_busy,
 		// QSPI interface
 		o_sck, o_cs_n, o_mod, o_dat, i_dat);
-	input			i_clk;
+	input	wire		i_clk;
 	// Chip interface
 	//	Can send info
 	//		i_dir = 1, i_spd = 0, i_hold = 0, i_wr = 1,
 	//			i_word = { 1'b0, 32'info to send },
 	//			i_len = # of bytes in word-1
-	input			i_wr, i_hold;
-	input		[31:0]	i_word;
-	input		[1:0]	i_len;	// 0=>8bits, 1=>16 bits, 2=>24 bits, 3=>32 bits
-	input			i_spd; // 0 -> normal QPI, 1 -> QSPI
-	input			i_dir; // 0 -> read, 1 -> write to SPI
+	input	wire		i_wr, i_hold;
+	input	wire	[31:0]	i_word;
+	input	wire	[1:0]	i_len;	// 0=>8bits, 1=>16 bits, 2=>24 bits, 3=>32 bits
+	input	wire		i_spd; // 0 -> normal QPI, 1 -> QSPI
+	input	wire		i_dir; // 0 -> read, 1 -> write to SPI
 	output	reg	[31:0]	o_word;
 	output	reg		o_valid, o_busy;
 	// Interface with the QSPI lines
@@ -325,16 +327,6 @@ module	llqspi(i_clk,
 			o_valid <= 1'b0;
 			o_cs_n <= 1'b0;
 			o_busy <= 1'b0;
-			r_spd <= i_spd;
-			r_dir <= i_dir;
-			if (i_spd)
-			begin
-				r_word <= { i_word[27:0], 4'h0 };
-				spi_len<= { 1'b0, i_len, 3'b100 };
-			end else begin
-				r_word <= { i_word[30:0], 1'b0 };
-				spi_len<= { 1'b0, i_len, 3'b111 };
-			end
 			if((~o_busy)&&(i_wr))// Acknowledge a new request
 			begin
 				state  <= `QSPI_BITS;
@@ -342,12 +334,20 @@ module	llqspi(i_clk,
 				o_sck  <= 1'b0;
 
 				// Read the new request off the bus
+				r_spd <= i_spd;
+				r_dir <= i_dir;
 				// Set up the first bits on the bus
 				o_mod<=(i_spd)?{ 1'b1, i_dir } : `QSPI_MOD_SPI;
 				if (i_spd)
+				begin
 					o_dat <= i_word[31:28];
-				else
+					r_word <= { i_word[27:0], 4'h0 };
+					spi_len<= { 1'b0, i_len, 3'b100 };
+				end else begin
 					o_dat <= { 3'b110, i_word[31] };
+					r_word <= { i_word[30:0], 1'b0 };
+					spi_len<= { 1'b0, i_len, 3'b111 };
+				end
 			end else begin
 				o_sck <= 1'b1;
 				state <= (i_hold)?`QSPI_HOLDING : `QSPI_STOP;

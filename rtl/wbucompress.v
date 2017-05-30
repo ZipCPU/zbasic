@@ -54,11 +54,11 @@
 // better here.
 module	wbucompress(i_clk, i_stb, i_codword, o_stb, o_cword, i_busy);
 	parameter	DW=32, CW=36, TBITS=10;
-	input				i_clk, i_stb;
-	input		[(CW-1):0]	i_codword;
+	input	wire			i_clk, i_stb;
+	input	wire	[(CW-1):0]	i_codword;
 	output	wire			o_stb;
 	output	wire	[(CW-1):0]	o_cword;
-	input				i_busy;
+	input	wire			i_busy;
 
 	//
 	//

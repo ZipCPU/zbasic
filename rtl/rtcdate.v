@@ -50,16 +50,16 @@
 //
 //
 ////////////////////////////////////////////////////////////////////////////////
-module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data,
+module rtcdate(i_clk, i_ppd, i_wb_cyc_stb, i_wb_we, i_wb_data,
 		o_wb_ack, o_wb_stall, o_wb_data);
-	input	i_clk;
+	input	wire	i_clk;
 	// A one part per day signal, i.e. basically a clock enable line that
 	// controls when the beginning of the day happens.  This line should
 	// be high on the very last second of any day in order for the rtcdate
 	// module to always have the right date.
-	input	i_ppd;
+	input	wire	i_ppd;
 	// Wishbone inputs
-	input	i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire	i_wb_cyc_stb, i_wb_we;
 	input	[31:0]	i_wb_data;
 	// Wishbone outputs
 	output	reg	o_wb_ack;
@@ -122,7 +122,7 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data,
 			r_day[5:4] <= r_day[5:4] + 2'h1;
 		end
 
-		if ((i_wb_stb)&&(i_wb_we)&&(i_wb_data[7:0]!=8'hff))
+		if ((i_wb_cyc_stb)&&(i_wb_we)&&(i_wb_data[7:0]!=8'hff))
 			r_day <= i_wb_data[5:0];
 	end
 
@@ -142,7 +142,7 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data,
 			r_mon[4] <= 1;
 		end
 
-		if ((i_wb_stb)&&(i_wb_we)&&(i_wb_data[15:8]!=8'hff))
+		if ((i_wb_cyc_stb)&&(i_wb_we)&&(i_wb_data[15:8]!=8'hff))
 			r_mon <= i_wb_data[12:8];
 	end
 
@@ -177,12 +177,12 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data,
 			end
 		end
 
-		if ((i_wb_stb)&&(i_wb_we)&&(i_wb_data[31:16]!=16'hffff))
+		if ((i_wb_cyc_stb)&&(i_wb_we)&&(i_wb_data[31:16]!=16'hffff))
 			r_year <= i_wb_data[29:16];
 	end
 
 	always @(posedge i_clk)
-		o_wb_ack <= (i_wb_stb);
+		o_wb_ack <= (i_wb_cyc_stb);
 	assign	o_wb_stall = 1'b0;
 	assign	o_wb_data = { 2'h0, r_year, 3'h0, r_mon, 2'h0, r_day };
 endmodule

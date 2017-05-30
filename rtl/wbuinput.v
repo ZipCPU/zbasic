@@ -41,8 +41,8 @@
 //
 //
 module	wbuinput(i_clk, i_stb, i_byte, o_stb, o_codword);
-	input			i_clk, i_stb;
-	input		[7:0]	i_byte;
+	input	wire		i_clk, i_stb;
+	input	wire	[7:0]	i_byte;
 	output	wire		o_stb;
 	output	wire	[35:0]	o_codword;
 

@@ -35,12 +35,30 @@
 #define	BOOTLOADER_H
 
 extern	int	_top_of_heap[1], _top_of_stack[1];
+extern	int	_boot_address[1];
 
-extern	int	_sdram[1], _flash[1], _blkram[1];
+#ifdef	_BOARD_HAS_BKRAM
+#ifdef	_BOARD_HAS_SDRAM
+extern	int	_kernel_image_start[1], _kernel_image_end[1],
+#define	_BOARD_HAS_KERNEL_SPACE
+#endif
+#endif
 
-extern	int	_boot_address[1],
-		_kernel_image_start[1], _kernel_image_end[1],
-		_sdram_image_start[1], _sdram_image_end[1],
+
+#ifndef	_BOARD_HAS_KERNEL_SPACE
+#ifndef	_ram
+
+#ifdef	_BOARD_HAS_BKRAM
+#define	_ram	_bkram
+#elif	defined(_BOARD_HAS_SDRAM)
+#define	_ram	_sdram
+#endif
+
+#endif	// _ram
+#endif	// _BOARD_HAS_KERNEL_SPACE
+
+
+extern	int	_ram_image_start[1], _ram_image_end[1],
 		_bss_image_end[1];
 
 #endif

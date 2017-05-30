@@ -38,6 +38,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
+`default_nettype	none
+//
 `define	UART_SETUP	2'b00
 `define	UART_FIFO	2'b01
 `define	UART_RXREG	2'b10
@@ -47,7 +49,7 @@ module	wbuart(i_clk, i_rst,
 		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
 			o_wb_ack, o_wb_stall, o_wb_data,
 		//
-		i_uart_rx, o_uart_tx, i_rts, o_cts,
+		i_uart_rx, o_uart_tx, i_cts_n, o_rts_n,
 		//
 		o_uart_rx_int, o_uart_tx_int,
 		o_uart_rxfifo_int, o_uart_txfifo_int);
@@ -60,29 +62,29 @@ module	wbuart(i_clk, i_rst,
 	localparam [3:0]	LCLLGFLEN = (LGFLEN > 4'ha)? 4'ha
 					: ((LGFLEN < 4'h2) ? 4'h2 : LGFLEN);
 	//
-	input	i_clk, i_rst;
+	input	wire		i_clk, i_rst;
 	// Wishbone inputs
-	input			i_wb_cyc, i_wb_stb, i_wb_we;
-	input		[1:0]	i_wb_addr;
-	input		[31:0]	i_wb_data;
+	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire	[1:0]	i_wb_addr;
+	input	wire	[31:0]	i_wb_data;
 	output	reg		o_wb_ack;
 	output	wire		o_wb_stall;
 	output	reg	[31:0]	o_wb_data;
 	//
-	input			i_uart_rx;
+	input	wire		i_uart_rx;
 	output	wire		o_uart_tx;
 	// RTS is used for hardware flow control.  According to Wikipedia, it
 	// should probably be renamed RTR for "ready to receive".  It tell us
 	// whether or not the receiving hardware is ready to accept another
 	// byte.  If low, the transmitter will pause.
 	//
-	// If you don't wish to use hardware flow control, just set i_rts to
-	// 1'b1 and let the optimizer simply remove this logic.
-	input			i_rts;
+	// If you don't wish to use hardware flow control, just set i_cts_n to
+	// 1'b0 and let the optimizer simply remove this logic.
+	input	wire		i_cts_n;
 	// CTS is the "Clear-to-send" signal.  We set it anytime our FIFO
 	// isn't full.  Feel free to ignore this output if you do not wish to
 	// use flow control.
-	output	reg		o_cts;
+	output	reg		o_rts_n;
 	output	wire		o_uart_rx_int, o_uart_tx_int,
 				o_uart_rxfifo_int, o_uart_txfifo_int;
 
@@ -120,15 +122,25 @@ module	wbuart(i_clk, i_rst,
 
 	// Here's our UART receiver.  Basically, it accepts our setup wires, 
 	// the UART input, a clock, and a reset line, and produces outputs:
-	// a stb (true when new data is ready), an 8-bit data out value
-	// valid when stb is high, a break value (true during a break cond.),
-	// and parity/framing error flags--also valid when stb is true.
+	// a stb (true when new data is ready), and an 8-bit data out value
+	// valid when stb is high.
+`ifdef	USE_LITE_UART
+	rxuartlite	#(INITIAL_SETUP[23:0])
+		rx(i_clk, (i_rst), i_uart_rx, rx_stb, rx_uart_data);
+	assign	rx_break = 1'b0;
+	assign	rx_perr  = 1'b0;
+	assign	rx_ferr  = 1'b0;
+	assign	ck_uart  = 1'b0;
+`else
+	// The full receiver also produces a break value (true during a break
+	// cond.), and parity/framing error flags--also valid when stb is true.
 	rxuart	#(INITIAL_SETUP) rx(i_clk, (i_rst)||(rx_uart_reset),
 			uart_setup, i_uart_rx,
 			rx_stb, rx_uart_data, rx_break,
 			rx_perr, rx_ferr, ck_uart);
-	// The real trick is ... now that we have this data, what do we do
+	// The real trick is ... now that we have this extra data, what do we do
 	// with it?
+`endif
 
 
 	// We place it into a receiver FIFO.
@@ -250,10 +262,10 @@ module	wbuart(i_clk, i_rst,
 	//
 	//
 	/////////////////////////////////////////
-	wire		tx_empty_n, txf_err;
+	wire		tx_empty_n, txf_err, tx_break;
 	wire	[7:0]	tx_data;
 	wire	[15:0]	txf_status;
-	reg		r_tx_break, txf_wb_write, tx_uart_reset;
+	reg		txf_wb_write, tx_uart_reset;
 	reg	[7:0]	txf_wb_data;
 
 	// Unlike the receiver which goes from RXUART -> UFIFO -> WB, the
@@ -282,7 +294,7 @@ module	wbuart(i_clk, i_rst,
 	// and ... we just set the values (above) for controlling writing into
 	// this.
 	ufifo	#(.LGFLEN(LGFLEN), .RXFIFO(0))
-		txfifo(i_clk, (r_tx_break)||(tx_uart_reset),
+		txfifo(i_clk, (tx_break)||(tx_uart_reset),
 			txf_wb_write, txf_wb_data,
 			tx_empty_n,
 			(!tx_busy)&&(tx_empty_n), tx_data,
@@ -296,6 +308,7 @@ module	wbuart(i_clk, i_rst,
 	//	charged.
 	assign	o_uart_txfifo_int = txf_status[1];
 
+`ifndef	USE_LITE_UART
 	// Break logic
 	//
 	// A break in a UART controller is any time the UART holds the line
@@ -304,12 +317,17 @@ module	wbuart(i_clk, i_rst,
 	// write unsigned characters to the interface, this will never be true
 	// unless you wish it to be true.  Be aware, though, writing a valid
 	// value to the interface will bring it out of the break condition.
+	reg	r_tx_break;
 	initial	r_tx_break = 1'b0;
 	always @(posedge i_clk)
 		if (i_rst)
 			r_tx_break <= 1'b0;
 		else if ((i_wb_stb)&&(i_wb_addr[1:0]==`UART_TXREG)&&(i_wb_we))
 			r_tx_break <= i_wb_data[9];
+	assign	tx_break = r_tx_break;
+`else
+	assign	tx_break = 1'b0;
+`endif
 
 	// TX-Reset logic
 	//
@@ -326,6 +344,12 @@ module	wbuart(i_clk, i_rst,
 		else
 			tx_uart_reset <= 1'b0;
 
+`ifdef	USE_LITE_UART
+	txuartlite #(INITIAL_SETUP[23:0]) tx(i_clk, (tx_empty_n), tx_data,
+			o_uart_tx, tx_busy);
+`else
+	wire	cts_n;
+	assign	cts_n = (HARDWARE_FLOW_CONTROL_PRESENT)&&(i_cts_n);
 	// Finally, the UART transmitter module itself.  Note that we haven't
 	// connected the reset wire.  Transmitting is as simple as setting
 	// the stb value (here set to tx_empty_n) and the data.  When these
@@ -337,8 +361,9 @@ module	wbuart(i_clk, i_rst,
 	// starting to transmit a new byte.)
 	txuart	#(INITIAL_SETUP) tx(i_clk, 1'b0, uart_setup,
 			r_tx_break, (tx_empty_n), tx_data,
-			((i_rts)||(!HARDWARE_FLOW_CONTROL_PRESENT)),
+			((i_cts_n)||(!HARDWARE_FLOW_CONTROL_PRESENT)),
 			o_uart_tx, tx_busy);
+`endif
 
 	// Now that we are done with the chain, pick some wires for the user
 	// to read on any read of the transmit port.
@@ -354,8 +379,8 @@ module	wbuart(i_clk, i_rst,
 	// whether or not we are actively transmitting.
 	wire	[31:0]	wb_tx_data;
 	assign	wb_tx_data = { 16'h00, 
-				i_rts, txf_status[1:0], txf_err,
-				ck_uart, o_uart_tx, r_tx_break, (tx_busy|tx_empty_n),
+				i_cts_n, txf_status[1:0], txf_err,
+				ck_uart, o_uart_tx, tx_break, (tx_busy|txf_status[0]),
 				(tx_busy|txf_status[0])?txf_wb_data:8'b00};
 
 	// Each of the FIFO's returns a 16 bit status value.  This value tells

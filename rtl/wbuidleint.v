@@ -43,18 +43,18 @@
 module	wbuidleint(i_clk, i_stb, i_codword, i_cyc, i_busy, i_int,
 		o_stb, o_codword, o_busy,
 		i_tx_busy);
-	input			i_clk;
+	input	wire		i_clk;
 	// From the FIFO following the bus executor
-	input			i_stb;
-	input		[35:0]	i_codword;
+	input	wire		i_stb;
+	input	wire	[35:0]	i_codword;
 	// From the rest of the board
-	input			i_cyc, i_busy, i_int;
+	input	wire		i_cyc, i_busy, i_int;
 	// To the next stage
 	output	reg		o_stb;
 	output	reg	[35:0]	o_codword;
 	output	reg		o_busy;
 	// Is the next stage busy?
-	input			i_tx_busy;
+	input	wire		i_tx_busy;
 
 	reg	int_request, int_sent;
 	initial	int_request = 1'b0;

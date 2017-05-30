@@ -167,6 +167,14 @@
 #define	cpu_new_pc	@$(VERILATOR_PREFIX)__DOT__swic__DOT__thecpu__DOT__new_pc
 #define	cpu_sim_immv	@$(VERILATOR_PREFIX)__DOT__swic__DOT__thecpu__DOT__op_sim_immv
 
+@SIM.DEFNS=
+	int	m_bomb;
+@SIM.INIT=
+		m_bomb = 0;
+@SIM.SETRESET=
+		m_core->i_cpu_reset = 1;
+@SIM.CLRRESET=
+		m_core->i_cpu_reset = 0;
 @SIM.METHODS=
 
 	void	loadelf(const char *elfname) {
@@ -319,6 +327,14 @@
 			&&(!m_core->cpu_new_pc)) {
 			//
 			execsim(m_core->cpu_sim_immv);
+		}
+
+		if (m_core->v__DOT__swic__DOT__cpu_break) {
+			m_bomb++;
+			dump(m_core->cpu_regs);
+		} else if (m_bomb) {
+			if (m_bomb++ > 12)
+				m_done = true;
 		}
 #endif	// @$(ACCESS)
 

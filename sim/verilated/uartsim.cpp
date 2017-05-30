@@ -57,8 +57,8 @@ void	UARTSIM::setup_listener(const int port) {
 
 	m_skt = socket(AF_INET, SOCK_STREAM, 0);
 	if (m_skt < 0) {
-		perror("Could not allocate socket: ");
-		exit(-1);
+		perror("ERR: Could not allocate socket: ");
+		exit(EXIT_FAILURE);
 	}
 
 	// Set the reuse address option
@@ -66,8 +66,8 @@ void	UARTSIM::setup_listener(const int port) {
 		int optv = 1, er;
 		er = setsockopt(m_skt, SOL_SOCKET, SO_REUSEADDR, &optv, sizeof(optv));
 		if (er != 0) {
-			perror("SockOpt Err:");
-			exit(-1);
+			perror("ERR: SockOpt Err:");
+			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -79,13 +79,13 @@ void	UARTSIM::setup_listener(const int port) {
 	my_addr.sin_port = htons(port);
 	
 	if (bind(m_skt, (struct sockaddr *)&my_addr, sizeof(my_addr))!=0) {
-		perror("BIND FAILED:");
-		exit(-1);
+		perror("ERR: BIND FAILED:");
+		exit(EXIT_FAILURE);
 	}
 
 	if (listen(m_skt, 1) != 0) {
-		perror("Listen failed:");
-		exit(-1);
+		perror("ERR: Listen failed:");
+		exit(EXIT_FAILURE);
 	}
 }
 

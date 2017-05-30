@@ -67,4 +67,4 @@ endef
 
 clean:
 	rm -f toplevel.v main.v regdefs.h regdefs.cpp board.h board.ld
-	rm -f rtl.make.inc dump.txt
+	rm -f rtl.make.inc dump.txt main_tb.cpp

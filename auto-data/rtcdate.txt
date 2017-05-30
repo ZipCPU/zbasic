@@ -46,7 +46,7 @@
 	//
 	// The Calendar DATE
 	//
-	rtcdate	the@$(PREFIX)(i_clk, rtc_ppd, wb_cyc,
+	rtcdate	the@$(PREFIX)(i_clk, rtc_ppd,
 		(wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_data,
 			@$(PREFIX)_ack, @$(PREFIX)_stall, @$(PREFIX)_data);
 @REGS.N=1

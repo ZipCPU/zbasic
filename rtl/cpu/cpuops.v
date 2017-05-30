@@ -1,4 +1,4 @@
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 // Filename:	cpuops.v
 //
@@ -12,7 +12,7 @@
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
 //
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 // Copyright (C) 2015-2017, Gisselquist Technology, LLC
 //
@@ -26,20 +26,25 @@
 // FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 // for more details.
 //
+// You should have received a copy of the GNU General Public License along
+// with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
+// target there if the PDF file isn't present.)  If not, see
+// <http://www.gnu.org/licenses/> for a copy.
+//
 // License:	GPL, v3, as defined and found on www.gnu.org,
 //		http://www.gnu.org/licenses/gpl.html
 //
 //
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 `include "cpudefs.v"
 //
 module	cpuops(i_clk,i_rst, i_ce, i_op, i_a, i_b, o_c, o_f, o_valid,
 			o_busy);
 	parameter	IMPLEMENT_MPY = `OPT_MULTIPLY;
-	input		i_clk, i_rst, i_ce;
-	input		[3:0]	i_op;
-	input		[31:0]	i_a, i_b;
+	input	wire	i_clk, i_rst, i_ce;
+	input	wire	[3:0]	i_op;
+	input	wire	[31:0]	i_a, i_b;
 	output	reg	[31:0]	o_c;
 	output	wire	[3:0]	o_f;
 	output	reg		o_valid;
@@ -123,8 +128,8 @@ module	cpuops(i_clk,i_rst, i_ce, i_op, i_a, i_b, o_c, o_f, o_valid,
 		assign	mpy_result = r_mpy_a_input * r_mpy_b_input;
 		assign	mpybusy = 1'b0;
 
-		initial	mpypipe = 1'b0;
 		reg	mpypipe;
+		initial	mpypipe = 1'b0;
 		always @(posedge i_clk)
 			if (i_rst)
 				mpypipe <= 1'b0;
@@ -200,6 +205,7 @@ module	cpuops(i_clk,i_rst, i_ce, i_op, i_a, i_b, o_c, o_f, o_valid,
 		reg	[2:0]	mpypipe;
 
 		// First clock, latch in the inputs
+		initial	mpypipe = 3'b0;
 		always @(posedge i_clk)
 		begin
 			// mpypipe indicates we have a multiply in the

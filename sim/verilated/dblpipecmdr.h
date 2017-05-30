@@ -96,8 +96,8 @@ template <class VA>	class	DBLPIPECMDR : public TESTB<VA> {
 
 		skt = socket(AF_INET, SOCK_STREAM, 0);
 		if (skt < 0) {
-			perror("Could not allocate socket: ");
-			exit(-1);
+			perror("ERR: Could not allocate socket: ");
+			exit(EXIT_FAILURE);
 		}
 
 		// Set the reuse address option
@@ -105,8 +105,8 @@ template <class VA>	class	DBLPIPECMDR : public TESTB<VA> {
 			int optv = 1, er;
 			er = setsockopt(skt, SOL_SOCKET, SO_REUSEADDR, &optv, sizeof(optv));
 			if (er != 0) {
-				perror("SockOpt Err:");
-				exit(-1);
+				perror("ERR: SockOpt Err:");
+				exit(EXIT_FAILURE);
 			}
 		}
 
@@ -116,16 +116,39 @@ template <class VA>	class	DBLPIPECMDR : public TESTB<VA> {
 		my_addr.sin_port = htons(port);
 	
 		if (bind(skt, (struct sockaddr *)&my_addr, sizeof(my_addr))!=0) {
-			perror("BIND FAILED:");
-			exit(-1);
+			perror("ERR: BIND FAILED:");
+			exit(EXIT_FAILURE);
 		}
 
 		if (listen(skt, 1) != 0) {
-			perror("Listen failed:");
-			exit(-1);
+			perror("ERR: Listen failed:");
+			exit(EXIT_FAILURE);
 		}
 
 		return skt;
+	}
+
+	int	transmit(int skt, char *buf, int ln, const char *prefix,
+			const char *linkid) {
+		int	snt = 0;
+
+		if (skt >= 0) {
+			snt = send(skt, buf, ln, 0);
+			if (snt < 0) {
+				printf("Closing %s socket\n", linkid);
+				close(skt);
+			}
+		}
+
+		buf[ln] = '\0';
+		if (prefix)
+			printf("%s%s", prefix, buf);
+		if ((snt > 0)&&(snt < m_cmdpos)) {
+			fprintf(stderr, "%s: Only sent %d bytes of %d!\n",
+				linkid, snt, m_cmdpos);
+		}
+
+		return snt;
 	}
 
 public:
@@ -143,7 +166,7 @@ public:
 	DBLPIPECMDR(const int port = FPGAPORT, const bool copy_to_stdout=true)
 			: TESTB<VA>(), m_copy(copy_to_stdout) {
 		m_debug = false;
-		m_con = m_skt = -1;
+		m_con = m_cmd = -1;
 		m_skt = setup_listener(port);
 		m_console = setup_listener(port+1);
 		m_rxpos = m_cmdpos = m_conpos = m_ilen = 0;
@@ -152,15 +175,33 @@ public:
 		m_tx_busy   = 0; // Flow control out of the FPGA
 	}
 
+	~DBLPIPECMDR(void) {
+		kill();
+	}
+
 	virtual	void	kill(void) {
 		// Close any active connection
-		if (m_con >= 0)	close(m_con);
-		if (m_skt >= 0) close(m_skt);
+		if (m_cmdpos > 0) {
+			m_cmdbuf[m_cmdpos++] = '\n';
+			transmit(m_cmd, m_cmdbuf, m_cmdpos, "", "CMD");
+			m_cmdpos = 0;
+		} if (m_cmd >= 0) {
+			close(m_cmd);
+		}
+		if (m_conpos > 0) {
+			m_conbuf[m_conpos++] = '\n';
+			transmit(m_con, m_conbuf, m_conpos, "", "CON");
+			m_conpos = 0;
+		} if (m_con >= 0) {
+			close(m_con);
+		}
+		if (m_skt >= 0)     close(m_skt);
 		if (m_console >= 0) close(m_console);
 
-		m_con = -1;
-		m_skt = -1;
+		m_con     = -1;
+		m_skt     = -1;
 		m_console = -1;
+		m_cmd     = -1;
 	}
 
 	virtual	void	tick(void) {
@@ -169,21 +210,25 @@ public:
 
 		{
 			// Check if we need to accept any connections
-			if (m_con < 0) {
+			if (m_cmd < 0) {
 				pb[npb].fd = m_skt;
 				pb[npb].events = POLLIN;
 				npb++;
 			}
 
-			if (m_cmd < 0) {
+			if (m_con < 0) {
 				pb[npb].fd = m_console;
 				pb[npb].events = POLLIN;
 				npb++;
 			}
 
 			if (npb > 0) {
-				poll(pb, 2, 0);
+				int	pr;
+				pr = poll(pb, npb, 0);
 
+				assert(pr >= 0);
+
+				if (pr > 0) {
 				for(int k=0; k<npb; k++) {
 					if ((pb[k].revents & POLLIN)==0)
 						continue;
@@ -192,12 +237,14 @@ public:
 
 						if (m_cmd < 0)
 							perror("CMD Accept failed:");
+						else printf("Accepted CMD connection\n");
 					} else if (pb[k].fd == m_console) {
 						m_con = accept(m_console, 0, 0);
 						if (m_con < 0)
 							perror("CON Accept failed:");
+						else printf("Accepted CON connection\n");
 					}
-				}
+				}}
 			}
 
 			// End of trying to accept more connections
@@ -219,7 +266,7 @@ public:
 					pb[npb].fd = m_cmd;
 					pb[npb].events = POLLIN;
 					npb++;
-				} else if (m_con >= 0) {
+				} if (m_con >= 0) {
 					pb[npb].fd = m_con;
 					pb[npb].events = POLLIN;
 					npb++;
@@ -273,41 +320,16 @@ public:
 				} else
 					m_conbuf[m_conpos++] = TESTB<VA>::m_core->o_tx_data & 0x7f;
 				if ((m_cmdpos>0)&&((m_cmdbuf[m_cmdpos-1] == '\n')||(m_cmdpos >= DBLPIPEBUFLEN))) {
-					int	snt = 0;
-					if (m_cmd >= 0)
-						snt = send(m_cmd,m_cmdbuf, m_cmdpos, 0);
-					if (snt < 0) {
-						printf("Closing CMD socket\n");
-						close(m_cmd);
+					if (transmit(m_cmd, m_cmdbuf, m_cmdpos, "> ", "CMD") < 0) {
 						m_cmd = -1;
-						snt = 0;
-					} // else printf("%d/%d bytes returned\n", snt, m_cmdpos);
-					m_cmdbuf[m_cmdpos] = '\0';
-					if (m_copy) printf("> %s", m_cmdbuf);
-					if (snt < m_cmdpos) {
-						fprintf(stderr, "CMD: Only sent %d bytes of %d!\n",
-							snt, m_cmdpos);
 					}
 					m_cmdpos = 0;
 				}
 
 				if ((m_conpos>0)&&((m_conbuf[m_conpos-1] == '\n')||(m_conpos >= DBLPIPEBUFLEN))) {
-					int	snt = 0;
-					if (m_con >= 0) {
-						snt = send(m_con,m_conbuf, m_conpos, 0);
-						if (snt < 0) {
-							printf("Closing CONsole socket\n");
-							close(m_con);
-							m_con = -1;
-							snt = 0;
-						}
-						if (snt < m_conpos) {
-							fprintf(stderr, "CON: Only sent %d bytes of %d!\n",
-								snt, m_conpos);
-						}
+					if (transmit(m_con, m_conbuf, m_conpos, "", "CON") < 0) {
+						m_con = -1;
 					}
-					m_conbuf[m_conpos] = '\0';
-					printf("%s", m_conbuf);
 					m_conpos = 0;
 				}
 			}

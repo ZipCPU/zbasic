@@ -97,22 +97,22 @@ module	llsdspi(i_clk, i_speed, i_cs, i_stb, i_byte,
 		o_stb, o_byte, o_idle, i_bus_grant);
 	parameter	SPDBITS = 7;
 	//
-	input			i_clk;
+	input	wire		i_clk;
 	// Parameters/setup
-	input		[(SPDBITS-1):0]	i_speed;
+	input	wire	[(SPDBITS-1):0]	i_speed;
 	// The incoming interface
-	input			i_cs;
-	input			i_stb;
-	input		[7:0]	i_byte;
+	input	wire		i_cs;
+	input	wire		i_stb;
+	input	wire	[7:0]	i_byte;
 	// The actual SPI interface
 	output	reg		o_cs_n, o_sclk, o_mosi;
-	input			i_miso;
+	input	wire		i_miso;
 	// The outgoing interface
 	output	reg		o_stb;
 	output	reg	[7:0]	o_byte;
 	output	wire		o_idle;
 	// And whether or not we actually own the interface (yet)
-	input			i_bus_grant;
+	input	wire		i_bus_grant;
 
 	reg			r_z_counter;
 	reg	[(SPDBITS-1):0]	r_clk_counter;

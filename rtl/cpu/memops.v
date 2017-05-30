@@ -32,7 +32,7 @@
 // for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this program.  (It's in the $(ROOT)/doc directory, run make with no
+// with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
 //
@@ -52,13 +52,13 @@ module	memops(i_clk, i_rst, i_stb, i_lock,
 		i_wb_ack, i_wb_stall, i_wb_err, i_wb_data);
 	parameter	ADDRESS_WIDTH=30, IMPLEMENT_LOCK=0, WITH_LOCAL_BUS=0;
 	localparam	AW=ADDRESS_WIDTH;
-	input			i_clk, i_rst;
-	input			i_stb, i_lock;
+	input	wire		i_clk, i_rst;
+	input	wire		i_stb, i_lock;
 	// CPU interface
-	input		[2:0]	i_op;
-	input		[31:0]	i_addr;
-	input		[31:0]	i_data;
-	input		[4:0]	i_oreg;
+	input	wire	[2:0]	i_op;
+	input	wire	[31:0]	i_addr;
+	input	wire	[31:0]	i_data;
+	input	wire	[4:0]	i_oreg;
 	// CPU outputs
 	output	wire		o_busy;
 	output	reg		o_valid;
@@ -75,8 +75,8 @@ module	memops(i_clk, i_rst, i_stb, i_lock,
 	output	reg	[31:0]	o_wb_data;
 	output	reg	[3:0]	o_wb_sel;
 	// Wishbone inputs
-	input			i_wb_ack, i_wb_stall, i_wb_err;
-	input		[31:0]	i_wb_data;
+	input	wire		i_wb_ack, i_wb_stall, i_wb_err;
+	input	wire	[31:0]	i_wb_data;
 
 	reg	r_wb_cyc_gbl, r_wb_cyc_lcl;
 	wire	gbl_stb, lcl_stb;
@@ -163,10 +163,10 @@ module	memops(i_clk, i_rst, i_stb, i_lock,
 
 	initial	o_valid = 1'b0;
 	always @(posedge i_clk)
-		o_valid <= ((o_wb_cyc_gbl)||(o_wb_cyc_lcl))&&(i_wb_ack)&&(~o_wb_we);
+		o_valid <= (!i_rst)&&((o_wb_cyc_gbl)||(o_wb_cyc_lcl))&&(i_wb_ack)&&(~o_wb_we);
 	initial	o_err = 1'b0;
 	always @(posedge i_clk)
-		o_err <= ((o_wb_cyc_gbl)||(o_wb_cyc_lcl))&&(i_wb_err);
+		o_err <= (!i_rst)&&((o_wb_cyc_gbl)||(o_wb_cyc_lcl))&&(i_wb_err);
 	assign	o_busy = (o_wb_cyc_gbl)||(o_wb_cyc_lcl);
 
 	always @(posedge i_clk)
@@ -182,7 +182,7 @@ module	memops(i_clk, i_rst, i_stb, i_lock,
 		4'b01??: o_result <= i_wb_data;
 		4'b100?: o_result <= { 16'h00, i_wb_data[31:16] };
 		4'b101?: o_result <= { 16'h00, i_wb_data[15: 0] };
-		4'h1100: o_result <= { 24'h00, i_wb_data[31:24] };
+		4'b1100: o_result <= { 24'h00, i_wb_data[31:24] };
 		4'b1101: o_result <= { 24'h00, i_wb_data[23:16] };
 		4'b1110: o_result <= { 24'h00, i_wb_data[15: 8] };
 		4'b1111: o_result <= { 24'h00, i_wb_data[ 7: 0] };

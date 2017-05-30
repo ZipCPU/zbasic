@@ -1,6 +1,6 @@
 ################################################################################
 ##
-## Filename:	Makefile
+## Filename: 	rtl/Makefile
 ##
 ## Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 ##
@@ -44,11 +44,11 @@ CXX   := g++
 FBDIR := .
 VDIRFB:= $(FBDIR)/obj_dir
 
-.PHONY: test hand-test auto-test
-test:	hand-test auto-test
+.PHONY: test auto-test
+test:	auto-test
 
-.PHONY: hand-test
-hand-test: $(VDIRFB)/Vbusmaster__ALL.a
+# .PHONY: hand-test
+# hand-test: $(VDIRFB)/Vbusmaster__ALL.a
 
 .PHONY: auto-test
 auto-test: $(VDIRFB)/Vmain__ALL.a
@@ -60,7 +60,7 @@ CPUSOURCESnD := zipcpu.v cpuops.v pfcache.v pipemem.v		\
 		wbdmac.v icontrol.v wbwatchdog.v busdelay.v cpudefs.v
 CPUSOURCES := $(addprefix $(CPUDR)/,$(CPUSOURCESnD))
 
-JTAGBUS := wbufifo.v wbubus.v wbucompactlines.v				\
+JTAGBUS := wbuconsole.v wbufifo.v wbucompactlines.v				\
 	wbucompress.v wbudecompress.v wbudeword.v wbuexec.v		\
 	wbuidleint.v wbuinput.v wbuoutput.v wbureadcw.v wbusixchar.v	\
 	wbutohex.v
@@ -79,10 +79,16 @@ $(VDIRFB)/Vmain__ALL.a: $(VDIRFB)/Vmain.h $(VDIRFB)/Vmain.cpp
 $(VDIRFB)/Vmain__ALL.a: $(VDIRFB)/Vmain.mk
 $(VDIRFB)/Vmain.h $(VDIRFB)/Vmain.cpp $(VDIRFB)/Vmain.mk: $(SOURCES)
 
-$(VDIRFB)/V%.cpp $(VDIRFB)/V%.h $(VDIRFB)/V%.mk: $(FBDIR)/%.v
+$(VDIRFB)/V%.cpp: $(VDIRFB)/V%.h
+$(VDIRFB)/V%.mk:  $(VDIRFB)/V%.h
+$(VDIRFB)/V%.h: $(FBDIR)/%.v
 	verilator -trace -cc -y $(CPUDR) $*.v
 
-$(VDIRFB)/Vmain.cpp $(VDIRFB)/Vmain.h $(VDIRFB)/Vmain.mk: main.v $(VFLIST)
+$(VDIRFB)/Vmain.cpp: $(VDIRFB)/Vmain.h
+	@echo > /dev/null
+$(VDIRFB)/Vmain.mk:  $(VDIRFB)/Vmain.h
+	@echo > /dev/null
+$(VDIRFB)/Vmain.h: main.v $(VFLIST) $(SLOWSRC) $(JTAGBUS) $(CPUSOURCES)
 	verilator -trace -cc $(AUTOVDIRS) main.v
 
 $(VDIRFB)/Vbusmaster.cpp $(VDIRFB)/Vbusmaster.h $(VDIRFB)/Vbusmaster.mk: \

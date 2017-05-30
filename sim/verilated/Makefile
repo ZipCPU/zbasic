@@ -5,10 +5,10 @@
 ## Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 ##
 ## Purpose:	To coordinate the build of a cycle accurate, Verilator based,
-##		simulation of the busmaster module.  Access to the simulation
-##	is provided via the same software commands that will access the board,
-##	save that the parameters are a touch different.  (See the access
-##	software for more information ...)
+##		simulation of the main module.  Access to the simulation is
+##	provided via the same software commands that will access the board, save
+##	that the parameters are a touch different.  (See the access software for
+##	more information ...)
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
 ##		Gisselquist Technology, LLC
@@ -64,7 +64,7 @@ CLSHEADERS:= qspiflashsim.h sdspisim.h uartsim.h zipelf.h
 CLSSOURCES:= $(subst .h,.cpp,$(CLSHEADERS))
 CLSOBJECTS:= $(addprefix $(OBJDIR)/,$(subst .h,.o,$(CLSHEADERS)))
 
-SOURCES := $(CLSSOURCES)
+SOURCES := $(CLSSOURCES) main_tb.cpp automaster_tb.cpp
 HEADERS := $(CLSHEADERS)
 
 $(OBJDIR)/%.o: %.cpp
@@ -96,7 +96,7 @@ clean:
 #
 define	build-depends
 	@echo "Building dependency file"
-	@$(CXX) -I. -I../../rtl $(VINC) -MM busmaster_tb.cpp $(SOURCES) > $(OBJDIR)/xdepends.txt
+	@$(CXX) $(INCS) -MM $(SOURCES) > $(OBJDIR)/xdepends.txt
         @sed -e 's/^.*.o: /$(OBJDIR)\/&/' < $(OBJDIR)/xdepends.txt > $(OBJDIR)/depends.txt
         @rm $(OBJDIR)/xdepends.txt
 endef

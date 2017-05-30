@@ -157,11 +157,16 @@ int	main(int argc, char **argv) {
 		tb->tick();
 	}
 
-#
-	while(!tb->done())
-		tb->tick();
+	if (willexit) {
+		while(!tb->done())
+			tb->tick();
+	} else
+		while(true)
+			tb->tick();
 
 	tb->close();
+	tb->kill();
+	delete tb;
 
 	return	EXIT_SUCCESS;
 }

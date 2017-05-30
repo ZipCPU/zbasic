@@ -46,7 +46,6 @@
 @KEYS.INTLIST= BUS_ADDRESS_WIDTH NADDR NPIC NSCOPES PIC.MAX REGS.N ID
 @$RESET_ADDRESS=@$flash.BASE
 @RESET_ADDRESS.FORMAT=32'h%08x
-@LD.DEFNS=_top_of_stack = ORIGIN(mem) + LENGTH(mem) - 4;
 @REGDEFS.H.INSERT=
 typedef	struct {
 	unsigned	m_addr;

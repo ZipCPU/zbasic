@@ -32,7 +32,7 @@
 // for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this program.  (It's in the $(ROOT)/doc directory, run make with no
+// with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
 //
@@ -55,6 +55,7 @@
 module	idecode(i_clk, i_rst, i_ce, i_stalled,
 		i_instruction, i_gie, i_pc, i_pf_valid,
 			i_illegal,
+		o_valid,
 		o_phase, o_illegal,
 		o_pc, o_gie,
 		o_dcdR, o_dcdA, o_dcdB, o_I, o_zI,
@@ -67,12 +68,12 @@ module	idecode(i_clk, i_rst, i_ce, i_stalled,
 		);
 	parameter	ADDRESS_WIDTH=24, IMPLEMENT_MPY=1, EARLY_BRANCHING=1,
 			IMPLEMENT_DIVIDE=1, IMPLEMENT_FPU=0, AW = ADDRESS_WIDTH;
-	input			i_clk, i_rst, i_ce, i_stalled;
-	input	[31:0]		i_instruction;
-	input			i_gie;
-	input	[(AW-1):0]	i_pc;
-	input			i_pf_valid, i_illegal;
-	output	wire		o_phase;
+	input	wire		i_clk, i_rst, i_ce, i_stalled;
+	input	wire [31:0]	i_instruction;
+	input	wire		i_gie;
+	input	wire [(AW-1):0]	i_pc;
+	input	wire		i_pf_valid, i_illegal;
+	output	wire		o_valid, o_phase;
 	output	reg		o_illegal;
 	output	reg	[AW:0]	o_pc;
 	output	reg		o_gie;
@@ -105,13 +106,14 @@ module	idecode(i_clk, i_rst, i_ce, i_stalled,
 
 
 	wire	[4:0]	w_op;
-	wire		w_ldi, w_mov, w_cmptst, w_ldilo, w_ALU, w_brev, w_noop;
+	wire		w_ldi, w_mov, w_cmptst, w_ldilo, w_ALU, w_brev,
+			w_noop, w_lock;
 	wire	[4:0]	w_dcdR, w_dcdB, w_dcdA;
 	wire		w_dcdR_pc, w_dcdR_cc;
 	wire		w_dcdA_pc, w_dcdA_cc;
 	wire		w_dcdB_pc, w_dcdB_cc;
 	wire	[3:0]	w_cond;
-	wire		w_wF, w_mem, w_sto, w_lod, w_div, w_fpu;
+	wire		w_wF, w_mem, w_sto, w_div, w_fpu;
 	wire		w_wR, w_rA, w_rB, w_wR_n;
 	wire		w_ljmp, w_ljmp_dly, w_cis_ljmp;
 	wire	[31:0]	iword;
@@ -188,8 +190,8 @@ module	idecode(i_clk, i_rst, i_ce, i_stalled,
 		endcase
 `endif
 `else
-	always @(iword)
-		w_cis_op <= w_op;
+	wire	[4:0]	w_cis_op;
+	assign	w_cis_op = w_op;
 `endif
 
 	assign	w_op= iword[26:22];
@@ -207,7 +209,7 @@ module	idecode(i_clk, i_rst, i_ce, i_stalled,
 	// What register will we be placing results into (if at all)?
 	//
 	// Two parts to the result register: the register set, given for
-	// moves in i_word[18] but only for the supervisor, and the other
+	// moves in iword[18] but only for the supervisor, and the other
 	// four bits encoded in the instruction.
 	//
 	assign	w_dcdR = { ((!iword[31])&&(w_mov)&&(~i_gie))?iword[18]:i_gie,
@@ -217,6 +219,9 @@ module	idecode(i_clk, i_rst, i_ce, i_stalled,
 	// If the result register is either CC or PC, and this would otherwise
 	// be a floating point instruction with floating point opcode of 0,
 	// then this is a NOOP.
+	assign	w_lock   = (!iword[31])&&(w_op[4:0]==5'h1d)&&(
+				((IMPLEMENT_FPU>0)&&(w_dcdR[3:1]==3'h7))
+				||(IMPLEMENT_FPU==0));
 	assign	w_noop   = (!iword[31])&&(w_op[4:0] == 5'h1f)&&(
 			((IMPLEMENT_FPU>0)&&(w_dcdR[3:1] == 3'h7))
 			||(IMPLEMENT_FPU==0));
@@ -252,7 +257,6 @@ module	idecode(i_clk, i_rst, i_ce, i_stalled,
 	// 1 LUT
 	assign	w_mem    = (w_cis_op[4:3] == 2'b10)&&(w_cis_op[2:1] !=2'b00);
 	assign	w_sto     = (w_mem)&&( w_cis_op[0]);
-	assign	w_lod     = (w_mem)&&(!w_cis_op[0]);
 	// 1 LUT
 	assign	w_div     = (!iword[31])&&(w_op[4:1] == 4'h7);
 	// 2 LUTs
@@ -403,15 +407,19 @@ module	idecode(i_clk, i_rst, i_ce, i_stalled,
 			if (!o_phase)
 				o_gie<= i_gie;
 
-			if ((iword[31])&&(!o_phase))
-				o_pc <= { i_pc, 1'b1 };
-			else if ((iword[31])&&(i_pf_valid))
-				o_pc <= { i_pc, 1'b0 };
-			else
+			if (iword[31])
+			begin
+				if (o_phase)
+					o_pc <= o_pc + 1'b1;
+				else if (i_pf_valid)
+					o_pc <= { i_pc, 1'b1 };
+			end else begin
+				// The normal, non-CIS case
 				o_pc <= { i_pc + 1'b1, 1'b0 };
+			end
 `else
 			o_gie<= i_gie;
-			o_pc <= i_pc+{{(AW-1){1'b0}},1'b1};
+			o_pc <= { i_pc + 1'b1, 1'b0 };
 `endif
 
 			// Under what condition will we execute this
@@ -460,9 +468,7 @@ module	idecode(i_clk, i_rst, i_ce, i_stalled,
 				((IMPLEMENT_FPU>0)&&(w_dcdR[3:1]==3'h7))
 				||(IMPLEMENT_FPU==0));
 `ifdef	OPT_PIPELINED
-			r_lock  <= (!iword[31])&&(w_op[4:0]==5'h1d)&&(
-				((IMPLEMENT_FPU>0)&&(w_dcdR[3:1]==3'h7))
-				||(IMPLEMENT_FPU==0));
+			r_lock  <= w_lock;
 `endif
 `ifdef	OPT_CIS
 			r_nxt_half <= { iword[31], iword[14:0] };
@@ -588,12 +594,13 @@ module	idecode(i_clk, i_rst, i_ce, i_stalled,
 	always @(posedge i_clk)
 		if (i_rst)
 			r_valid <= 1'b0;
-		else if ((i_ce)&&(o_ljmp))
+		else if (i_ce)
+			r_valid <= ((i_pf_valid)||(o_phase)||(i_illegal))
+					&&(!o_ljmp)&&(!o_early_branch);
+		else if (!i_stalled)
 			r_valid <= 1'b0;
-		else if ((i_ce)&&(i_pf_valid))
-			r_valid <= 1'b1;
-		else if (~i_stalled)
-			r_valid <= 1'b0;
+
+	assign	o_valid = r_valid;
 
 
 	assign	o_I = { {(32-22){r_I[22]}}, r_I[21:0] };

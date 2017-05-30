@@ -56,12 +56,12 @@
 //
 module	wbucompactlines(i_clk, i_stb, i_nl_hexbits, o_stb, o_nl_hexbits,
 		i_bus_busy, i_tx_busy, o_busy);
-	input	i_clk, i_stb;
-	input	[6:0]	i_nl_hexbits;
-	output	reg	o_stb;
+	input	wire		i_clk, i_stb;
+	input	wire [6:0]	i_nl_hexbits;
+	output	reg		o_stb;
 	output	reg	[6:0]	o_nl_hexbits;
-	input			i_bus_busy;
-	input			i_tx_busy;
+	input	wire		i_bus_busy;
+	input	wire		i_tx_busy;
 	output	wire		o_busy;
 
 	reg	last_out_nl, last_in_nl;

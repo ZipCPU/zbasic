@@ -51,10 +51,10 @@ module	wbuexec(i_clk, i_rst, i_stb, i_codword, o_busy,
 		o_wb_cyc, o_wb_stb, o_wb_we, o_wb_addr, o_wb_data,
 			i_wb_ack, i_wb_stall, i_wb_err, i_wb_data,
 		o_stb, o_codword);
-	input			i_clk, i_rst;
+	input	wire		i_clk, i_rst;
 	// The command inputs
-	input			i_stb;
-	input		[35:0]	i_codword;
+	input	wire		i_stb;
+	input	wire	[35:0]	i_codword;
 	output	wire		o_busy;
 	// Wishbone outputs
 	output	reg		o_wb_cyc;
@@ -62,8 +62,8 @@ module	wbuexec(i_clk, i_rst, i_stb, i_codword, o_busy,
 	output	reg		o_wb_we;
 	output	reg	[31:0]	o_wb_addr, o_wb_data;
 	// Wishbone inputs
-	input			i_wb_ack, i_wb_stall, i_wb_err;
-	input		[31:0]	i_wb_data;
+	input	wire		i_wb_ack, i_wb_stall, i_wb_err;
+	input	wire	[31:0]	i_wb_data;
 	// And our codeword outputs
 	output	reg		o_stb;
 	output	reg	[35:0]	o_codword;
@@ -337,7 +337,7 @@ module	wbuexec(i_clk, i_rst, i_stb, i_codword, o_busy,
 		zero_acks <= (~o_wb_stb)&&(r_acks_needed == 10'h00);
 
 	always @(posedge i_clk)
-		if (~o_wb_cyc) // &&(i_codword[35:34] == 2'b11))
+		if (!o_wb_stb) // (!o_wb_cyc)&&(i_codword[35:34] == 2'b11))
 			r_len <= i_codword[9:0];
 		else if ((o_wb_stb)&&(~i_wb_stall)&&(|r_len))
 			r_len <= r_len - 10'h01;

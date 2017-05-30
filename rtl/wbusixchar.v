@@ -48,13 +48,13 @@
 //
 //
 module	wbusixchar(i_clk, i_stb, i_bits, o_stb, o_char, o_busy, i_busy);
-	input			i_clk;
-	input			i_stb;
-	input		[6:0]	i_bits;
+	input	wire		i_clk;
+	input	wire		i_stb;
+	input	wire	[6:0]	i_bits;
 	output	reg		o_stb;
 	output	reg	[7:0]	o_char;
 	output	wire		o_busy;
-	input			i_busy;
+	input	wire		i_busy;
 
 	initial	o_char = 8'h00;
 	always @(posedge i_clk)

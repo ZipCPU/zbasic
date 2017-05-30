@@ -93,6 +93,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
+`default_nettype	none
+//
 `define	TXU_BIT_ZERO	4'h0
 `define	TXU_BIT_ONE	4'h1
 `define	TXU_BIT_TWO	4'h2
@@ -112,17 +114,17 @@
 //
 //
 module txuart(i_clk, i_reset, i_setup, i_break, i_wr, i_data,
-		i_rts, o_uart_tx, o_busy);
+		i_cts_n, o_uart_tx, o_busy);
 	parameter	[30:0]	INITIAL_SETUP = 31'd868;
-	input			i_clk, i_reset;
-	input		[30:0]	i_setup;
-	input			i_break;
-	input			i_wr;
-	input		[7:0]	i_data;
+	input	wire		i_clk, i_reset;
+	input	wire	[30:0]	i_setup;
+	input	wire		i_break;
+	input	wire		i_wr;
+	input	wire	[7:0]	i_data;
 	// Hardware flow control Ready-To-Send bit.  Set this to one to use
 	// the core without flow control.  (A more appropriate name would be
 	// the Ready-To-Receive bit ...)
-	input			i_rts;
+	input	wire		i_cts_n;
 	// And the UART input line itself
 	output	reg		o_uart_tx;
 	// A line to tell others when we are ready to accept data.  If
@@ -156,22 +158,22 @@ module txuart(i_clk, i_reset, i_setup, i_break, i_wr, i_data,
 	// Clock in the flow control data, two clocks to avoid metastability
 	// Default to using hardware flow control (uart_setup[30]==0 to use it).
 	// Set this high order bit off if you do not wish to use it.
-	reg	q_rts, qq_rts, ck_rts;
-	// While we might wish to give initial values to q_rts and ck_rts,
+	reg	q_cts_n, qq_cts_n, ck_cts;
+	// While we might wish to give initial values to q_rts and ck_cts,
 	// 1) it's not required since the transmitter starts in a long wait
 	// state, and 2) doing so will prevent the synthesizer from optimizing
 	// this pin in the case it is hard set to 1'b1 external to this
 	// peripheral.
 	//
-	// initial	q_rts  = 1'b0;
-	// initial	qq_rts  = 1'b0;
-	// initial	ck_rts = 1'b0;
+	// initial	q_cts_n  = 1'b1;
+	// initial	qq_cts_n = 1'b1;
+	// initial	ck_cts   = 1'b0;
 	always	@(posedge i_clk)
-		q_rts <= i_rts;
+		q_cts_n <= i_cts_n;
 	always	@(posedge i_clk)
-		qq_rts <= q_rts;
+		qq_cts_n <= q_cts_n;
 	always	@(posedge i_clk)
-		ck_rts <= (qq_rts)||(!hw_flow_control);
+		ck_cts <= (!qq_cts_n)||(!hw_flow_control);
 
 	initial	o_uart_tx = 1'b1;
 	initial	r_busy = 1'b1;
@@ -208,7 +210,7 @@ module txuart(i_clk, i_reset, i_setup, i_break, i_wr, i_data,
 				2'b11: state <= `TXU_BIT_THREE;
 				endcase
 			end else begin // Stay in idle
-				r_busy <= !ck_rts;
+				r_busy <= !ck_cts;
 			end
 		end else begin
 			// One clock tick in each of these states ...

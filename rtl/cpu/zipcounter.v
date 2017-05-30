@@ -40,7 +40,7 @@
 // for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this program.  (It's in the $(ROOT)/doc directory, run make with no
+// with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
 //
@@ -56,10 +56,10 @@ module	zipcounter(i_clk, i_ce,
 			o_wb_ack, o_wb_stall, o_wb_data,
 		o_int);
 	parameter	BW = 32;
-	input				i_clk, i_ce;
+	input	wire			i_clk, i_ce;
 	// Wishbone inputs
-	input				i_wb_cyc, i_wb_stb, i_wb_we;
-	input		[(BW-1):0]	i_wb_data;
+	input	wire			i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire	[(BW-1):0]	i_wb_data;
 	// Wishbone outputs
 	output	reg			o_wb_ack;
 	output	wire			o_wb_stall;

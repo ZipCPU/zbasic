@@ -44,7 +44,7 @@
 // for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this program.  (It's in the $(ROOT)/doc directory, run make with no
+// with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
 //
@@ -57,9 +57,9 @@
 //
 module	wbwatchdog(i_clk, i_rst, i_ce, i_timeout, o_int);
 	parameter	BW = 32;
-	input			i_clk, i_rst, i_ce;
+	input	wire		i_clk, i_rst, i_ce;
 	// Inputs (these were at one time wishbone controlled ...)
-	input	[(BW-1):0]	i_timeout;
+	input	wire [(BW-1):0]	i_timeout;
 	// Interrupt line
 	output	reg		o_int;
 

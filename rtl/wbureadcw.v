@@ -45,8 +45,8 @@
 //
 module	wbureadcw(i_clk, i_stb, i_valid, i_hexbits,
 			o_stb, o_codword);
-	input			i_clk, i_stb, i_valid;
-	input		[5:0]	i_hexbits;
+	input	wire		i_clk, i_stb, i_valid;
+	input	wire	[5:0]	i_hexbits;
 	output	reg		o_stb;
 	output	reg	[35:0]	o_codword;
 

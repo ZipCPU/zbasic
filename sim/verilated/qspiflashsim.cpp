@@ -238,7 +238,6 @@ int	QSPIFLASHSIM::operator()(const int csn, const int sck, const int dat) {
 		} m_oreg = 0;
 	} else if (m_count == 8) {
 		QOREG(0x0a5);
-		// printf("SFLASH-CMD = %02x\n", m_ireg & 0x0ff);
 		// Figure out what command we've been given
 		if (m_debug) printf("SPI FLASH CMD %02x\n", m_ireg&0x0ff);
 		switch(m_ireg & 0x0ff) {
@@ -365,8 +364,8 @@ int	QSPIFLASHSIM::operator()(const int csn, const int sck, const int dat) {
 				if (m_debug) printf("Request to set creg to 0x%02x\n",
 					m_ireg&0x0ff);
 			} else {
-				printf("TOO MANY CLOCKS FOR WRR!!!\n");
-				exit(-2);
+				fprintf(stderr, "QSPIFLASH-ERR: TOO MANY CLOCKS FOR WRR!!!\n");
+				exit(EXIT_FAILURE);
 				m_state = QSPIF_IDLE;
 			}
 			break;

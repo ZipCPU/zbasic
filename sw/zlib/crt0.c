@@ -34,7 +34,7 @@
 //		not the first usable address on that device, as that is often
 //		reserved for the first two FPGA configurations.
 //
-//	_blkram:
+//	_bkram:
 //		The first address of the block RAM memory within the FPGA.
 //
 //	_sdram:
@@ -47,13 +47,13 @@
 //	_kernel_image_end:
 //		The last address within block RAM that needs to be filled in.
 //
-//	_sdram_image_start:
+//	_ram_image_start:
 //		This address is more confusing.  This is equal to one past the
 //		last used block RAM address, or the last used flash address if
 //		no block RAM is used.  It is used for determining whether or not
 //		block RAM was used at all.
 //
-//	_sdram_image_end:
+//	_ram_image_end:
 //		This is one past the last address in SDRAM that needs to be
 //		set with valid data.
 //
@@ -120,6 +120,21 @@
 #define	USE_DMA
 #endif
 
+#ifndef	_BOARD_HAS_FLASH
+#define	SKIP_BOOTLOADER
+#endif
+
+__attribute__ ((section (".boot")))
+void __define_the_top_of_the_stack__(void)  {
+#if	defined(_BOARD_HAS_SDRAM)
+asm volatile(".equ\t_top_of_stack,_sdram+%0\n":: "i"(_sdram+sizeof(_sdram)));
+// extern	int	const	*_top_of_stack = _sdram + sizeof(_sdram);
+#elif	defined(_BOARD_HAS_BKRAM)
+// extern	int	const	*_top_of_stack = bkram + sizeof(_bkram);
+asm volatile(".equ\t_top_of_stack,_bkram+%0\n":: "i"(sizeof(_bkram)));
+#endif
+}
+
 //
 // _start:
 //
@@ -167,16 +182,8 @@ asm("\t.section\t.start,\"ax\",@progbits\n"
 	//
 "_graceful_kernel_exit:"	"\t; Halt on any return from main--gracefully\n"
 	"\tJSR\texit\n"	"\t; Call the _exit as part of exiting\n"
-"\t.global\t_exit\n"
-"_exit:\n"
-#ifdef	_HAS_WBUART
-	"\tLW 0x45c,R2\n"
-	"\tTEST 0xffc,R2\n"
-	"\tBNZ _exit\n"
-	"\tLSR	16,R2\n"
-	"\tTEST 0xffc,R2\n"
-	"\tBNZ _exit\n"
-#endif
+"\t.global\t_hw_shutdown\n"
+"_hw_shutdown:\n"
 	"\tNEXIT\tR1\n"		"\t; If in simulation, call an exit function\n"
 "_kernel_is_dead:"		"\t; Halt the CPU\n"
 	"\tHALT\n"		"\t; We should *never* continue following a\n"
@@ -205,18 +212,13 @@ extern	void	_bootloader(void) __attribute__ ((section (".boot")));
 //
 #ifndef	SKIP_BOOTLOADER
 void	_bootloader(void) {
-	int *sdend = _sdram_image_end, *bsend = _bss_image_end;
-	if (sdend < _sdram)
-		sdend = _sdram;	// R7
-	if (bsend < sdend)
-		bsend = sdend;	// R6
-
 #ifdef	USE_DMA
 	zip->z_dma.d_ctrl= DMACLEAR;
+#ifdef	_BOARD_HAS_KERNEL_SPACE
 	zip->z_dma.d_rd = _kernel_image_start;
-	if (_kernel_image_end != _blkram) {
-		zip->z_dma.d_len = _kernel_image_end - _blkram;
-		zip->z_dma.d_wr  = _blkram;
+	if (_kernel_image_end != _bkram) {
+		zip->z_dma.d_len = _kernel_image_end - _bkram;
+		zip->z_dma.d_wr  = _bkram;
 		zip->z_dma.d_ctrl= DMACCOPY;
 
 		zip->z_pic = SYSINT_DMAC;
@@ -226,8 +228,14 @@ void	_bootloader(void) {
 
 	// zip->z_dma.d_rd // Keeps the same value
 	zip->z_dma.d_wr  = _sdram;
-	if (sdend != _sdram) {
-		zip->z_dma.d_len = sdend - _sdram;
+
+#else
+	zip->z_dma.d_rd = _ram_image_start;
+	zip->z_dma.d_wr = _ram;
+#endif
+
+	if (_ram_image_end != zip->z_dma.d_rd) {
+		zip->z_dma.d_len = _ram_image_end - _zip->z_dma.d_rd;
 		zip->z_dma.d_ctrl= DMACCOPY;
 
 		zip->z_pic = SYSINT_DMAC;
@@ -235,10 +243,10 @@ void	_bootloader(void) {
 			;
 	}
 
-	if (bsend != sdend) {
+	if (_bss_image_end != _ram_image_end) {
 		volatile int	zero = 0;
 
-		zip->z_dma.d_len = bsend - sdend;
+		zip->z_dma.d_len = _bss_image_end - _ram_image_end;
 		zip->z_dma.d_rd  = (unsigned *)&zero;
 		// zip->z_dma.wr // Keeps the same value
 		zip->z_dma.d_ctrl = DMACCOPY|DMA_CONSTSRC;
@@ -248,33 +256,38 @@ void	_bootloader(void) {
 			;
 	}
 #else
-	int	*rdp = _kernel_image_start, *wrp = _blkram;
-
-	if ((((int)wrp) & -4)==0)
-		wrp = _sdram;
+	int	*rdp, *wrp;
 
 	//
 	// Load any part of the image into block RAM, but *only* if there's a
 	// block RAM section in the image.  Based upon our LD script, the
-	// block RAM should be filled from _blkram to _kernel_image_end.
+	// block RAM should be filled from _bkram to _kernel_image_end.
 	// It starts at _kernel_image_start --- our last valid address within
 	// the flash address region.
 	//
+#ifdef	_BOARD_HAS_KERNEL_SPACE
+	rdp = _kernel_image_start;
+	wrp = _bkram;
 	if (_kernel_image_end != _kernel_image_start) {
-		while(wrp < _kernel_image_end)
+		do {
 			*wrp++ = *rdp++;
+		} while(wrp < _kernel_image_end);
 		if (_kernel_image_end < _sdram)
 			wrp = _sdram;
 	}
+#else
+	rdp = _ram_image_start;
+	wrp = (int *)_ram;
+#endif
 
 	//
 	// Now, we move on to the SDRAM image.  We'll here load into SDRAM
-	// memory up to the end of the SDRAM image, _sdram_image_end.
+	// memory up to the end of the SDRAM image, _ram_image_end.
 	// As with the last pointer, this one is also created for us by the
 	// linker.
 	// 
 	// while(wrp < sdend)	// Could also be done this way ...
-	for(int i=0; i< sdend - _sdram; i++)
+	while(wrp < _ram_image_end)
 		*wrp++ = *rdp++;
 
 	//
@@ -283,7 +296,7 @@ void	_bootloader(void) {
 	// initialization is expected within it.  We start writing where
 	// the valid SDRAM context, i.e. the non-zero contents, end.
 	//
-	for(int i=0; i<bsend - sdend; i++)
+	while(wrp < _bss_image_end)
 		*wrp++ = 0;
 
 #endif

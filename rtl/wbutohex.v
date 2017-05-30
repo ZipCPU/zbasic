@@ -47,8 +47,8 @@
 //
 //
 module	wbutohex(i_clk, i_stb, i_byte, o_stb, o_valid, o_hexbits);
-	input			i_clk, i_stb;
-	input		[7:0]	i_byte;
+	input	wire		i_clk, i_stb;
+	input	wire	[7:0]	i_byte;
 	output	reg		o_stb, o_valid;
 	output	reg	[5:0]	o_hexbits;
 

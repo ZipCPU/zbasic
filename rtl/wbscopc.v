@@ -2,7 +2,7 @@
 //
 // Filename: 	wbscopc.v
 //
-// Project:	FPGA Library of Routines
+// Project:	WBScope, a wishbone hosted scope
 //
 // Purpose:	This scope is identical in function to the wishbone scope
 //	found in wbscope, save that the output is compressed and that (as a
@@ -87,18 +87,23 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
-module wbscopc(i_clk, i_ce, i_trigger, i_data,
+`default_nettype	none
+//
+module wbscopc(i_data_clk, i_ce, i_trigger, i_data,
 	i_wb_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
 	o_wb_ack, o_wb_stall, o_wb_data,
 	o_interrupt);
-	parameter	LGMEM = 5'd10, NELM=31, BUSW = 32, SYNCHRONOUS=1;
+	parameter [4:0]	LGMEM = 5'd10;
+	parameter	BUSW = 32, NELM=(BUSW-1);
+	parameter [0:0]	SYNCHRONOUS=1;
+	parameter [30:0]	MAX_STEP=31'h7fffffff;
 	// The input signals that we wish to record
-	input				i_clk, i_ce, i_trigger;
-	input		[(NELM-1):0]	i_data;
+	input	wire			i_data_clk, i_ce, i_trigger;
+	input	wire	[(NELM-1):0]	i_data;
 	// The WISHBONE bus for reading and configuring this scope
-	input				i_wb_clk, i_wb_cyc, i_wb_stb, i_wb_we;
-	input				i_wb_addr; // One address line only
-	input		[(BUSW-1):0]	i_wb_data;
+	input	wire			i_wb_clk, i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire			i_wb_addr; // One address line only
+	input	wire	[(BUSW-1):0]	i_wb_data;
 	output	wire			o_wb_ack, o_wb_stall;
 	output	wire	[(BUSW-1):0]	o_wb_data;
 	// And, finally, for a final flair --- offer to interrupt the CPU after
@@ -112,9 +117,40 @@ module wbscopc(i_clk, i_ce, i_trigger, i_data,
 
 	// When is the full scope reset?  Capture that reset bit from any
 	// write.
-	wire	lcl_reset;
-	assign	lcl_reset = (i_wb_cyc)&&(i_wb_stb)&&(~i_wb_addr)&&(i_wb_we)
+	wire	lcl_data_reset;
+
+	generate
+	if (SYNCHRONOUS)
+	begin
+		assign	lcl_data_reset = (i_wb_stb)&&(~i_wb_addr)&&(i_wb_we)
 				&&(~i_wb_data[31]);
+	end else begin
+		wire	lcl_wb_reset_ack;
+
+		reg	lcl_wb_reset;
+		always @(posedge i_wb_clk)
+			if ((i_wb_stb)&&(~i_wb_addr)&&(i_wb_we)
+				&&(~i_wb_data[31]))
+				lcl_wb_reset <= 1'b1;
+			else if (lcl_wb_reset_ack)
+				lcl_wb_reset <= 1'b0;
+
+		//
+		// Transfer the reset to the data clock
+		//
+		reg	[1:0]	data_reset_transfer;
+		always @(posedge i_data_clk)
+			data_reset_transfer = { data_reset_transfer[0], lcl_wb_reset };
+		assign	lcl_data_reset = data_reset_transfer[1];
+
+		//
+		// Acknowledge the reset, swapping clock domains back
+		//
+		reg	[1:0]	reset_ack_transfer;
+		always @(posedge i_wb_clk)
+			reset_ack_transfer <= { reset_ack_transfer[0], lcl_data_reset };
+		assign	lcl_wb_reset_ack = reset_ack_transfer[1];
+	end endgenerate
 
 	// A big part of this scope is the 'address' of any particular
 	// data value.  As of this current version, the 'address' changed
@@ -129,13 +165,20 @@ module wbscopc(i_clk, i_ce, i_trigger, i_data,
 	// rather than overflow.
 	reg	[(BUSW-2):0]	ck_addr;
 	reg	[(NELM-1):0]	lst_dat;
+	reg			force_write;
 	initial	ck_addr = 0;
-	always @(posedge i_clk)
-		if ((lcl_reset)||((i_ce)&&(i_data != lst_dat)))
+	initial	force_write = 1'b0;
+	always @(posedge i_data_clk)
+		force_write <= (i_ce)&&(ck_addr >= (MAX_STEP))&&(!force_write);
+	always @(posedge i_data_clk)
+		if ((lcl_data_reset)
+				||((i_ce)&&(
+					(force_write)
+					||(i_data != lst_dat))))
 			ck_addr <= 0;
 		else if (&ck_addr)
 			;	// Saturated (non-overflowing) address diff
-		else
+		else if (i_ce)
 			ck_addr <= ck_addr + 1;
 
 	wire	[(BUSW-2):0]	w_data;
@@ -157,22 +200,22 @@ module wbscopc(i_clk, i_ce, i_trigger, i_data,
 	initial	lst_dat = 0;
 	initial	lst_adr = 1'b1;
 	initial	imm_adr = 1'b1;
-	always @(posedge i_clk)
-		if (lcl_reset)
+	always @(posedge i_data_clk)
+		if (lcl_data_reset)
 		begin
 			imm_val <= 31'h0;
 			imm_adr <= 1'b1;
 			lst_val <= 31'h0;
 			lst_adr <= 1'b1;
 			lst_dat <= 0;
-		end else if ((i_ce)&&(i_data != lst_dat))
+		end else if ((i_ce)&&((i_data != lst_dat)||(force_write)))
 		begin
 			imm_val <= w_data;
 			imm_adr <= 1'b0;
 			lst_val <= imm_val;
 			lst_adr <= imm_adr;
 			lst_dat <= i_data;
-		end else begin
+		end else if (i_ce) begin
 			imm_val <= ck_addr; // Minimum value here is '1'
 			imm_adr <= 1'b1;
 			lst_val <= imm_val;
@@ -186,9 +229,9 @@ module wbscopc(i_clk, i_ce, i_trigger, i_data,
 	reg			r_ce;
 	reg	[(BUSW-1):0]	r_data;
 	initial			r_ce = 1'b0;
-	always @(posedge i_clk)
-		r_ce <= (~lst_adr)||(~imm_adr);
-	always @(posedge i_clk)
+	always @(posedge i_data_clk)
+		r_ce <= (i_ce)&&((~lst_adr)||(~imm_adr));
+	always @(posedge i_data_clk)
 		r_data <= ((~lst_adr)||(~imm_adr))
 			? { lst_adr, lst_val }
 			: { {(32 - NELM){1'b0}}, i_data };
@@ -203,8 +246,8 @@ module wbscopc(i_clk, i_ce, i_trigger, i_data,
 
 	reg	r_trigger;
 	initial	r_trigger = 1'b0;
-	always @(posedge i_clk)
-		if (lcl_reset)
+	always @(posedge i_data_clk)
+		if (lcl_data_reset)
 			r_trigger <= 1'b0;
 		else
 			r_trigger <= w_trigger;
@@ -213,8 +256,14 @@ module wbscopc(i_clk, i_ce, i_trigger, i_data,
 	// Call the regular wishbone scope to do all of our real work, now
 	// that we've compressed the input.
 	//
-	wbscope	#(.SYNCHRONOUS(1), .LGMEM(LGMEM),
-		.BUSW(BUSW))	cheatersscope(i_clk, r_ce, w_trigger, r_data,
-		i_wb_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
-		o_wb_ack, o_wb_stall, o_wb_data, o_interrupt);
+	wbscope	#(.SYNCHRONOUS(SYNCHRONOUS), .LGMEM(LGMEM), .BUSW(BUSW))
+		cheatersscope(
+			// The scope data lines
+			i_data_clk, r_ce, w_trigger, r_data,
+			// The wishbone lines
+			i_wb_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr,
+				i_wb_data,
+			o_wb_ack, o_wb_stall, o_wb_data,
+			// The interrupt we create
+			o_interrupt);
 endmodule

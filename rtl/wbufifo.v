@@ -39,10 +39,10 @@
 //
 module wbufifo(i_clk, i_rst, i_wr, i_data, i_rd, o_data, o_empty_n, o_err);
 	parameter	BW=66, LGFLEN=10;
-	input			i_clk, i_rst;
-	input			i_wr;
-	input	[(BW-1):0]	i_data;
-	input			i_rd;
+	input	wire		i_clk, i_rst;
+	input	wire		i_wr;
+	input	wire [(BW-1):0]	i_data;
+	input	wire		i_rd;
 	output	reg [(BW-1):0]	o_data;
 	output	reg		o_empty_n;
 	output	wire		o_err;

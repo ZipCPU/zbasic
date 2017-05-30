@@ -49,14 +49,14 @@ module	wbubus(i_clk, i_rx_stb, i_rx_data,
 	parameter	LGWATCHDOG=19,
 			LGINPUT_FIFO=6,
 			LGOUTPUT_FIFO=10;
-	input			i_clk;
-	input			i_rx_stb;
-	input		[7:0]	i_rx_data;
+	input	wire		i_clk;
+	input	wire		i_rx_stb;
+	input	wire	[7:0]	i_rx_data;
 	output	wire		o_wb_cyc, o_wb_stb, o_wb_we;
 	output	wire	[31:0]	o_wb_addr, o_wb_data;
-	input			i_wb_ack, i_wb_stall, i_wb_err;
-	input		[31:0]	i_wb_data;
-	input			i_interrupt;
+	input	wire		i_wb_ack, i_wb_stall, i_wb_err;
+	input	wire	[31:0]	i_wb_data;
+	input	wire		i_interrupt;
 	output	wire		o_tx_stb;
 	output	wire	[7:0]	o_tx_data;
 	input			i_tx_busy;
@@ -88,9 +88,8 @@ module	wbubus(i_clk, i_rx_stb, i_rx_data,
 		assign	w_bus_reset = r_wdt_reset;
 		wbufifo	#(36,LGINPUT_FIFO) padififo(i_clk, w_bus_reset,
 				in_stb, in_word, fifo_in_stb, fifo_in_word,
-				ififo_empty_n, ififo_err); end endgenerate
-
-	// assign	o_dbg = (i_wb_ack)&&(i_wb_cyc);
+				ififo_empty_n, ififo_err);
+	end endgenerate
 
 	// Take requests in, Run the bus, send results out
 	// This only works if no requests come in while requests

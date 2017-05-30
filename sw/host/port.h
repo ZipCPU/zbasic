@@ -45,14 +45,9 @@
 // computer, test it, and when/if it doesn't work we can replace the device
 // with the test-bench.  Across the network, no one will know any better that
 // anything had changed.
-#define	FPGAHOST	"jericho"
-#define	FPGATTY		"/dev/ttyUSB1"
-#define	FPGAPORT	6782
+#define	FPGAHOST	"localhost"	// A random hostname,back from the grave
+#define	FPGAPORT	8845
 
-#ifndef	FORCE_UART
-#define	FPGAOPEN(V) V= new FPGA(new NETCOMMS(FPGAHOST, FPGAPORT))
-#else
-#define	FPGAOPEN(V) V= new FPGA(new TTYCOMMS(FPGATTY))
-#endif
+#define FPGAOPEN(V) V= new FPGA(new NETCOMMS(FPGAHOST, FPGAPORT))
 
 #endif
