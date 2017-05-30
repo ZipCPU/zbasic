@@ -9,8 +9,7 @@ It has three primary goals:
 
 # Status
 
-The ZBasic system is is currently a work in progress, and hence not yet fully
-featured or fully functional.
+The ZBasic system can now be made using [autofpga](https://github.com/ZipCPU/autofpga), all the way from zero to Hello World successfully in Verilator testing.
 
 # License
 
