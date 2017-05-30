@@ -38,8 +38,7 @@
 ##
 ##
 .PHONY: all
-all:	archive datestamp autodata rtl sim sw
-# all:	datestamp archive rtl sw sim bench bit
+all:	check-install archive datestamp autodata rtl sim sw
 #
 # Could also depend upon load, if desired, but not necessary
 BENCH := # `find bench -name Makefile` `find bench -name "*.cpp"` `find bench -name "*.h"`
@@ -59,17 +58,64 @@ CONSTRAINTS := `find . -name "*.xdc"`
 YYMMDD:=`date +%Y%m%d`
 SUBMAKE:= $(MAKE) --no-print-directory -C
 
+#
+#
+# Check that we have all the programs available to us that we need
+#
+#
+.PHONY: check-install
+check-install: check-perl check-autofpga check-verilator check-zip-gcc check-gpp
+
+.PHONY: check-perl
+	$(call checkif-installed,perl,)
+
+.PHONY: check-autofpga
+check-autofpga:
+	$(call checkif-installed,autofpga,-V)
+
+.PHONY: check-verilator
+check-verilator:
+	$(call checkif-installed,verilator,-V)
+
+.PHONY: check-zip-gcc
+check-zip-gcc:
+	$(call checkif-installed,zip-gcc,-v)
+
+.PHONY: check-gpp
+check-gpp:
+	$(call checkif-installed,g++,-v)
+
+#
+#
+#
+# Now that we know that all of our required components exist, we can build
+# things
+#
+#
+#
+# Create a datestamp file, so that we can check for the build-date when the
+# project was put together.
+#
 .PHONY: datestamp
-datestamp:
+datestamp: check-perl
 	@bash -c 'if [ ! -e $(YYMMDD)-build.v ]; then rm -f 20??????-build.v; perl mkdatev.pl > $(YYMMDD)-build.v; rm -f rtl/builddate.v; fi'
 	@bash -c 'if [ ! -e rtl/builddate.v ]; then cd rtl; cp ../$(YYMMDD)-build.v builddate.v; fi'
 
+#
+#
+# Make a tar archive of this file, as a poor mans version of source code control
+# (Sorry ... I've been burned too many times by files I've wiped away ...)
+#
 .PHONY: archive
 archive:
 	tar --transform s,^,$(YYMMDD)-zbasic/, -chjf $(YYMMDD)-zbasic.tjz $(BENCH) $(SW) $(RTL) $(SIM) $(NOTES) $(PROJ) $(BIN) $(CONSTRAINTS) README.md
 
+#
+#
+# Build our main (and toplevel) Verilog files via autofpga
+#
 .PHONY: autodata
-autodata:
+autodata: check-autofpga
 	$(MAKE) --no-print-directory --directory=auto-data
 	$(call copyif-changed,auto-data/toplevel.v,rtl/toplevel.v)
 	$(call copyif-changed,auto-data/main.v,rtl/main.v)
@@ -80,36 +126,61 @@ autodata:
 	$(call copyif-changed,auto-data/rtl.make.inc,rtl/make.inc)
 	$(call copyif-changed,auto-data/main_tb.cpp,sim/verilated/main_tb.cpp)
 
+#
+#
+# Verify that the rtl has no bugs in it, while also creating a Verilator
+# simulation class library that we can then use for simulation
+#
 .PHONY: verilated
-verilated: datestamp autodata
+verilated: datestamp autodata check-verilator
 	$(SUBMAKE) rtl
 
 .PHONY: rtl
 rtl: verilated
 
+#
+#
+# Build a simulation of this entire design
+#
 .PHONY: sim
-sim: rtl
+sim: rtl check-gpp
 	$(SUBMAKE) sim/verilated
 
-# .PHONY: bench
-# bench: sw
-#	cd sim/verilated ; $(MAKE) --no-print-directory
-
+#
+#
+# A master target to build all of the support software
+#
 .PHONY: sw
 sw: sw-host sw-zlib sw-board
 
+#
+#
+# Build the hardware specific newlib library
+#
 .PHONY: sw-zlib
-sw-zlib: autodata
+sw-zlib: autodata check-zip-gcc
 	$(SUBMAKE) sw/zlib
 
+#
+#
+# Build the board software.  This may (or may not) use the software library
+#
 .PHONY: sw-board
-sw-board: sw-zlib
+sw-board: sw-zlib check-zip-gcc
 	$(SUBMAKE) sw/board
 
+#
+#
+# Build the host support software
+#
 .PHONY: sw-host
-sw-host:
+sw-host: check-gpp
 	$(SUBMAKE) sw/host
 
+#
+#
+# Run "Hello World", and ... see if this all works
+#
 .PHONY: hello
 hello: sim sw
 	sim/verilated/main_tb sw/board/hello
@@ -117,14 +188,23 @@ hello: sim sw
 .PHONY: test
 test: hello
 
+#
+#
+# Copy a file from the auto-data directory that had been created by
+# autofpga, into the directory structure where it might be used.
+#
 define	copyif-changed
 	@bash -c 'cmp $(1) $(2); if [[ $$? != 0 ]]; then echo "Copying $(1) to $(2)"; cp $(1) $(2); fi'
 endef
 
+#
+#
+# Check if the given program is installed
+#
+define	checkif-installed
+	@bash -c '$(1) $(2) < /dev/null >& /dev/null; if [[ $$? != 0 ]]; then echo "Program not found: $(1)"; exit -1; fi'
+endef
 
-# .PHONY: bit
-# bit:
-#	cd xilinx ; $(MAKE) --no-print-directory xula.bit
 
 .PHONY: clean
 clean:
