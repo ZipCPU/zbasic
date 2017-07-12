@@ -42,6 +42,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
+`default_nettype	none
+//
 module	rtclight(i_clk, 
 		// Wishbone interface
 		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
@@ -55,10 +57,10 @@ module	rtclight(i_clk,
 		// A once-per-day strobe on the last clock of the day
 		o_ppd);
 	parameter	DEFAULT_SPEED = 32'd2814750;	// 100 Mhz
-	input	i_clk;
-	input	i_wb_cyc, i_wb_stb, i_wb_we;
-	input	[2:0]	i_wb_addr;
-	input	[31:0]	i_wb_data;
+	input	wire		i_clk;
+	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire	[2:0]	i_wb_addr;
+	input	wire	[31:0]	i_wb_data;
 	// input		i_btn;
 	output	reg	[31:0]	o_data;
 	output	wire		o_interrupt, o_ppd;
@@ -161,7 +163,7 @@ module	rtclight(i_clk,
 		ck_last_clock <= clock[21:0];
 		
 
-	reg	tm_pps, tm_ppm, tm_int;
+	reg	tm_pps, tm_int;
 	wire	tm_stopped, tm_running, tm_alarm;
 	assign	tm_stopped = ~timer[24];
 	assign	tm_running =  timer[24];
@@ -411,5 +413,11 @@ module	rtclight(i_clk,
 		3'b100: o_data <= ckspeed;
 		default: o_data <= 32'h000;
 		endcase
+
+	// Make verilator hapy
+	// verilator lint_off UNUSED
+	wire	unused;
+	assign	unused = i_wb_cyc;
+	// verilator lint_on UNUSED
 
 endmodule

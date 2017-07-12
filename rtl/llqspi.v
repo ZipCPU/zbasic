@@ -327,6 +327,16 @@ module	llqspi(i_clk,
 			o_valid <= 1'b0;
 			o_cs_n <= 1'b0;
 			o_busy <= 1'b0;
+			r_spd <= i_spd;
+			r_dir <= i_dir;
+			if (i_spd)
+			begin
+				r_word <= { i_word[27:0], 4'h0 };
+				spi_len<= { 1'b0, i_len, 3'b100 };
+			end else begin
+				r_word <= { i_word[30:0], 1'b0 };
+				spi_len<= { 1'b0, i_len, 3'b111 };
+			end
 			if((~o_busy)&&(i_wr))// Acknowledge a new request
 			begin
 				state  <= `QSPI_BITS;
@@ -334,20 +344,12 @@ module	llqspi(i_clk,
 				o_sck  <= 1'b0;
 
 				// Read the new request off the bus
-				r_spd <= i_spd;
-				r_dir <= i_dir;
 				// Set up the first bits on the bus
 				o_mod<=(i_spd)?{ 1'b1, i_dir } : `QSPI_MOD_SPI;
 				if (i_spd)
-				begin
 					o_dat <= i_word[31:28];
-					r_word <= { i_word[27:0], 4'h0 };
-					spi_len<= { 1'b0, i_len, 3'b100 };
-				end else begin
+				else
 					o_dat <= { 3'b110, i_word[31] };
-					r_word <= { i_word[30:0], 1'b0 };
-					spi_len<= { 1'b0, i_len, 3'b111 };
-				end
 			end else begin
 				o_sck <= 1'b1;
 				state <= (i_hold)?`QSPI_HOLDING : `QSPI_STOP;

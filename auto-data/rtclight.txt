@@ -37,7 +37,8 @@
 ##
 @PREFIX=rtc
 @NADDR=8
-@PTYPE=DOUBLE
+@SLAVE.TYPE=DOUBLE
+@SLAVE.BUS=wb
 @ACCESS=RTC_ACCESS
 @$CLKSTEP=((1<<48)/@$CLKFREQHZ)
 @CLKSTEP.FORMAT=32'h%08x
@@ -48,10 +49,11 @@
 	wire	rtc_ppd;
 	reg	r_rtc_ack;
 @MAIN.INSERT=
-	rtclight	#(@$.CLKSTEP) the@$(PREFIX)(i_clk,
+	rtclight	#(@$CLKSTEP) the@$(PREFIX)(i_clk,
 		wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we,
 			wb_addr[2:0], wb_data,
 		@$(PREFIX)_data, @$(PREFIX)_int, @$(PREFIX)_ppd);
+	assign	@$(PREFIX)_stall = 1'b0;
 	initial	r_rtc_ack = 1'b0;
 	always @(posedge i_clk)
 		r_rtc_ack <= (wb_stb)&&(rtc_sel);
@@ -69,6 +71,6 @@ typedef	struct	RTCLIGHT_S	{
 @BDEF.IONAME=_rtc
 @BDEF.IOTYPE=RTCLIGHT
 @BDEF.OSDEF=_BOARD_HAS_RTCLIGHT
-@BDEF.OSVAL=static volatile @$.BDEF.IOTYPE *const @$(.BDEF.IONAME) = ((@$.BDEF.IOTYPE *)@$.BASE);
+@BDEF.OSVAL=static volatile @$BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)@$BASE);
 #
 #

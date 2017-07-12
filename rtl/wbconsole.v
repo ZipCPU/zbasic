@@ -165,7 +165,6 @@ module	wbconsole(i_clk, i_rst,
 	//
 	/////////////////////////////////////////
 	wire		tx_empty_n, txf_err;
-	wire	[7:0]	tx_data;
 	wire	[15:0]	txf_status;
 	reg		txf_wb_write, tx_uart_reset;
 	reg	[6:0]	txf_wb_data;
@@ -243,8 +242,9 @@ module	wbconsole(i_clk, i_rst,
 	wire	[31:0]	wb_tx_data;
 	assign	wb_tx_data = { 16'h00, 
 				1'b0, txf_status[1:0], txf_err,
-				1'b0, o_uart_stb, 1'b0, (i_uart_busy|txf_status[0]),
-				1'b0,(i_uart_busy|txf_status[0])?txf_wb_data:7'h0};
+				1'b0, o_uart_stb, 1'b0,
+				(i_uart_busy|tx_empty_n),
+				1'b0,(i_uart_busy|tx_empty_n)?txf_wb_data:7'h0};
 
 	// Each of the FIFO's returns a 16 bit status value.  This value tells
 	// us both how big the FIFO is, as well as how much of the FIFO is in 
@@ -285,4 +285,9 @@ module	wbconsole(i_clk, i_rst,
 	// set this value to zero.
 	assign	o_wb_stall = 1'b0;
 
+	// Make verilator happy
+	// verilator lint_off UNUSED
+	wire	[1+19+5-1:0] unused;
+	assign	unused = { i_wb_cyc, i_wb_data[31:13], i_wb_data[11:7] };
+	// verilator lint_on  UNUSED
 endmodule

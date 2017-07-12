@@ -42,8 +42,6 @@
 #ifndef	SDSPISIM_H
 #define	SDSPISIM_H
 
-#include <stdio.h>
-
 typedef enum	eRESET_STATES {
 	SDSPI_POWERUP_RESET,
 	SDSPI_CMD0_IDLE,

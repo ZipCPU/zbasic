@@ -56,11 +56,26 @@
 #include "main_tb.cpp"
 
 void	usage(void) {
-	fprintf(stderr, "USAGE: main_tb [zipcpu-elf-file]\n");
+	fprintf(stderr, "USAGE: main_tb <options> [zipcpu-elf-file]\n");
+	fprintf(stderr,
+#ifdef	SDSPI_ACCESS
+"\t-c <img-file>\n"
+"\t\tSpecifies a memory image which will be used to make the SD-card\n"
+"\t\tmore realistic.  Reads from the SD-card will be directed to\n"
+"\t\t\"sectors\" within this image.\n\n"
+#endif
+"\t-d\tSets the debugging flag\n"
+"\t-t <filename>\n"
+"\t\tTurns on tracing, sends the trace to <filename>--assumed to\n"
+"\t\tbe a vcd file\n"
+);
 }
 
 int	main(int argc, char **argv) {
-	const	char *elfload = NULL, *sdload = "/dev/zero",
+	const	char *elfload = NULL,
+#ifdef	SDSPI_ACCESS
+			*sdimage_file = NULL,
+#endif
 			*trace_file = NULL; // "trace.vcd";
 	bool	debug_flag = false, willexit = false;
 //	int	fpga_port = FPGAPORT, serial_port = -(FPGAPORT+1);
@@ -75,7 +90,9 @@ int	main(int argc, char **argv) {
 		if (argv[argn][0] == '-') for(int j=1;
 					(j<512)&&(argv[argn][j]);j++) {
 			switch(tolower(argv[argn][j])) {
-			// case 'c': copy_comms_to_stdout = 1; break;
+#ifdef	SDSPI_ACCESS
+			case 'c': sdimage_file = argv[++argn]; j = 1000; break;
+#endif
 			case 'd': debug_flag = true;
 				if (trace_file == NULL)
 					trace_file = "trace.vcd";
@@ -83,7 +100,7 @@ int	main(int argc, char **argv) {
 			// case 'p': fpga_port = atoi(argv[++argn]); j=1000; break;
 			// case 's': serial_port=atoi(argv[++argn]); j=1000; break;
 			case 't': trace_file = argv[++argn]; j=1000; break;
-			case 'h': usage(); break;
+			case 'h': usage(); exit(0); break;
 			default:
 				fprintf(stderr, "ERR: Unexpected flag, -%c\n\n",
 					argv[argn][j]);
@@ -93,7 +110,7 @@ int	main(int argc, char **argv) {
 		} else if (iself(argv[argn])) {
 			elfload = argv[argn];
 		} else if (0 == access(argv[argn], R_OK)) {
-			sdload = argv[argn];
+			sdimage_file = argv[argn];
 		} else {
 			fprintf(stderr, "ERR: Cannot read %s\n", argv[argn]);
 			perror("O/S Err:");
@@ -138,7 +155,9 @@ int	main(int argc, char **argv) {
 		tb->opentrace(trace_file);
 
 	tb->reset();
-	tb->setsdcard(sdload);
+#ifdef	SDSPI_ACCESS
+	tb->setsdcard(sdimage_file);
+#endif
 
 	if (elfload) {
 		uint32_t	entry;

@@ -126,11 +126,11 @@ module	llsdspi(i_clk, i_speed, i_cs, i_stb, i_byte,
 	initial	r_clk_counter = 7'h0;
 	always @(posedge i_clk)
 	begin
-		if ((~i_cs)||(~i_bus_grant))
+		if ((!i_cs)||(!i_bus_grant))
 			r_clk_counter <= 0;
 		else if (byte_accepted)
 			r_clk_counter <= i_speed;
-		else if (~r_z_counter)
+		else if (!r_z_counter)
 			r_clk_counter <= (r_clk_counter - {{(SPDBITS-1){1'b0}},1'b1});
 		else if ((r_state != `LLSDSPI_IDLE)&&(r_state != `LLSDSPI_HOTIDLE))
 			r_clk_counter <= (i_speed);
@@ -141,11 +141,11 @@ module	llsdspi(i_clk, i_speed, i_cs, i_stb, i_byte,
 	initial	r_z_counter = 1'b1;
 	always @(posedge i_clk)
 	begin
-		if ((~i_cs)||(~i_bus_grant))
+		if ((!i_cs)||(!i_bus_grant))
 			r_z_counter <= 1'b1;
 		else if (byte_accepted)
 			r_z_counter <= 1'b0;
-		else if (~r_z_counter)
+		else if (!r_z_counter)
 			r_z_counter <= (r_clk_counter == 1);
 		else if ((r_state != `LLSDSPI_IDLE)&&(r_state != `LLSDSPI_HOTIDLE))
 			r_z_counter <= 1'b0;
@@ -155,13 +155,13 @@ module	llsdspi(i_clk, i_speed, i_cs, i_stb, i_byte,
 	always @(posedge i_clk)
 	begin
 		o_stb <= 1'b0;
-		o_cs_n <= ~i_cs;
-		if (~i_cs)
+		o_cs_n <= !i_cs;
+		if (!i_cs)
 		begin
 			r_state <= `LLSDSPI_IDLE;
 			r_idle <= 1'b0;
 			o_sclk <= 1'b1;
-		end else if (~r_z_counter)
+		end else if (!r_z_counter)
 		begin
 			r_idle <= 1'b0;
 			if (byte_accepted)

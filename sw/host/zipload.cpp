@@ -255,9 +255,7 @@ int main(int argc, char **argv) {
 			}
 #endif
 
-
-
-
+#ifdef	BLKRAM_ACCESS
 			if ((secp->m_start >= BKMEMBASE)
 				  &&(secp->m_start+secp->m_len
 						<= BKMEMBASE+BKMEMLEN)) {
@@ -274,8 +272,12 @@ int main(int argc, char **argv) {
 				m_fpga->writei(secp->m_start, ln>>2, bswapd);
 				continue;
 			}
+#endif
 
-			{
+#ifdef	FLASH_ACCESS
+			if ((secp->m_start >= FLASHBASE)
+				  &&(secp->m_start+secp->m_len
+						<= FLASHBASE+FLASHLEN)) {
 				// Otherwise writing to flash
 				if (secp->m_start < startaddr) {
 					// Keep track of the first address in
@@ -295,6 +297,7 @@ int main(int argc, char **argv) {
 				memcpy(&fbuf[secp->m_start-FLASHBASE],
 					secp->m_data, secp->m_len);
 			}
+#endif
 		}
 
 #ifdef	FLASH_ACCESS

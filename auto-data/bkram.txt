@@ -4,7 +4,8 @@
 ##
 ## Project:	AutoFPGA, a utility for composing FPGA designs from peripherals
 ##
-## Purpose:	
+## Purpose:	To define the interface to a generic block RAM device for the
+##		purposes of autofpga.
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
 ##		Gisselquist Technology, LLC
@@ -42,8 +43,9 @@
 @$NADDR=(1<<(@$THIS.LGMEMSZ-2))
 @$NBYTES=(1<<(@$THIS.LGMEMSZ))
 @NBYTES.FORMAT=0x%08x
-@ACCESS=BLKRAM_ACCESS
-@PTYPE=MEMORY
+@ACCESS=@$(DEVID)_ACCESS
+@SLAVE.TYPE=MEMORY
+@SLAVE.BUS=wb
 @LD.PERM=wx
 @MAIN.INSERT=
 	memdev #(.LGMEMSZ(@$THIS.LGMEMSZ), .EXTRACLOCK(1))
@@ -54,8 +56,8 @@
 @REGS.N=1
 @REGS.0= 0 @$(DEVID) RAM
 @REGDEFS.H.DEFNS=
-#define	BKMEMBASE	@$THIS.BASE
-#define	BKMEMLEN	@$THIS.NBYTES
+#define	@$(DEVID)BASE	@$BASE
+#define	@$(DEVID)LEN	@$NBYTES
 @BDEF.OSDEF=_BOARD_HAS_@$(DEVID)
 @MEM.NAME= @$(PREFIX)
 @BDEF.OSVAL=extern char	_@$(MEM.NAME)[@$NBYTES];
@@ -69,11 +71,11 @@ _@$(MEM.NAME) = ORIGIN(@$(MEM.NAME))
 @BASEHX.FORMAT= 0x%08x
 @$NADDRHX = @$NADDR
 @NADDRHX.FORMAT= 0x%x
-@SIM.INCLUDE+=
+@SIM.INCLUDE=
 #include "byteswap.h"
-@SIM.DEFINES+=
+@SIM.DEFINES=
 #define	block_ram	@$(VERILATOR_PREFIX)__DOT__@$(PREFIX)i__DOT__mem
-@SIM.LOAD+=
+@SIM.LOAD=
 			start = start & (-4);
 			wlen = (wlen+3)&(-4);
 

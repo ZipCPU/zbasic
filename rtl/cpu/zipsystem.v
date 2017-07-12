@@ -273,8 +273,12 @@ module	zipsystem(i_clk, i_rst,
 	wire	[31:0]	dbg_idata, dbg_odata;
 	reg		dbg_ack;
 `ifdef	DELAY_DBG_BUS
-	wire		dbg_err, no_dbg_err;
+	// Make verilator happy
+	// verilator lint_off UNUSED
+	wire		no_dbg_err;
 	wire	[3:0]	dbg_sel;
+	// verilator lint_on  UNUSED
+	wire		dbg_err;
 	assign		dbg_err = 1'b0;
 	busdelay #(1,32) wbdelay(i_clk,
 		i_dbg_cyc, i_dbg_stb, i_dbg_we, i_dbg_addr, i_dbg_data, 4'hf,
@@ -335,7 +339,7 @@ module	zipsystem(i_clk, i_rst,
 
 	initial	cmd_clear_pf_cache = 1'b1;
 	always @(posedge i_clk)
-		cmd_clear_pf_cache = (~i_rst)&&(dbg_cmd_write)
+		cmd_clear_pf_cache <= (~i_rst)&&(dbg_cmd_write)
 					&&((dbg_idata[11])||(dbg_idata[6]));
 	//
 	initial	cmd_step  = 1'b0;
@@ -401,7 +405,6 @@ module	zipsystem(i_clk, i_rst,
 	reg	wdbus_ack;
 	reg	[(AW-1):0] 	r_wdbus_data;
 	wire	[31:0]	 	wdbus_data;
-	wire	[14:0]	wdbus_ignored_data;
 	wire	reset_wdbus_timer, wdbus_int;
 	assign	reset_wdbus_timer = ((o_wb_cyc)&&((o_wb_stb)||(i_wb_ack)));
 	wbwatchdog #(14) watchbus(i_clk,(cpu_reset)||(reset_wdbus_timer),
@@ -409,7 +412,7 @@ module	zipsystem(i_clk, i_rst,
 	initial	r_wdbus_data = 0;
 	always @(posedge i_clk)
 		if ((wdbus_int)||(cpu_ext_err))
-			r_wdbus_data = o_wb_addr;
+			r_wdbus_data <= o_wb_addr;
 	assign	wdbus_data = { {(32-AW){1'b0}}, r_wdbus_data };
 	initial	wdbus_ack = 1'b0;
 	always @(posedge i_clk)

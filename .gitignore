@@ -8,6 +8,7 @@ obj-zip
 *.a
 *.vcd
 *.tjz
+.swp
 .*.swp
 .*.swo
 svn-commit*
@@ -15,12 +16,13 @@ svn-commit*
 *_tb.dbl
 *dbg.txt
 *dump.txt
+*debug.txt
 tags
-busmaster_tb
+main_tb
 hello
 hellosim
-debug.txt
 cpudefs.h
 design.h
 20*build.v
 builddate.v
+octave-workspace

@@ -6,11 +6,11 @@
 //
 // Purpose:	This program attaches to a Verilated Verilog IP core.
 //		It will not work apart from such a core.  Once attached,
-//	it connects the simulated core to a controller via a pipe interface
-//	designed to act like a UART.  Indeed, it is hoped that the final
-//	interface would be via UART.  Until that point, however, this is just
-//	a simple test facility designed to verify that the  IP core works
-//	prior to such actual hardware implementation.
+//	it connects the simulated core to a controller via a TCP/IP pipe
+//	interface designed to act like a UART.  This simple test facility
+//	is thus designed to verify that the IP core that uses it works prior 
+//	to such actual hardware implementation, or alternatively to help
+//	debug a core after hardware implementation.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC

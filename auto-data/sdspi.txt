@@ -46,8 +46,9 @@
 @DEVID=SDSPI
 @NADDR=4
 @ACCESS=SDSPI_ACCESS
-@PTYPE=DOUBLE
-@BUS.PREFIX=wb
+@SLAVE.TYPE=OTHER
+@SLAVE.BUS=wb
+@BUS.NAME=wb
 # @SCOPE.TRIGGER=sd_debug[31]
 # @SCOPE.DATA=sd_debug
 @INT.SDCARD.WIRE= @$(PREFIX)_int
@@ -86,9 +87,11 @@
 	// SD-Card declarations
 	output	wire		o_sd_sck, o_sd_cmd;
 	output	wire	[3:0]	o_sd_data;
+	// verilator lint_off UNUSED
 	input	wire		i_sd_cmd;
 	input	wire	[3:0]	i_sd_data;
 	input	wire		i_sd_detect;
+	// verilator lint_on  UNUSED
 @MAIN.DEFNS=
 	wire[31:0]	sdspi_debug;
 @MAIN.INSERT=
@@ -96,11 +99,11 @@
 	wire	w_sd_cs_n, w_sd_mosi, w_sd_miso;
 
 	sdspi	@$(PREFIX)i(i_clk,
-		@$(BUS.PREFIX)_cyc,
-			(@$(BUS.PREFIX)_stb)&&(@$(PREFIX)_sel),
-			@$(BUS.PREFIX)_we,
-			@$(BUS.PREFIX)_addr[1:0],
-			@$(BUS.PREFIX)_data,
+		@$(BUS.NAME)_cyc,
+			(@$(BUS.NAME)_stb)&&(@$(PREFIX)_sel),
+			@$(BUS.NAME)_we,
+			@$(BUS.NAME)_addr[1:0],
+			@$(BUS.NAME)_data,
 			@$(PREFIX)_ack, @$(PREFIX)_stall, @$(PREFIX)_data,
 		w_sd_cs_n, o_sd_sck, w_sd_mosi, w_sd_miso,
 		@$(PREFIX)_int, 1'b1, sdspi_debug);
@@ -133,6 +136,7 @@
 #define	@$(DEVID)_SETAUX	0x0ff
 #define	@$(DEVID)_READAUX	0x0bf
 #define	@$(DEVID)_CMD		0x040
+#define	@$(DEVID)_ACMD		(0x040+55) // CMD55
 #define	@$(DEVID)_FIFO_OP	0x0800	// Read only
 #define	@$(DEVID)_WRITEOP	0x0c00	// Write to the FIFO
 #define	@$(DEVID)_ALTFIFO	0x1000
@@ -155,6 +159,10 @@ typedef	struct @$(DEVID)_S {
 #ifdef	SDSPI_ACCESS
 	SDSPISIM	m_sdcard;
 #endif
+@SIM.INIT=
+#ifdef	@$(ACCESS)
+		m_sdcard.debug(false);
+#endif	// @$(ACCESS)
 @SIM.METHODS=
 #ifdef	@$(ACCESS)
 	void	setsdcard(const char *fn) {
@@ -255,10 +263,11 @@ typedef	struct @$(DEVID)_S {
 #
 #
 @PREFIX=scope_sdcard
-@PTYPE=OTHER
+@SLAVE.TYPE=OTHER
+@SLAVE.BUS=wb
 @DEVID=SDSPI
 @NADDR=2
-@BUS.PREFIX=wb
+@BUS.NAME=wb
 @ACCESS=SDSPI_SCOPE
 @DEPENDS=SDSPI_ACCESS
 @INT.SDSCOPE.WIRE=@$(PREFIX)_int
@@ -267,17 +276,17 @@ typedef	struct @$(DEVID)_S {
 	wire	@$(PREFIX)_trigger,
 		@$(PREFIX)_ce;
 @MAIN.INSERT=
-	assign	@$(PREFIX)_trigger = (@$(BUS.PREFIX)_stb)
-				&&(sdcard_sel)&&(@$(BUS.PREFIX)_we);
+	assign	@$(PREFIX)_trigger = (@$(BUS.NAME)_stb)
+				&&(@$(PREFIX)_sel)&&(@$(BUS.NAME)_we);
 	assign	@$(PREFIX)_ce = 1'b1;
 	wbscope #(5'h9) sdspiscope(i_clk, @$(PREFIX)_ce,
 			@$(PREFIX)_trigger,
 			sdspi_debug,
-			i_clk, @$(BUS.PREFIX)_cyc,
-			(@$(BUS.PREFIX)_stb)&&(@$(PREFIX)_sel),
-			@$(BUS.PREFIX)_we,
-			@$(BUS.PREFIX)_addr[0],
-			@$(BUS.PREFIX)_data,
+			i_clk, @$(BUS.NAME)_cyc,
+			(@$(BUS.NAME)_stb)&&(@$(PREFIX)_sel),
+			@$(BUS.NAME)_we,
+			@$(BUS.NAME)_addr[0],
+			@$(BUS.NAME)_data,
 			@$(PREFIX)_ack,
 			@$(PREFIX)_stall,
 			@$(PREFIX)_data,

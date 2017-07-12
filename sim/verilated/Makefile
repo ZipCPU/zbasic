@@ -42,75 +42,95 @@
 .PHONY: all
 # Make certain the "all" target is the first and therefore the default target
 all:
-CXX      :=  g++
-OBJDIR   :=  obj-pc
-YYMMDD   := `date +%Y%m%d`
-VOBJDR   := ../../rtl/obj_dir
-VROOT   ?= $(shell bash -c 'verilator -V|grep VERILATOR_ROOT | head -1 | sed -e " s/^.*=\s*//"')
-VINC     := -I$(VROOT)/include -I$(VROOT)/include/vltstd -I$(VOBJDR)
-INCS     :=  -I. -I../../rtl -I../../sw/host $(VINC)
-CFLAGS   :=  -c -g -Wall $(INCS)
-# Now return to the "all" target, and fill in some details
-all:	$(OBJDIR)/ programs
+CXX	:= g++
+OBJDIR	:= obj-pc
+RTLD	:= ../../rtl
+VOBJDR	:= $(RTLD)/obj_dir
+VERILATOR_ROOT ?= $(shell bash -c 'verilator -V|grep VERILATOR_ROOT | head -1 | sed -e " s/^.*=\s*//"')
+VROOT	:= $(VERILATOR_ROOT)
+VINCD   := $(VROOT)/include
+VINC	:= -I$(VINCD) -I$(VINCD)/vltstd -I$(VOBJDR)
+INCS	:= -I../../sw/host -I$(RTLD) $(VINC)
+CFLAGS	:= -Og -g -Wall $(INCS)
+#
+# A list of our sources and headers
+#
+SIMSOURCES:= qspiflashsim.cpp sdspisim.cpp uartsim.cpp zipelf.cpp byteswap.cpp
+SIMOBJECTS:= $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(SIMSOURCES)))
+SIMHEADERS:= $(foreach header,$(subst .cpp,.h,$(SIMSOURCES)),$(wildcard $(header)))
+VOBJS   := $(OBJDIR)/verilated.o $(OBJDIR)/verilated_vcd_c.o
+SIMOBJ := $(subst .cpp,.o,$(SIMSRCS))
+SIMOBJS:= $(addprefix $(OBJDIR)/,$(SIMOBJ)) $(VOBJS)
 
-
-.PHONY: programs
-programs:	main_tb
-
-$(OBJDIR)/:
-	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi"
-
-CLSHEADERS:= qspiflashsim.h sdspisim.h uartsim.h zipelf.h
-CLSSOURCES:= $(subst .h,.cpp,$(CLSHEADERS))
-CLSOBJECTS:= $(addprefix $(OBJDIR)/,$(subst .h,.o,$(CLSHEADERS)))
-
-SOURCES := $(CLSSOURCES) main_tb.cpp automaster_tb.cpp
-HEADERS := $(CLSHEADERS)
+SOURCES := $(SIMSOURCES) main_tb.cpp automaster_tb.cpp
+HEADERS := $(foreach header,$(subst .cpp,.h,$(SOURCES)),$(wildcard $(header)))
+#
+PROGRAMS := main_tb
+# Now the return to the "all" target, and fill in some details
+all:	$(PROGRAMS)
 
 $(OBJDIR)/%.o: %.cpp
-	$(CXX) $(CFLAGS) $< -o $@
-$(OBJDIR)/%.o: $(VROOT)/include/%.cpp
-	$(CXX) $(CFLAGS) $< -o $@
+	$(mk-objdir)
+	$(CXX) $(CFLAGS) $(INCS) -c $< -o $@
 
-main_tb: $(OBJDIR)/qspiflashsim.o $(OBJDIR)/sdspisim.o
-main_tb: $(OBJDIR)/uartsim.o
-main_tb: $(OBJDIR)/verilated.o $(OBJDIR)/verilated_vcd_c.o
-main_tb: $(OBJDIR)/zipelf.o $(VOBJDR)/Vmain__ALL.a
-main_tb: $(OBJDIR)/byteswap.o
-main_tb: $(OBJDIR)/main_tb.o $(OBJDIR)/automaster_tb.o
-	$(CXX) -g -o $@ $^ -lelf
+$(OBJDIR)/%.o: $(VINCD)/%.cpp
+	$(mk-objdir)
+	$(CXX) $(CFLAGS) $(INCS) -c $< -o $@
 
+
+MAINOBJS := $(OBJDIR)/main_tb.o $(OBJDIR)/automaster_tb.o
+main_tb: $(MAINOBJS) $(SIMOBJECTS) $(VOBJS) $(VOBJDR)/Vmain__ALL.a
+	$(CXX) $(INCS) $^ $(VOBJDR)/Vmain__ALL.a -lelf -o $@
+
+#
+# Build a 64M SD-card image file that we can use for testing
+sdcard.img:
+	dd if=/dev/zero of=$@ bs=512 count=131072
+	mkfs.fat $@
+#
+# The "test" target, running hello world
+#
+.PHONY: test
+test:
+	./main_tb -d ../../sw/board/hello
 
 #
 # The "clean" target, removing any and all remaining build products
 #
 .PHONY: clean
 clean:
-	rm -f busmaster_tb $(OBJDIR)/*.o
+	rm -f *.vcd
+	rm -f $(PROGRAMS)
 	rm -rf $(OBJDIR)/
-
 
 #
 # The "depends" target, to know what files things depend upon.  The depends
 # file itself is kept in $(OBJDIR)/depends.txt
 #
-define	build-depends
+define build-depends
+	$(mk-objdir)
 	@echo "Building dependency file"
-	@$(CXX) $(INCS) -MM $(SOURCES) > $(OBJDIR)/xdepends.txt
-        @sed -e 's/^.*.o: /$(OBJDIR)\/&/' < $(OBJDIR)/xdepends.txt > $(OBJDIR)/depends.txt
-        @rm $(OBJDIR)/xdepends.txt
+	@$(CXX) $(CFLAGS) $(INCS) -MM $(SOURCES) > $(OBJDIR)/xdepends.txt
+	@sed -e 's/^.*.o: /$(OBJDIR)\/&/' < $(OBJDIR)/xdepends.txt > $(OBJDIR)/depends.txt
+	@rm $(OBJDIR)/xdepends.txt
 endef
 
 .PHONY: depends
-depends: tags $(OBJDIR)/
+depends: tags
 	$(build-depends)
 
-$(OBJDIR)/depends.txt: $(OBJDIR)/ depends
+$(OBJDIR)/depends.txt: depends
+
+#
+define	mk-objdir
+	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi"
+endef
+
 
 #
 # The "tags" target
 #
-tags:	$(SOURCES) $(HEADERS)	
+tags:	$(SOURCES) $(HEADERS)
 	@echo "Generating tags"
 	@ctags $(SOURCES) $(HEADERS)
 

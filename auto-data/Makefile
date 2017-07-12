@@ -1,10 +1,12 @@
 ################################################################################
 ##
-## Filename:	Makefile
+## Filename:	auto-data/Makefile
 ##
-## Project:	AutoFPGA, a utility for composing FPGA designs from peripherals
+## Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 ##
-## Purpose:	
+## Purpose:	To direct the build of the autofpga automatically generated
+##		files.  The various configuration files are the *.txt files
+##	found in this directory.
 ##
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
@@ -40,9 +42,14 @@
 all:	data
 #
 # Could also depend upon load, if desired, but not necessary
+#
+# This is the list of components that will form our project.  Each file consists
+# of parts and pieces of our project that autofpga will copy/paste into our
+# main project files.
+#
 DATA := global.txt bkram.txt buserr.txt clock.txt			\
-	dlyarbiter.txt flash.txt rtclight.txt	rtcdate.txt	\
-	pic.txt pwrcount.txt rtclight.txt				\
+	dlyarbiter.txt flash.txt rtclight.txt	rtcdate.txt		\
+	pic.txt pwrcount.txt						\
 	version.txt busconsole.txt zipmaster.txt sdspi.txt
 	# hdmi.txt
 
@@ -52,19 +59,11 @@ AUTOFPGA := ../../../autofpga/trunk/sw/autofpga
 data: $(AUTOFPGA) $(DATA)
 	$(AUTOFPGA) -o . $(DATA)
 
-# .PHONY: install
-# install: data
-#	$(call notify-on-change,toplevel.v,../rtl)
-#	$(call notify-on-change,main.v,../rtl)
-#	$(call notify-on-change,regdefs.h,../sw/host)
-#	$(call notify-on-change,regdefs.cpp,../sw/host)
-#	$(call notify-on-change,board.h,../sw/board)
-#	$(call notify-on-change,board.ld,../sw/board)
-
 define	notify-on-change
 	@bash -c 'cmp $(1) $(2)/$(1); if [[ $$? != 0 ]]; then echo "Files $(1) and $(2)/$(1) differ"; fi'
 endef
 
 clean:
 	rm -f toplevel.v main.v regdefs.h regdefs.cpp board.h board.ld
-	rm -f rtl.make.inc dump.txt main_tb.cpp
+	rm -f rtl.make.inc main_tb.cpp
+	rm -f dump.txt

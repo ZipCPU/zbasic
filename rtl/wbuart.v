@@ -62,11 +62,13 @@ module	wbuart(i_clk, i_rst,
 	localparam [3:0]	LCLLGFLEN = (LGFLEN > 4'ha)? 4'ha
 					: ((LGFLEN < 4'h2) ? 4'h2 : LGFLEN);
 	//
-	input	wire		i_clk, i_rst;
+	input	wire		i_clk;
+	input	wire		i_rst;
 	// Wishbone inputs
-	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire		i_wb_cyc;	// We ignore CYC for efficiency
+	input	wire		i_wb_stb, i_wb_we;
 	input	wire	[1:0]	i_wb_addr;
-	input	wire	[31:0]	i_wb_data;
+	input	wire	[31:0]	i_wb_data;	// and only use 30 lines here
 	output	reg		o_wb_ack;
 	output	wire		o_wb_stall;
 	output	reg	[31:0]	o_wb_data;
@@ -181,13 +183,14 @@ module	wbuart(i_clk, i_rst,
 	// Why N-1?  Because at N-1 we are totally full, but already so full
 	// that if the transmit end starts sending we won't have a location to
 	// receive it.  (Transmit might've started on the next character by the
-	// time we set this--need to set it to one character before necessary
-	// thus.)
+	// time we set this--thus we need to set it to one, one character before
+	// necessary).
 	wire	[(LCLLGFLEN-1):0]	check_cutoff;
 	assign	check_cutoff = -3;
 	always @(posedge i_clk)
-		o_cts = (!HARDWARE_FLOW_CONTROL_PRESENT)
-			||(rxf_status[(LCLLGFLEN+1):2] > check_cutoff);
+		o_rts_n <= ((HARDWARE_FLOW_CONTROL_PRESENT)
+			&&(!uart_setup[30])
+			&&(rxf_status[(LCLLGFLEN+1):2] > check_cutoff));
 
 	// If the bus requests that we read from the receive FIFO, we need to
 	// tell this to the receive FIFO.  Note that because we are using a 
@@ -361,8 +364,7 @@ module	wbuart(i_clk, i_rst,
 	// starting to transmit a new byte.)
 	txuart	#(INITIAL_SETUP) tx(i_clk, 1'b0, uart_setup,
 			r_tx_break, (tx_empty_n), tx_data,
-			((i_cts_n)||(!HARDWARE_FLOW_CONTROL_PRESENT)),
-			o_uart_tx, tx_busy);
+			cts_n, o_uart_tx, tx_busy);
 `endif
 
 	// Now that we are done with the chain, pick some wires for the user
@@ -421,5 +423,11 @@ module	wbuart(i_clk, i_rst,
 	// perhaps, but doesn't stall the pipeline.)  Hence, we can just
 	// set this value to zero.
 	assign	o_wb_stall = 1'b0;
+
+	// Make verilator happy
+	// verilator lint_off UNUSED
+	wire	[33:0] unused;
+	assign	unused = { i_rst, i_wb_cyc, i_wb_data };
+	// verilator lint_on UNUSED
 
 endmodule

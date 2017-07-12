@@ -4,7 +4,9 @@
 ##
 ## Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 ##
-## Purpose:	
+## Purpose:	To guide/direct the build of the board-specific portion of
+##		newlib.
+##
 ## Targets:	
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
@@ -43,22 +45,30 @@ INCS    := -I. -I../../rtl
 CFLAGS  := -O3 $(INCS)
 LIBSRCS := udiv.c umod.c syscalls.c crt0.c
 LIBOBJS := $(addprefix $(OBJDIR)/,$(subst .c,.o,$(LIBSRCS)))
-all: libzbasic.a
+ZIPLIB  := libzbasic.a
+all: $(ZIPLIB)
 
 $(OBJDIR)/%.o: %.c
+	$(mk-objdir)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)/%.s: %.c
+	$(mk-objdir)
 	$(CC) $(CFLAGS) -fdump-rtl-all -S $< -o $@
 
 $(OBJDIR)/crt0.o: crt0.c
+	$(mk-objdir)
 	$(CC) $(CFLAGS) -ffreestanding -c $< -o $@
 
-libzbasic.a: $(LIBOBJS)
+$(ZIPLIB): $(LIBOBJS)
 	$(AR) -cru $@ $(LIBOBJS)
 
 clean:
-	rm -rf libzbasic.a $(OBJDIR)/
+	rm -rf $(ZIPLIB) $(OBJDIR)/
+
+define	mk-objdir
+	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi"
+endef
 
 define	build-depends
 	@echo "Building dependency file(s)"
@@ -71,14 +81,8 @@ tags: $(LIBSRCS) $(HEADERS)
 	@echo "Generating tags"
 	@ctags $(LIBSRCS) $(HEADERS)
 
-$(OBJDIR)/depends.txt: $(OBJDIR)/
-	$(build-depends)
-
 .PHONY: depends
 depends:
 	$(build-depends)
-
-$(OBJDIR)/:
-	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR)/; fi"
 
 -include $(OBJDIR)/depends.txt

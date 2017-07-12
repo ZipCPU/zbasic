@@ -119,6 +119,12 @@ module	wbuconsole(i_clk, i_rx_stb, i_rx_data,
 			padififo(i_clk, w_bus_reset,
 				in_stb, in_word, fifo_in_stb, fifo_in_word,
 				ififo_empty_n, ififo_err);
+
+		// Make verilator happy
+		// verilator lint_off UNUSED
+		wire	unused_fifo;
+		assign	unused_fifo = ififo_err;
+		// verilator lint_on  UNUSED
 	end endgenerate
 
 	// Take requests in, Run the bus, send results out
@@ -183,5 +189,10 @@ module	wbuconsole(i_clk, i_rx_stb, i_rx_data,
 
 	assign	o_dbg = w_bus_reset;
 
+	// Make verilator happy
+	// verilator lint_off UNUSED
+	wire	[1:0]	unused;
+	assign	unused = { ofifo_err, wbu_tx_data[7] };
+	// verilator lint_on  UNUSED
 endmodule
 

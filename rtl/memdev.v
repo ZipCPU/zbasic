@@ -114,4 +114,9 @@ module	memdev(i_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel
 		o_wb_ack <= (w_stb);
 	assign	o_wb_stall = 1'b0;
 
+	// Make verilator happy
+	// verilator lint_off UNUSED
+	wire	unused;
+	assign	unused = i_wb_cyc;
+	// verilator lint_on UNUSED
 endmodule

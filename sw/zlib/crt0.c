@@ -103,6 +103,7 @@
 #include "zipcpu.h"
 #include "board.h"		// Our current board support file
 #include "bootloader.h"
+#include "zipsys.h"
 
 // A bootloader is about nothing more than copying memory from a couple
 // particular locations (Flash/ROM) to other locations in memory (BLKRAM
@@ -116,7 +117,7 @@
 // however: 1) It obscures for any readers of this code what is actually
 // happening, and 2) it makes the code dependent upon yet another piece of the
 // hardware design working.  For these reasons, we allow you to turn it off.
-#ifdef _HAS_ZIPSYS_DMA
+#ifdef _HAVE_ZIPSYS_DMA
 #define	USE_DMA
 #endif
 
@@ -213,46 +214,46 @@ extern	void	_bootloader(void) __attribute__ ((section (".boot")));
 #ifndef	SKIP_BOOTLOADER
 void	_bootloader(void) {
 #ifdef	USE_DMA
-	zip->z_dma.d_ctrl= DMACLEAR;
+	_zip->z_dma.d_ctrl= DMACLEAR;
 #ifdef	_BOARD_HAS_KERNEL_SPACE
-	zip->z_dma.d_rd = _kernel_image_start;
+	_zip->z_dma.d_rd = _kernel_image_start;
 	if (_kernel_image_end != _bkram) {
-		zip->z_dma.d_len = _kernel_image_end - _bkram;
-		zip->z_dma.d_wr  = _bkram;
-		zip->z_dma.d_ctrl= DMACCOPY;
+		_zip->z_dma.d_len = _kernel_image_end - _bkram;
+		_zip->z_dma.d_wr  = _bkram;
+		_zip->z_dma.d_ctrl= DMACCOPY;
 
-		zip->z_pic = SYSINT_DMAC;
-		while((zip->z_pic & SYSINT_DMAC)==0)
+		_zip->z_pic = SYSINT_DMAC;
+		while((_zip->z_pic & SYSINT_DMAC)==0)
 			;
 	}
 
-	// zip->z_dma.d_rd // Keeps the same value
-	zip->z_dma.d_wr  = _sdram;
+	// _zip->z_dma.d_rd // Keeps the same value
+	_zip->z_dma.d_wr  = _sdram;
 
 #else
-	zip->z_dma.d_rd = _ram_image_start;
-	zip->z_dma.d_wr = _ram;
+	_zip->z_dma.d_rd = _ram_image_start;
+	_zip->z_dma.d_wr = (int *)_ram;
 #endif
 
-	if (_ram_image_end != zip->z_dma.d_rd) {
-		zip->z_dma.d_len = _ram_image_end - _zip->z_dma.d_rd;
-		zip->z_dma.d_ctrl= DMACCOPY;
+	if (_zip->z_dma.d_wr < _ram_image_end) {
+		_zip->z_dma.d_len = _ram_image_end - _zip->z_dma.d_wr;
+		_zip->z_dma.d_ctrl= DMACCOPY;
 
-		zip->z_pic = SYSINT_DMAC;
-		while((zip->z_pic & SYSINT_DMAC)==0)
+		_zip->z_pic = SYSINT_DMAC;
+		while((_zip->z_pic & SYSINT_DMAC)==0)
 			;
 	}
 
-	if (_bss_image_end != _ram_image_end) {
+	if (_zip->z_dma.d_wr < _bss_image_end) {
 		volatile int	zero = 0;
 
-		zip->z_dma.d_len = _bss_image_end - _ram_image_end;
-		zip->z_dma.d_rd  = (unsigned *)&zero;
-		// zip->z_dma.wr // Keeps the same value
-		zip->z_dma.d_ctrl = DMACCOPY|DMA_CONSTSRC;
+		_zip->z_dma.d_len = _bss_image_end - _zip->z_dma.d_wr;
+		_zip->z_dma.d_rd  = (unsigned *)&zero;
+		// _zip->z_dma.wr // Keeps the same value
+		_zip->z_dma.d_ctrl = DMACCOPY|DMA_CONSTSRC;
 
-		zip->z_pic = SYSINT_DMAC;
-		while((zip->z_pic & SYSINT_DMAC)==0)
+		_zip->z_pic = SYSINT_DMAC;
+		while((_zip->z_pic & SYSINT_DMAC)==0)
 			;
 	}
 #else

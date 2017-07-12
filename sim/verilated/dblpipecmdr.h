@@ -237,12 +237,10 @@ public:
 
 						if (m_cmd < 0)
 							perror("CMD Accept failed:");
-						else printf("Accepted CMD connection\n");
 					} else if (pb[k].fd == m_console) {
 						m_con = accept(m_console, 0, 0);
 						if (m_con < 0)
 							perror("CON Accept failed:");
-						else printf("Accepted CON connection\n");
 					}
 				}}
 			}

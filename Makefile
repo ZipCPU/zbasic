@@ -38,7 +38,7 @@
 ##
 ##
 .PHONY: all
-all:	check-install archive datestamp autodata rtl sim sw
+all:	check-install archive datestamp rtl sim sw
 #
 # Could also depend upon load, if desired, but not necessary
 BENCH := # `find bench -name Makefile` `find bench -name "*.cpp"` `find bench -name "*.h"`
@@ -49,9 +49,9 @@ SW    := `find sw -name "*.cpp"` `find sw -name "*.c"`	\
 	`find sw -name "*.h"`	`find sw -name "*.sh"`	\
 	`find sw -name "*.py"`	`find sw -name "*.pl"`	\
 	`find sw -name "*.png"`	`find sw -name Makefile`
-DEVSW := `find sw-board -name "*.cpp"` `find sw-board -name "*.h"` \
-	`find sw-board -name Makefile`
-PROJ  := 
+DEVSW := `find sw/board -name "*.cpp"` `find sw/board -name "*.h"` \
+	`find sw/board -name Makefile`
+PROJ  :=
 BIN  := # `find xilinx -name "*.bit"`
 AUTODATA := `find auto-data -name "*.txt"`
 CONSTRAINTS := `find . -name "*.xdc"`
@@ -64,7 +64,7 @@ SUBMAKE:= $(MAKE) --no-print-directory -C
 #
 #
 .PHONY: check-install
-check-install: check-perl check-autofpga check-verilator check-zip-gcc check-gpp
+check-install: check-perl check-verilator check-zip-gcc check-gpp
 
 .PHONY: check-perl
 	$(call checkif-installed,perl,)
@@ -106,9 +106,10 @@ datestamp: check-perl
 # Make a tar archive of this file, as a poor mans version of source code control
 # (Sorry ... I've been burned too many times by files I've wiped away ...)
 #
+ARCHIVEFILES := $(BENCH) $(SW) $(RTL) $(SIM) $(NOTES) $(PROJ) $(BIN) $(CONSTRAINTS) $(AUTODATA) README.md
 .PHONY: archive
 archive:
-	tar --transform s,^,$(YYMMDD)-zbasic/, -chjf $(YYMMDD)-zbasic.tjz $(BENCH) $(SW) $(RTL) $(SIM) $(NOTES) $(PROJ) $(BIN) $(CONSTRAINTS) README.md
+	tar --transform s,^,$(YYMMDD)-zbasic/, -chjf $(YYMMDD)-zbasic.tjz $(ARCHIVEFILES)
 
 #
 #
@@ -124,6 +125,7 @@ autodata: check-autofpga
 	$(call copyif-changed,auto-data/board.h,sw/zlib/board.h)
 	$(call copyif-changed,auto-data/board.ld,sw/board/board.ld)
 	$(call copyif-changed,auto-data/rtl.make.inc,rtl/make.inc)
+	$(call copyif-changed,auto-data/testb.h,sim/verilated/testb.h)
 	$(call copyif-changed,auto-data/main_tb.cpp,sim/verilated/main_tb.cpp)
 
 #
@@ -132,8 +134,8 @@ autodata: check-autofpga
 # simulation class library that we can then use for simulation
 #
 .PHONY: verilated
-verilated: datestamp autodata check-verilator
-	$(SUBMAKE) rtl
+verilated: datestamp check-verilator
+	+@$(SUBMAKE) rtl
 
 .PHONY: rtl
 rtl: verilated
@@ -144,7 +146,7 @@ rtl: verilated
 #
 .PHONY: sim
 sim: rtl check-gpp
-	$(SUBMAKE) sim/verilated
+	+@$(SUBMAKE) sim/verilated
 
 #
 #
@@ -158,8 +160,8 @@ sw: sw-host sw-zlib sw-board
 # Build the hardware specific newlib library
 #
 .PHONY: sw-zlib
-sw-zlib: autodata check-zip-gcc
-	$(SUBMAKE) sw/zlib
+sw-zlib: check-zip-gcc
+	+@$(SUBMAKE) sw/zlib
 
 #
 #
@@ -167,7 +169,7 @@ sw-zlib: autodata check-zip-gcc
 #
 .PHONY: sw-board
 sw-board: sw-zlib check-zip-gcc
-	$(SUBMAKE) sw/board
+	+@$(SUBMAKE) sw/board
 
 #
 #
@@ -175,7 +177,7 @@ sw-board: sw-zlib check-zip-gcc
 #
 .PHONY: sw-host
 sw-host: check-gpp
-	$(SUBMAKE) sw/host
+	+@$(SUBMAKE) sw/host
 
 #
 #
@@ -184,6 +186,10 @@ sw-host: check-gpp
 .PHONY: hello
 hello: sim sw
 	sim/verilated/main_tb sw/board/hello
+
+.PHONY: sdtest
+sdtest: sim sw
+	sim/verilated/main_tb sw/board/sdtest
 
 .PHONY: test
 test: hello
@@ -208,9 +214,9 @@ endef
 
 .PHONY: clean
 clean:
-	$(SUBMAKE) auto-data     clean
-	$(SUBMAKE) sim/verilated clean
-	$(SUBMAKE) rtl           clean
-	$(SUBMAKE) sw/zlib       clean
-	$(SUBMAKE) sw/board      clean
-	$(SUBMAKE) sw/host       clean
+	+$(SUBMAKE) auto-data     clean
+	+$(SUBMAKE) sim/verilated clean
+	+$(SUBMAKE) rtl           clean
+	+$(SUBMAKE) sw/zlib       clean
+	+$(SUBMAKE) sw/board      clean
+	+$(SUBMAKE) sw/host       clean
