@@ -51,11 +51,11 @@
 #include "regdefs.h"
 #include "testb.h"
 #include "sdspisim.h"
+#include "byteswap.h"
 #include "qspiflashsim.h"
+#include "dblpipecmdr.h"
 #include "zipelf.h"
 
-#include "byteswap.h"
-#include "dblpipecmdr.h"
 // Looking for string: SIM.DEFINES
 #define	sd_cmd_busy	v__DOT__sdcardi__DOT__r_cmd_busy
 #define	sd_clk		v__DOT__sdcardi__DOT__r_sdspi_clk
@@ -85,6 +85,8 @@
 #define	sd_use_fifo	v__DOT__sdcard__DOT__r_use_fifo
 #define	sd_fifo_wr	v__DOT__sdcard__DOT__r_fifo_wr
 
+#define	block_ram	v__DOT__bkrami__DOT__mem
+#define	PARENT	DBLPIPECMDR<BASECLASS>
 #define	cpu_break 	v__DOT__swic__DOT__cpu_break
 #define	cpu_cmd_halt	v__DOT__swic__DOT__cmd_halt
 #define	cpu_ipc		v__DOT__swic__DOT__thecpu__DOT__ipc
@@ -105,8 +107,6 @@
 #define	cpu_new_pc	v__DOT__swic__DOT__thecpu__DOT__new_pc
 #define	cpu_sim_immv	v__DOT__swic__DOT__thecpu__DOT__op_sim_immv
 
-#define	block_ram	v__DOT__bkrami__DOT__mem
-#define	PARENT	DBLPIPECMDR<BASECLASS>
 class	MAINTB : public PARENT {
 public:
 // Looking for string: SIM.DEFNS
@@ -283,29 +283,7 @@ public:
 	bool	load(uint32_t addr, const char *buf, uint32_t len) {
 		uint32_t	start, offset, wlen, base, naddr;
 
-		base  = 0x01000000;
-		naddr = 0x00400000;
-
-		if ((addr >= base)&&(addr < base + naddr)) {
-			// If the start access is in flash
-			start = (addr > base) ? (addr-base) : 0;
-			offset = (start + base) - addr;
-			wlen = (len-offset > naddr - start)
-				? (naddr - start) : len - offset;
-#ifdef	FLASH_ACCESS
-			// FROM flash.SIM.LOAD
-			m_flash->load(start, &buf[offset], wlen);
-			// AUTOFPGA::Now clean up anything else
-			// Was there more to write than we wrote?
-			if (addr + len > base + naddr)
-				return load(base + naddr, &buf[offset+wlen], len-wlen);
-			return true;
-#else	// FLASH_ACCESS
-			return false;
-#endif	// FLASH_ACCESS
-		}
-
-		base  = 0x00c00000;
+		base  = 0x00e00000;
 		naddr = 0x00040000;
 
 		if ((addr >= base)&&(addr < base + naddr)) {
@@ -333,6 +311,28 @@ public:
 #else	// BKRAM_ACCESS
 			return false;
 #endif	// BKRAM_ACCESS
+		}
+
+		base  = 0x01000000;
+		naddr = 0x00400000;
+
+		if ((addr >= base)&&(addr < base + naddr)) {
+			// If the start access is in flash
+			start = (addr > base) ? (addr-base) : 0;
+			offset = (start + base) - addr;
+			wlen = (len-offset > naddr - start)
+				? (naddr - start) : len - offset;
+#ifdef	FLASH_ACCESS
+			// FROM flash.SIM.LOAD
+			m_flash->load(start, &buf[offset], wlen);
+			// AUTOFPGA::Now clean up anything else
+			// Was there more to write than we wrote?
+			if (addr + len > base + naddr)
+				return load(base + naddr, &buf[offset+wlen], len-wlen);
+			return true;
+#else	// FLASH_ACCESS
+			return false;
+#endif	// FLASH_ACCESS
 		}
 
 		return false;

@@ -86,20 +86,6 @@ typedef	struct	RTCLIGHT_S	{
 } RTCLIGHT;
 
 
-#define	CLKFREQHZ	100000000
-
-
-typedef struct  CONSOLE_S {
-	unsigned	u_setup;
-	unsigned	u_fifo;
-	unsigned	u_rx, u_tx;
-} CONSOLE;
-
-
-
-#define	SYSPIC(A)	(1<<(A))
-
-
 #ifndef	WBSCOPE_H
 #define	WBSCOPE_H
 
@@ -114,44 +100,58 @@ typedef struct WBSCOPE_S {
 #endif
 
 
+#define	CLKFREQHZ	100000000
+
+
+typedef struct  CONSOLE_S {
+	unsigned	u_setup;
+	unsigned	u_fifo;
+	unsigned	u_rx, u_tx;
+} CONSOLE;
+
+
+
+#define	SYSPIC(A)	(1<<(A))
+
+
 #define	ALTPIC(A)	(1<<(A))
 
 
 #ifdef	SDSPI_ACCESS
 #define	_BOARD_HAS_SDSPI
-static volatile SDSPI *const _sdcard = ((SDSPI *)4194304);
+static volatile SDSPI *const _sdcard = ((SDSPI *)6291456);
 #endif	// SDSPI_ACCESS
 #ifdef	BUSPIC_ACCESS
 #define	_BOARD_HAS_BUSPIC
 static volatile unsigned *const _buspic = ((unsigned *)4);
 #endif	// BUSPIC_ACCESS
+#ifdef	BKRAM_ACCESS
+#define	_BOARD_HAS_BKRAM
+extern char	_bkram[0x00100000];
+#endif	// BKRAM_ACCESS
 #ifdef	RTC_ACCESS
 #define	_BOARD_HAS_RTCLIGHT
-static volatile RTCLIGHT *const _rtc = ((RTCLIGHT *)8388608);
+static volatile RTCLIGHT *const _rtc = ((RTCLIGHT *)10485760);
 #endif	// RTC_ACCESS
 #ifdef	FLASH_ACCESS
 #define	_BOARD_HAS_FLASH
 extern char _flash[0x01000000];
 #endif	// FLASH_ACCESS
+#ifdef	SDSPI_SCOPE
+#define	_BOARD_HAS_SDSPI_SCOPE
+static volatile WBSCOPE *const _scope_sdcard = ((WBSCOPE *)2097152);
+#endif	// SDSPI_SCOPE
 #ifdef	RTCDATE_ACCESS
 #define	_BOARD_HAS_RTCDATE
 static volatile unsigned *const _date = ((unsigned *)8);
 #endif	// RTCDATE_ACCESS
-#ifdef	BKRAM_ACCESS
-#define	_BOARD_HAS_BKRAM
-extern char	_bkram[0x00100000];
-#endif	// BKRAM_ACCESS
 #define	_BOARD_HAS_VERSION
 #define	_BOARD_HAS_BUSERR
 static volatile unsigned *const _buserr = ((unsigned *)0);
 #ifdef	BUSCONSOLE_ACCESS
 #define	_BOARD_HAS_BUSCONSOLE
-static volatile CONSOLE *const _uart = ((CONSOLE *)6291456);
+static volatile CONSOLE *const _uart = ((CONSOLE *)8388608);
 #endif	// BUSCONSOLE_ACCESS
-#ifdef	SDSPI_SCOPE
-#define	_BOARD_HAS_SDSPI_SCOPE
-static volatile WBSCOPE *const _scope_sdcard = ((WBSCOPE *)0);
-#endif	// SDSPI_SCOPE
 //
 // Interrupt assignments (3 PICs)
 //

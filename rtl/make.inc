@@ -47,16 +47,16 @@ BUSPIC  := $(addprefix $(BUSPICD)/,icontrol.v)
 BUSDLYD := cpu
 
 BUSDLY  := $(addprefix $(BUSDLYD)/,busdelay.v)
+BKRAM:= memdev.v
+
+SDSPI:= sdspi.v llsdspi.v wbscope.v
+
 ZIPCPUD := cpu
 
 ZIPCPU  := $(addprefix $(ZIPCPUD)/,zipcpu.v cpuops.v pfcache.v pipemem.v pfcache.v idecode.v wbpriarbiter.v zipsystem.v zipcounter.v zipjiffies.v ziptimer.v wbdmac.v icontrol.v wbwatchdog.v busdelay.v cpudefs.v)
 RTCDATE:= rtcdate.v
 
-BKRAM:= memdev.v
-
 WBUBUS:= wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v wbudecompress.v wbudeword.v wbuexec.v wbuidleint.v wbuinput.v wbuoutput.v wbureadcw.v wbusixchar.v wbutohex.v wbconsole.v
 
-SDSPI:= sdspi.v llsdspi.v wbscope.v
-
-VFLIST := main.v  $(FLASH) $(BUSPIC) $(BUSDLY) $(ZIPCPU) $(RTCDATE) $(BKRAM) $(WBUBUS) $(SDSPI)
+VFLIST := main.v  $(FLASH) $(BUSPIC) $(BUSDLY) $(BKRAM) $(SDSPI) $(ZIPCPU) $(RTCDATE) $(WBUBUS)
 AUTOVDIRS :=  -y $(BUSPICD)  -y $(BUSDLYD)  -y $(ZIPCPUD) 

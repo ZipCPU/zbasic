@@ -277,7 +277,7 @@ typedef	struct @$(DEVID)_S {
 		@$(PREFIX)_ce;
 @MAIN.INSERT=
 	assign	@$(PREFIX)_trigger = (@$(BUS.NAME)_stb)
-				&&(@$(PREFIX)_sel)&&(@$(BUS.NAME)_we);
+				&&(sdcard_sel)&&(@$(BUS.NAME)_we);
 	assign	@$(PREFIX)_ce = 1'b1;
 	wbscope #(5'h9) sdspiscope(i_clk, @$(PREFIX)_ce,
 			@$(PREFIX)_trigger,

@@ -47,14 +47,14 @@
 
 const	REGNAME	raw_bregs[] = {
 	{ R_BUSERR        ,	"BUSERR"   	},
-	{ R_SDSPI_SCOPC   ,	"SDSCOPC"  	},
-	{ R_SDSPI_SCOPC   ,	"SDSCOPE"  	},
-	{ R_SDSPI_SCOPD   ,	"SDSCOPD"  	},
 	{ R_PIC           ,	"PIC"      	},
 	{ R_DATE          ,	"RTCDATE"  	},
 	{ R_DATE          ,	"DATE"     	},
 	{ R_PWRCOUNT      ,	"PWRCOUNT" 	},
 	{ R_VERSION       ,	"VERSION"  	},
+	{ R_SDSPI_SCOPC   ,	"SDSCOPC"  	},
+	{ R_SDSPI_SCOPC   ,	"SDSCOPE"  	},
+	{ R_SDSPI_SCOPD   ,	"SDSCOPD"  	},
 	{ R_QSPI_EREG     ,	"QSPIE"    	},
 	{ R_QSPI_CREG     ,	"QSPIC"    	},
 	{ R_QSPI_SREG     ,	"QSPIS"    	},

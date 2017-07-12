@@ -56,33 +56,33 @@
 // Register address definitions, from @REGS.#d
 //
 #define	R_BUSERR        	0x00000000	// 00000000, wbregs names: BUSERR
-// SDSPI Debugging scope
-#define	R_SDSPI_SCOPC   	0x00000000	// 00000000, wbregs names: SDSCOPC, SDSCOPE
-#define	R_SDSPI_SCOPD   	0x00000004	// 00000000, wbregs names: SDSCOPD
 #define	R_PIC           	0x00000004	// 00000004, wbregs names: PIC
 #define	R_DATE          	0x00000008	// 00000008, wbregs names: RTCDATE, DATE
 #define	R_PWRCOUNT      	0x0000000c	// 0000000c, wbregs names: PWRCOUNT
 #define	R_VERSION       	0x00000010	// 00000010, wbregs names: VERSION
+// SDSPI Debugging scope
+#define	R_SDSPI_SCOPC   	0x00200000	// 00200000, wbregs names: SDSCOPC, SDSCOPE
+#define	R_SDSPI_SCOPD   	0x00200004	// 00200000, wbregs names: SDSCOPD
 // FLASH erase/program configuration registers
-#define	R_QSPI_EREG     	0x00200000	// 00200000, wbregs names: QSPIE
-#define	R_QSPI_CREG     	0x00200004	// 00200000, wbregs names: QSPIC
-#define	R_QSPI_SREG     	0x00200008	// 00200000, wbregs names: QSPIS
-#define	R_QSPI_IDREG    	0x0020000c	// 00200000, wbregs names: QSPII
+#define	R_QSPI_EREG     	0x00400000	// 00400000, wbregs names: QSPIE
+#define	R_QSPI_CREG     	0x00400004	// 00400000, wbregs names: QSPIC
+#define	R_QSPI_SREG     	0x00400008	// 00400000, wbregs names: QSPIS
+#define	R_QSPI_IDREG    	0x0040000c	// 00400000, wbregs names: QSPII
 // SD-SPI addresses
-#define	R_SDSPI_CTRL    	0x00400000	// 00400000, wbregs names: SDCARD
-#define	R_SDSPI_DATA    	0x00400004	// 00400000, wbregs names: SDDATA
-#define	R_SDSPI_FIFOA   	0x00400008	// 00400000, wbregs names: SDFIFOA, SDFIF0, SDFIFA
-#define	R_SDSPI_FIFOB   	0x0040000c	// 00400000, wbregs names: SDFIFOB, SDFIF1, SDFIFB
+#define	R_SDSPI_CTRL    	0x00600000	// 00600000, wbregs names: SDCARD
+#define	R_SDSPI_DATA    	0x00600004	// 00600000, wbregs names: SDDATA
+#define	R_SDSPI_FIFOA   	0x00600008	// 00600000, wbregs names: SDFIFOA, SDFIF0, SDFIFA
+#define	R_SDSPI_FIFOB   	0x0060000c	// 00600000, wbregs names: SDFIFOB, SDFIF1, SDFIFB
 // CONSOLE registers
-#define	R_CONSOLE_FIFO  	0x00600004	// 00600000, wbregs names: UFIFO
-#define	R_CONSOLE_UARTRX	0x00600008	// 00600000, wbregs names: RX
-#define	R_CONSOLE_UARTTX	0x0060000c	// 00600000, wbregs names: TX
+#define	R_CONSOLE_FIFO  	0x00800004	// 00800000, wbregs names: UFIFO
+#define	R_CONSOLE_UARTRX	0x00800008	// 00800000, wbregs names: RX
+#define	R_CONSOLE_UARTTX	0x0080000c	// 00800000, wbregs names: TX
 // RTC clock registers
-#define	R_CLOCK         	0x00800000	// 00800000, wbregs names: CLOCK, TIMER
-#define	R_TIMER         	0x00800004	// 00800000, wbregs names: TIMER
-#define	R_STOPWATCH     	0x00800008	// 00800000, wbregs names: STOPWATCH
-#define	R_CKALARM       	0x0080000c	// 00800000, wbregs names: ALARM, CKALARM
-#define	BKRAM           	0x00c00000	// 00c00000, wbregs names: RAM
+#define	R_CLOCK         	0x00a00000	// 00a00000, wbregs names: CLOCK, TIMER
+#define	R_TIMER         	0x00a00004	// 00a00000, wbregs names: TIMER
+#define	R_STOPWATCH     	0x00a00008	// 00a00000, wbregs names: STOPWATCH
+#define	R_CKALARM       	0x00a0000c	// 00a00000, wbregs names: ALARM, CKALARM
+#define	BKRAM           	0x00e00000	// 00e00000, wbregs names: RAM
 #define	FLASHMEM        	0x01000000	// 01000000, wbregs names: FLASH
 
 
@@ -90,16 +90,16 @@
 // The @REGDEFS.H.DEFNS tag
 //
 // @REGDEFS.H.DEFNS for masters
-#define	CLKFREQHZ	100000000
 #define	R_ZIPCTRL	0x02000000
 #define	R_ZIPDATA	0x02000004
 #define	RESET_ADDRESS	0x01000000
+#define	CLKFREQHZ	100000000
 // @REGDEFS.H.DEFNS for peripherals
+#define	BKRAMBASE	14680064
+#define	BKRAMLEN	0x00100000
 #define	FLASHBASE	16777216
 #define	FLASHLEN	0x01000000
 #define	FLASHLGLEN	24
-#define	BKRAMBASE	12582912
-#define	BKRAMLEN	0x00100000
 // @REGDEFS.H.DEFNS at the top level
 // End of definitions from REGDEFS.H.DEFNS
 //

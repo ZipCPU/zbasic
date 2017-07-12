@@ -33,8 +33,8 @@
 ##
 ##
 ################################################################################
-#
-#
+##
+##
 @LEGAL=../auto-data/legalgen.txt
 @PROJECT=ZBasic, a generic toplevel implementation using the full ZipCPU
 # @XDC.FILE=nexysv.xdc
@@ -104,3 +104,9 @@ const	char *addrname(const unsigned v) {
 #include "design.h"
 #include "regdefs.h"
 #include "testb.h"
+@PREFIX=wb
+@BUS.NAME=wb
+@BUS.TYPE=wb
+@$BUS.WIDTH=32
+@BUS.CLOCK=clk
+@$BUS.NULLSZ=0x400

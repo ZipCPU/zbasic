@@ -98,15 +98,15 @@ $(OBJDIR)/hello.o: hello.c
 $(OBJDIR)/gettysburg.o: gettysburg.c
 	$(CC) -O3 -c $< -o $@
 
-hello: $(OBJDIR)/hello.o
+hello: $(OBJDIR)/hello.o board.ld
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
 
-sdtest: $(OBJDIR)/sdtest.o
+sdtest: $(OBJDIR)/sdtest.o board.ld
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
 
-hellosim: hellosim.s
-	$(AS) $< -o $(OBJDIR)/hellosim.o
-	$(LD) -T boardram.ld $(OBJDIR)/hellosim.o -o $@
+#hellosim: hellosim.s
+#	$(AS) $< -o $(OBJDIR)/hellosim.o
+#	$(LD) -T boardram.ld $(OBJDIR)/hellosim.o -o $@
 
 
 define	mk-objdir
