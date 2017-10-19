@@ -54,6 +54,14 @@
 `define	QSPI_MOD_QOUT	2'b10
 `define	QSPI_MOD_QIN	2'b11
 
+// Which level of formal proofs will we be doing?  As a component, or a
+// top-level?
+`ifdef	LLQSPI_TOP
+`define	ASSUME	assume
+`else
+`define	ASSUME	assert
+`endif
+//
 module	llqspi(i_clk,
 		// Module interface
 		i_wr, i_hold, i_word, i_len, i_spd, i_dir,
@@ -78,7 +86,7 @@ module	llqspi(i_clk,
 	output	reg		o_cs_n;
 	output	reg	[1:0]	o_mod;
 	output	reg	[3:0]	o_dat;
-	input		[3:0]	i_dat;
+	input	wire	[3:0]	i_dat;
 
 	// output	wire	[22:0]	o_dbg;
 	// assign	o_dbg = { state, spi_len,
@@ -194,6 +202,7 @@ module	llqspi(i_clk,
 	initial	o_busy  = 1'b0;
 	initial	r_input = 31'h000;
 	initial o_mod   = `QSPI_MOD_SPI;
+	initial o_word  = 0;
 	always @(posedge i_clk)
 		if ((state == `QSPI_IDLE)&&(o_sck))
 		begin
@@ -204,7 +213,7 @@ module	llqspi(i_clk,
 			r_word <= i_word;
 			r_spd <= i_spd;
 			r_dir <= i_dir;
-			if (i_wr)
+			if ((i_wr)&&(!o_busy))
 			begin
 				state <= `QSPI_START;
 				spi_len<= { 1'b0, i_len, 3'b000 } + 6'h8;
@@ -232,10 +241,10 @@ module	llqspi(i_clk,
 				o_dat <= r_word[31:28];
 			else
 				o_dat <= { 3'b110, r_word[31] };
-		end else if (~o_sck)
+		end else if (!o_sck)
 		begin
 			o_sck <= 1'b1;
-			o_busy <= ((state != `QSPI_READY)||(~i_wr));
+			o_busy <= ((state != `QSPI_READY)||(!i_wr));
 			o_valid <= 1'b0;
 		end else if (state == `QSPI_BITS)
 		begin
@@ -259,7 +268,7 @@ module	llqspi(i_clk,
 			end
 
 			o_valid <= 1'b0;
-			if (~o_mod[1])
+			if (!o_mod[1])
 				r_input <= { r_input[29:0], i_miso };
 			else if (o_mod[1])
 				r_input <= { r_input[26:0], i_dat };
@@ -283,7 +292,7 @@ module	llqspi(i_clk,
 				r_word <= { i_word[30:0], 1'b0 };
 				spi_len<= { 1'b0, i_len, 3'b000 } + 6'h8 - 6'h1;
 			end
-			if((~o_busy)&&(i_wr))// Acknowledge a new request
+			if((!o_busy)&&(i_wr))// Acknowledge a new request
 			begin
 				state <= `QSPI_BITS;
 				o_busy <= 1'b1;
@@ -300,12 +309,12 @@ module	llqspi(i_clk,
 			end else begin
 				o_sck <= 1'b1;
 				state <= (i_hold)?`QSPI_HOLDING : `QSPI_STOP;
-				o_busy <= (~i_hold);
+				o_busy <= (!i_hold);
 			end
 
 			// Read a bit upon any transition
 			o_valid <= 1'b1;
-			if (~o_mod[1])
+			if (!o_mod[1])
 			begin
 				r_input <= { r_input[29:0], i_miso };
 				o_word  <= { r_input[30:0], i_miso };
@@ -337,7 +346,7 @@ module	llqspi(i_clk,
 				r_word <= { i_word[30:0], 1'b0 };
 				spi_len<= { 1'b0, i_len, 3'b111 };
 			end
-			if((~o_busy)&&(i_wr))// Acknowledge a new request
+			if((!o_busy)&&(i_wr))// Acknowledge a new request
 			begin
 				state  <= `QSPI_BITS;
 				o_busy <= 1'b1;
@@ -353,7 +362,7 @@ module	llqspi(i_clk,
 			end else begin
 				o_sck <= 1'b1;
 				state <= (i_hold)?`QSPI_HOLDING : `QSPI_STOP;
-				o_busy <= (~i_hold);
+				o_busy <= (!i_hold);
 			end
 		end else if (state == `QSPI_STOP)
 		begin
@@ -381,6 +390,224 @@ module	llqspi(i_clk,
 			o_mod   <= `QSPI_MOD_SPI;
 			o_dat   <= 4'hd;
 		end
+
+`ifdef	FORMAL
+	reg	prev_i_clk, past_valid;
+
+	initial	`ASSUME(i_clk == 1'b0);
+	initial	prev_i_clk  = 1;
+	always @($global_clock)
+	begin
+		prev_i_clk  <= i_clk;
+		`ASSUME(i_clk != prev_i_clk);
+	end
+
+	reg	past_valid;
+	initial	past_valid = 1'b0;
+	always @(posedge i_clk)
+		past_valid <= 1'b1;
+
+	/*
+	always @(*)
+		if (!$stable(i_spd))
+			assert($rose(i_clk));
+	*/
+
+	always @(posedge i_clk) begin
+		if ((past_valid)&&($past(i_wr))&&($past(o_busy)))
+		begin
+			// any time i_wr and o_busy are true, nothing changes
+			// of spd, len, word or dir
+			`ASSUME(i_wr);
+			`ASSUME(i_spd  == $past(i_spd));
+			`ASSUME(i_len  == $past(i_len));
+			`ASSUME(i_word == $past(i_word));
+			`ASSUME(i_dir  == $past(i_dir));
+			`ASSUME(i_hold == $past(i_hold));
+		end
+		if ((past_valid)&&($past(i_wr))&&($past(o_busy))&&($past(state == `QSPI_IDLE)))
+			assert($past(state)==state);
+		if (i_hold == $past(i_hold))
+			assert($stable(i_hold));
+	end
+
+	always @(*) begin
+		if (o_mod == `QSPI_MOD_QOUT)
+			`ASSUME(i_dat == o_dat);
+		if (o_mod == `QSPI_MOD_SPI)
+			`ASSUME(i_dat[3:2] == 2'b11);
+		if (o_mod == `QSPI_MOD_SPI)
+			`ASSUME(i_dat[0] == o_dat[0]);
+	end
+
+	initial	`ASSUME(i_wr == 1'b0);
+	initial	`ASSUME(i_word == 0);
+
+	always @($global_clock)
+	if (!$rose(i_clk))
+	begin
+		`ASSUME($stable(i_wr));
+		//
+		`ASSUME($stable(i_len));
+		`ASSUME($stable(i_dir));
+		`ASSUME($stable(i_spd));
+		`ASSUME($stable(i_word));
+		//
+		`ASSUME($stable(i_hold));
+	end
+
+	always @($global_clock)
+	if (!$fell(o_sck))
+		assume($stable(i_dat));
+
+	// This is ... not as believable.  There might be a delay here.
+	// For now, we'll just assume (not necessarily true) that the
+	// output
+	always @(posedge i_clk)
+		if (past_valid)
+		`ASSUME( (i_dat == $past(i_dat)) || (o_sck != $past(o_sck)) );
+
+	reg	f_last_sck;
+	always @(posedge i_clk)
+		f_last_sck <= o_sck;
+
+	reg	[31:0]	f_shiftreg, f_goal;
+	initial	f_shiftreg = 0;
+	initial	f_goal = 0;
+	always @(posedge i_clk)
+		if ((o_sck)&&(!f_last_sck))
+		begin
+			if (o_mod == `QSPI_MOD_QOUT)
+				f_shiftreg <= { f_shiftreg[28:0], o_dat };
+			else if (o_mod == `QSPI_MOD_SPI)
+				f_shiftreg <= { f_shiftreg[30:0], o_dat[0] };
+		end
+
+	reg	[5:0]	f_nsent, f_vsent;
+	reg	[2:0]	f_nbits_r;
+	wire	[5:0]	f_nbits;
+	always @(posedge i_clk)
+		if ((i_wr)&&(!o_busy))
+		begin
+			f_goal <= i_word;
+			f_nbits_r <= { 1'b0, i_len } + 3'h1;
+		end
+	assign	f_nbits = { f_nbits_r, 3'b000 };
+	always @(posedge i_clk)
+		if ((!o_sck)||(!o_cs_n))
+			assert(f_nbits != 0);
+
+	always @(posedge i_clk)
+		if (o_cs_n)
+			f_nsent <= 0;
+		else if ((!o_busy)&&(i_wr))
+			f_nsent <= 0;
+		else if ((!f_last_sck)&&(o_sck))
+		begin
+			if (o_mod == `QSPI_MOD_SPI)
+				f_nsent <= f_nsent + 6'h1;
+			else
+				f_nsent <= f_nsent + 6'h4;
+		end
+	always @(posedge i_clk)
+		if (o_cs_n)
+			f_vsent <= 0;
+		else
+			f_vsent <= f_nsent;
+	always @(posedge i_clk)
+		if ((!o_cs_n)&&(state == `QSPI_BITS)&&(!o_sck))
+		begin
+			if (o_mod != `QSPI_MOD_SPI)
+				assert(f_nsent + spi_len + 6'h4 == f_nbits);
+			else
+				assert(f_nsent + spi_len + 6'h1 == f_nbits);
+		end
+
+	always @(posedge i_clk)
+		assert((o_busy)||(f_goal[(f_nbits-1):0] == f_shiftreg[(f_nbits-1):0]));
+
+	always @(posedge i_clk) begin
+		// We are only ever in one of three speed modes, fourth mode
+		// isn't allowed
+		assert(	(o_mod == `QSPI_MOD_SPI)
+			||(o_mod == `QSPI_MOD_QIN)
+			||(o_mod == `QSPI_MOD_QOUT));
+
+		if ((past_valid)&&($past(i_wr))&&(!$past(o_busy)))
+		begin
+			// Any accepted request leaves us in an active state
+			assert(!o_cs_n);
+
+			// Any accepted request allows us to set our speed
+			assert(r_spd == $past(i_spd));
+		end
+
+		// We're either busy, or idle with the clock high
+		//   or pausing (upon a request) mid-transaction
+		assert((o_busy)
+			||((state == `QSPI_IDLE)&&(o_sck)&&(o_cs_n))
+			||((state == `QSPI_READY)&&(o_sck)&&(!o_cs_n))
+			||((state == `QSPI_HOLDING)&&(o_sck)&&(!o_cs_n))
+			);
+
+		// Anytime CS is idle, SCK is high
+		if (o_cs_n)
+			assert(o_sck);
+
+
+		// What can we assert about i_hold?
+
+		// When i_hold is asserted before a transaction completes,
+		// the transaction will "hold" and wait for a next input.
+		// i.e. the clock will stop
+
+		// First assert that o_busy will be deasserted any time the
+		// currently requested word has been sent
+		//
+		//if ((($past(i_wr))||(i_hold))
+		//		&&(f_nsent == f_nbits)&&(!o_sck)&&(!o_cs_n))
+		//	assert(!o_busy);
+
+
+		// First, assert of i_hold that !o_busy will be set.
+		if ((past_valid)&&($past(i_hold))&&(f_nsent == f_nbits)&&(!o_cs_n))
+		begin
+			assert((!o_busy)||(o_sck));
+		end
+		if ((past_valid)&&($past(i_hold))&&(!$past(i_wr))
+			&&(!$past(o_busy))&&(!$past(o_cs_n)))
+		begin
+			assert(!o_cs_n);
+			assert($past(o_sck)==o_sck);
+		end
+
+		// DATA only changes on the falling edge of SCK
+		if ((past_valid)&&(o_sck))
+			assert(o_dat==$past(o_dat));
+
+		// Valid is only ever true for one clock
+		if ((past_valid)&&(o_valid))
+			assert(!$past(o_valid));
+
+		// Valid is only ever true after receiving a full number of bits
+		if ((past_valid)&&(o_valid))
+		begin
+			if ((!$past(i_wr))||($past(o_busy)))
+				assert(f_nsent == f_nbits);
+		end
+
+		// In SPI mode, the top bits of o_dat are always 3'b110
+		//
+		// This should be true, but there's a problem holding this
+		// true
+		// assert( (o_mod != `QSPI_MOD_SPI)||(o_dat[3:1] == 3'b110) );
+
+		// Either valid is true (this clock), or our output word is
+		// identical to what it was on the last clock
+		if (past_valid)
+			assert((o_valid) || (o_word == $past(o_word)));
+	end
+`endif
 
 endmodule
 
