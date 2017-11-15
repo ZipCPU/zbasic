@@ -139,7 +139,7 @@ typedef struct  WBUART_S {
 @BDEF.IONAME= _@$PREFIX
 @BDEF.IOTYPE= WBUART
 @BDEF.OSDEF=	_BOARD_HAS_WBUART
-@BDEF.OSVAL=static volatile WBUART *const @$BDEF.IONAME = ((WBUART *)@$.BASE);
+@BDEF.OSVAL=static volatile WBUART *const @$BDEF.IONAME = ((WBUART *)@$[0x%08x](REGBASE));
 @RTL.MAKE.GROUP=WBUART
 @RTL.MAKE.FILES= wbuart.v ufifo.v rxuart.v txuart.v
 @SIM.INCLUDE=

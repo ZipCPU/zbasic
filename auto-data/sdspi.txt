@@ -152,7 +152,7 @@ typedef	struct @$(DEVID)_S {
 @BDEF.IONAME=_sdcard
 @BDEF.IOTYPE=@$(DEVID)
 @BDEF.OSDEF=_BOARD_HAS_@$(DEVID)
-@BDEF.OSVAL=static volatile @$BDEF.IOTYPE *const @$BDEF.IONAME = ((@$BDEF.IOTYPE *)@$BASE);
+@BDEF.OSVAL=static volatile @$BDEF.IOTYPE *const @$BDEF.IONAME = ((@$BDEF.IOTYPE *)@$[0x%08x](REGBASE));
 @SIM.INCLUDE=
 #include "sdspisim.h"
 @SIM.DEFNS=
@@ -312,6 +312,6 @@ typedef struct WBSCOPE_S {
 @BDEF.IONAME= _@$(PREFIX)
 @BDEF.IOTYPE=WBSCOPE
 @BDEF.OSDEF=_BOARD_HAS_SDSPI_SCOPE
-@BDEF.OSVAL=static volatile @$BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)@$BASE);
+@BDEF.OSVAL=static volatile @$BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)@$[0x%08x](REGBASE));
 @RTL.MAKE.GROUP= SDSPI
 @RTL.MAKE.FILES= sdspi.v llsdspi.v wbscope.v

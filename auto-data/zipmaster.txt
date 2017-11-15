@@ -114,6 +114,10 @@
 @BDEF.INCLUDE=
 #include <design.h>
 #include <cpudefs.h>
+
+#define	_HAVE_ZIPSYS
+#define	PIC	_zip->z_pic
+
 #ifdef	INCLUDE_ZIPCPU
 #ifdef INCLUDE_DMA_CONTROLLER
 #define	_HAVE_ZIPSYS_DMA
@@ -185,7 +189,7 @@
 			secp = secpp[s];
 
 			load(secp->m_start, secp->m_data, secp->m_len);
-		}
+		} free(secpp);
 	}
 
 
@@ -327,7 +331,7 @@
 			execsim(m_core->cpu_sim_immv);
 		}
 
-		if (m_core->v__DOT__swic__DOT__cpu_break) {
+		if (m_core->cpu_break) {
 			printf("\n\nBOMB : CPU BREAK RECEIVED\n");
 			m_cpu_bombed++;
 			dump(m_core->cpu_regs);

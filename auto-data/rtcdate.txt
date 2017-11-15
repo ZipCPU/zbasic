@@ -48,11 +48,11 @@
 	// The Calendar DATE
 	//
 	rtcdate	the@$(PREFIX)(i_clk, rtc_ppd,
-		(wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_data,
+		(wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_data, wb_sel,
 			@$(PREFIX)_ack, @$(PREFIX)_stall, @$(PREFIX)_data);
 @REGS.N=1
 @REGS.0= 0 R_DATE RTCDATE DATE
 @BDEF.IONAME=	_date
 @BDEF.IOTYPE=	unsigned
 @BDEF.OSDEF=	_BOARD_HAS_RTCDATE
-@BDEF.OSVAL=	static volatile @$BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)@$BASE);
+@BDEF.OSVAL=	static volatile @$BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)@$REGBASE);

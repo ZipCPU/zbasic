@@ -85,6 +85,7 @@ public:
 	virtual	void	closetrace(void) {
 		if (m_trace) {
 			m_trace->close();
+			delete m_trace;
 			m_trace = NULL;
 		}
 	}
@@ -113,16 +114,18 @@ public:
 		if (m_trace) m_trace->dump(m_time_ps);
 		m_core->i_clk = 0;
 		eval();
-		if (m_trace) m_trace->dump(m_time_ps + 5000);
-
+		if (m_trace) {
+			m_trace->dump(m_time_ps + 5000);
+			m_trace->flush();
+		}
 	}
 
-		virtual	void	sim_clk_tick(void) {
-			// Your test fixture should over-ride this
-			// method.  If you change any of the inputs,
-			// either ignore m_changed or set it to true.
-			m_changed = false;
-		}
+	virtual	void	sim_clk_tick(void) {
+		// Your test fixture should over-ride this
+		// method.  If you change any of the inputs,
+		// either ignore m_changed or set it to true.
+		m_changed = false;
+	}
 	virtual bool	done(void) {
 		if (m_done)
 			return true;

@@ -1,10 +1,15 @@
 ################################################################################
 ##
-## Filename: 	busconsole.txt
+## Filename: 	wbuconsole.txt
 ##
 ## Project:	AutoFPGA, a utility for composing FPGA designs from peripherals
 ##
-## Purpose:	
+## Purpose:	Provide access to both a debugging bus and a console port for
+##		the CPU.  The debugging bus will be given 7-bit transfer codes
+##	with the high bit set, the console the same codes but with bit 8 clear.
+##
+##	This particular version of the console uses the wbu (wishbone to UART)
+##	debugging bus.
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
 ##		Gisselquist Technology, LLC
@@ -47,47 +52,29 @@
 @CLOCK.NAME=clk
 @$SETUP=@$(CLOCK.FREQUENCY) / @$BAUDRATE
 @SETUP.FORMAT=24'h%x
-@$BUS_ADDRESS_WIDTH= @$(MASTER.BUS.AWID)
-@TOP.PORTLIST=
+@$BUS_ADDRESS_WIDTH=@$(MASTER.BUS.AWID)
+@MAIN.PORTLIST=
 		// UART/host to wishbone interface
-		i_host_uart_rx, o_host_uart_tx
-@TOP.IODECL=
-	// UART/host to wishbone interface
-	input	wire		i_host_uart_rx;
-	output	wire		o_host_uart_tx;
-@TOP.DEFNS=
+		i_@$(PREFIX)_uart_rx, o_@$(PREFIX)_uart_tx
+@MAIN.IODECL=
+	input	wire		i_@$(PREFIX)_uart_rx;
+	output	wire		o_@$(PREFIX)_uart_tx;
+@MAIN.PARAM=
 	//
 	//
 	// UART interface
 	//
 	//
+	// Baudrate : @$BAUDRATE
+	// Clock    : @$(CLOCK.FREQUENCY)
 	localparam [23:0] BUSUART = @$SETUP;	// @$BAUDRATE baud
-	wire	[7:0]	rx_data, tx_data;
-	wire		rx_break, rx_parity_err, rx_frame_err, rx_stb;
-	wire		tx_stb, tx_busy;
+@MAIN.DEFNS=
+	// UART interface
+	wire	[7:0]	@$(PREFIX)_rx_data, @$(PREFIX)_tx_data;
+	wire		@$(PREFIX)_rx_stb;
+	wire		@$(PREFIX)_tx_stb, @$(PREFIX)_tx_busy;
 
 	wire	w_ck_uart, w_uart_tx;
-@TOP.INSERT=
-	// The Host USB interface, to be used by the WB-UART bus
-	rxuartlite	#(BUSUART) rcv(s_clk, i_host_uart_rx,
-				rx_stb, rx_data);
-	txuartlite	#(BUSUART) txv(s_clk,
-				tx_stb, tx_data, o_host_uart_tx, tx_busy);
-
-@TOP.MAIN=
-		// External USB-UART bus control
-		rx_stb, rx_data, tx_stb, tx_data, tx_busy
-@MAIN.PORTLIST=
-		// Command and Control port
-		i_host_rx_stb, i_host_rx_data,
-		o_host_tx_stb, o_host_tx_data, i_host_tx_busy
-@MAIN.IODECL=
-	input	wire		i_host_rx_stb;
-	input	wire	[7:0]	i_host_rx_data;
-	output	wire		o_host_tx_stb;
-	output	wire	[7:0]	o_host_tx_data;
-	input	wire		i_host_tx_busy;
-@MAIN.DEFNS=
 	// Definitions for the WB-UART converter.  We really only need one
 	// (more) non-bus wire--one to use to select if we are interacting
 	// with the ZipCPU or not.
@@ -106,6 +93,15 @@
 @$ZIP_DBGDATA=4+@$.ZIP_ADDRESS
 @ZIP_DBGDATA.FORMAT= 0x%08x
 @MAIN.INSERT=
+	// The Host USB interface, to be used by the WB-UART bus
+	rxuartlite	#(BUSUART) rcv(@$(CLOCK.WIRE), i_@$(PREFIX)_uart_rx,
+				@$(PREFIX)_rx_stb, @$(PREFIX)_rx_data);
+	txuartlite	#(BUSUART) txv(@$(CLOCK.WIRE),
+				@$(PREFIX)_tx_stb,
+				@$(PREFIX)_tx_data,
+				o_@$(PREFIX)_uart_tx,
+				@$(PREFIX)_tx_busy);
+
 `ifdef	INCLUDE_ZIPCPU
 `else
 	assign	zip_dbg_ack   = 1'b0;
@@ -117,11 +113,11 @@
 	assign	w_bus_int = 1'b0;
 `endif
 	wire	[31:0]	wbu_tmp_addr;
-	wbuconsole genbus(i_clk, i_host_rx_stb, i_host_rx_data,
+	wbuconsole genbus(@$(CLOCK.WIRE), @$(PREFIX)_rx_stb, @$(PREFIX)_rx_data,
 			wbu_cyc, wbu_stb, wbu_we, wbu_tmp_addr, wbu_data,
 			wbu_ack, wbu_stall, wbu_err, wbu_idata,
 			w_bus_int,
-			o_host_tx_stb, o_host_tx_data, i_host_tx_busy,
+			@$(PREFIX)_tx_stb, @$(PREFIX)_tx_data, @$(PREFIX)_tx_busy,
 			//
 			w_console_tx_stb, w_console_tx_data, w_console_busy,
 			w_console_rx_stb, w_console_rx_data,
@@ -133,10 +129,19 @@
 #define	R_ZIPCTRL	@$.ZIP_ADDRESS
 #define	R_ZIPDATA	@$.ZIP_DBGDATA
 #define	RESET_ADDRESS	@$[0x%08x](RESET_ADDRESS)
+@RTL.MAKE.GROUP= WBUBUS
+@RTL.MAKE.FILES= wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v
+	wbudecompress.v wbudeword.v wbuexec.v wbuidleint.v wbuinput.v
+	wbuoutput.v wbureadcw.v wbusixchar.v wbutohex.v wbconsole.v
 @SIM.INCLUDE=
-#include "dblpipecmdr.h"
-@SIM.DEFINES=
-#define	PARENT	DBLPIPECMDR<BASECLASS>
+#include "dbluartsim.h"
+@SIM.DEFNS=
+	DBLUARTSIM	*m_@$(PREFIX);
+@SIM.INIT=
+		m_@$(PREFIX) = new DBLUARTSIM();
+		m_@$(PREFIX)->setup(@$[%d](SETUP));
+@SIM.TICK=
+		m_core->i_@$(PREFIX)_uart_rx = (*m_@$(PREFIX))(m_core->o_@$(PREFIX)_uart_tx);
 #
 #
 #
@@ -160,10 +165,10 @@
 	wire	w_console_rx_stb, w_console_tx_stb, w_console_busy;
 	wire	[6:0]	w_console_rx_data, w_console_tx_data;
 @MAIN.INSERT=
-	wbconsole console(i_clk, 1'b0,
- 			wb_cyc, (wb_stb)&&(uart_sel), wb_we,
+	wbconsole console(@$(SLAVE.BUS.CLOCK.WIRE), 1'b0,
+ 			wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we,
 				wb_addr[1:0], wb_data,
- 			uart_ack, uart_stall, uart_data,
+ 			@$(PREFIX)_ack, @$(PREFIX)_stall, @$(PREFIX)_data,
 			w_console_tx_stb, w_console_tx_data, w_console_busy,
 			w_console_rx_stb, w_console_rx_data,
 			uartrx_int, uarttx_int, uartrxf_int, uarttxf_int);
@@ -184,8 +189,6 @@ typedef struct  CONSOLE_S {
 @BDEF.IONAME= io_console
 @BDEF.IOTYPE= CONSOLE
 @BDEF.OSDEF=	_BOARD_HAS_BUSCONSOLE
-@BDEF.OSVAL=static volatile CONSOLE *const _uart = ((CONSOLE *)@$.BASE);
-@RTL.MAKE.GROUP= WBUBUS
-@RTL.MAKE.FILES= wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v
-	wbudecompress.v wbudeword.v wbuexec.v wbuidleint.v wbuinput.v
-	wbuoutput.v wbureadcw.v wbusixchar.v wbutohex.v wbconsole.v
+@BDEF.OSVAL=static volatile CONSOLE *const _uart = ((CONSOLE *)@$[0x%08x](REGBASE));
+@RTL.MAKE.GROUP= CONSOLE
+@RTL.MAKE.FILES= wbconsole.v txuartlite.v rxuartlite.v ufifo.v
