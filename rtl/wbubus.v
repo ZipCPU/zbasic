@@ -60,7 +60,7 @@ module	wbubus(i_clk, i_rx_stb, i_rx_data,
 	input	wire		i_interrupt;
 	output	wire		o_tx_stb;
 	output	wire	[7:0]	o_tx_data;
-	input			i_tx_busy;
+	input	wire		i_tx_busy;
 	// output	wire		o_dbg;
 
 

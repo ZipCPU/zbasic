@@ -35,6 +35,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
+`default_nettype	none
+//
 `define	SDSPI_CMD_ADDRESS	2'h0
 `define	SDSPI_DAT_ADDRESS	2'h1
 `define	SDSPI_FIFO_A_ADDR	2'h2
@@ -431,7 +433,6 @@ module	sdspi(i_clk,
 		end else if (new_data) // Data write
 			r_data_reg <= wb_data;
 	end
-
 
 	always @(posedge i_clk)
 		pre_cmd_state <= (ll_cmd_stb)&&(ll_idle);
