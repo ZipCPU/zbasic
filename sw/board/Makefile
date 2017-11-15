@@ -50,6 +50,7 @@ OBJDUMP := zip-objdump
 SUBMAKE:= $(MAKE) --no-print-directory -C
 #
 #
+TTTT    := tttt
 SOURCES := hello.c sdtest.c
 HEADERS :=
 DUMPRTL := -fdump-rtl-all
@@ -105,6 +106,19 @@ hello: $(OBJDIR)/hello.o board.ld
 
 sdtest: $(OBJDIR)/sdtest.o board.ld
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
+
+.PHONY: iftttt
+ifeq (,$(wildcard tttt/))
+iftttt:
+else
+iftttt: 
+	$(SUBMAKE) tttt
+endif
+
+tttt:
+	@bash -c "if [ ! -e $(TTTT) ]; then git submodule add https://github.com/ZipCPU/tttt; git submodule init; git submodule update; fi"
+	$(SUBMAKE) tttt
+
 
 #hellosim: hellosim.s
 #	$(AS) $< -o $(OBJDIR)/hellosim.o

@@ -48,6 +48,10 @@
 
 #include <design.h>
 #include <cpudefs.h>
+
+#define	_HAVE_ZIPSYS
+#define	PIC	_zip->z_pic
+
 #ifdef	INCLUDE_ZIPCPU
 #ifdef INCLUDE_DMA_CONTROLLER
 #define	_HAVE_ZIPSYS_DMA
@@ -119,11 +123,11 @@ typedef struct  CONSOLE_S {
 
 #ifdef	SDSPI_ACCESS
 #define	_BOARD_HAS_SDSPI
-static volatile SDSPI *const _sdcard = ((SDSPI *)6291456);
+static volatile SDSPI *const _sdcard = ((SDSPI *)0x00600000);
 #endif	// SDSPI_ACCESS
 #ifdef	BUSPIC_ACCESS
 #define	_BOARD_HAS_BUSPIC
-static volatile unsigned *const _buspic = ((unsigned *)4);
+static volatile unsigned *const _buspic = ((unsigned *)0x00c00004);
 #endif	// BUSPIC_ACCESS
 #ifdef	BKRAM_ACCESS
 #define	_BOARD_HAS_BKRAM
@@ -131,7 +135,7 @@ extern char	_bkram[0x00100000];
 #endif	// BKRAM_ACCESS
 #ifdef	RTC_ACCESS
 #define	_BOARD_HAS_RTCLIGHT
-static volatile RTCLIGHT *const _rtc = ((RTCLIGHT *)10485760);
+static volatile RTCLIGHT *const _rtc = ((RTCLIGHT *)0x00a00000);
 #endif	// RTC_ACCESS
 #ifdef	FLASH_ACCESS
 #define	_BOARD_HAS_FLASH
@@ -139,18 +143,18 @@ extern char _flash[0x01000000];
 #endif	// FLASH_ACCESS
 #ifdef	SDSPI_SCOPE
 #define	_BOARD_HAS_SDSPI_SCOPE
-static volatile WBSCOPE *const _scope_sdcard = ((WBSCOPE *)2097152);
+static volatile WBSCOPE *const _scope_sdcard = ((WBSCOPE *)0x00200000);
 #endif	// SDSPI_SCOPE
 #ifdef	RTCDATE_ACCESS
 #define	_BOARD_HAS_RTCDATE
-static volatile unsigned *const _date = ((unsigned *)8);
+static volatile unsigned *const _date = ((unsigned *)12582920);
 #endif	// RTCDATE_ACCESS
 #define	_BOARD_HAS_VERSION
 #define	_BOARD_HAS_BUSERR
-static volatile unsigned *const _buserr = ((unsigned *)0);
+static volatile unsigned *const _buserr = ((unsigned *)12582912);
 #ifdef	BUSCONSOLE_ACCESS
 #define	_BOARD_HAS_BUSCONSOLE
-static volatile CONSOLE *const _uart = ((CONSOLE *)8388608);
+static volatile CONSOLE *const _uart = ((CONSOLE *)0x00800000);
 #endif	// BUSCONSOLE_ACCESS
 //
 // Interrupt assignments (3 PICs)

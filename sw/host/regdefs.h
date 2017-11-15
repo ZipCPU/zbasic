@@ -55,11 +55,6 @@
 //
 // Register address definitions, from @REGS.#d
 //
-#define	R_BUSERR        	0x00000000	// 00000000, wbregs names: BUSERR
-#define	R_PIC           	0x00000004	// 00000004, wbregs names: PIC
-#define	R_DATE          	0x00000008	// 00000008, wbregs names: RTCDATE, DATE
-#define	R_PWRCOUNT      	0x0000000c	// 0000000c, wbregs names: PWRCOUNT
-#define	R_VERSION       	0x00000010	// 00000010, wbregs names: VERSION
 // SDSPI Debugging scope
 #define	R_SDSPI_SCOPC   	0x00200000	// 00200000, wbregs names: SDSCOPC, SDSCOPE
 #define	R_SDSPI_SCOPD   	0x00200004	// 00200000, wbregs names: SDSCOPD
@@ -82,8 +77,18 @@
 #define	R_TIMER         	0x00a00004	// 00a00000, wbregs names: TIMER
 #define	R_STOPWATCH     	0x00a00008	// 00a00000, wbregs names: STOPWATCH
 #define	R_CKALARM       	0x00a0000c	// 00a00000, wbregs names: ALARM, CKALARM
-#define	BKRAM           	0x00e00000	// 00e00000, wbregs names: RAM
-#define	FLASHMEM        	0x01000000	// 01000000, wbregs names: FLASH
+#define	R_BUSERR        	0x00c00000	// 00c00000, wbregs names: BUSERR
+#define	R_BUSERR        	0x00c00000	// 00c00000, wbregs names: BUSERR
+#define	R_PIC           	0x00c00004	// 00c00004, wbregs names: PIC
+#define	R_PIC           	0x00c00004	// 00c00004, wbregs names: PIC
+#define	R_DATE          	0x00c00008	// 00c00008, wbregs names: RTCDATE, DATE
+#define	R_DATE          	0x00c00008	// 00c00008, wbregs names: RTCDATE, DATE
+#define	R_PWRCOUNT      	0x00c0000c	// 00c0000c, wbregs names: PWRCOUNT
+#define	R_PWRCOUNT      	0x00c0000c	// 00c0000c, wbregs names: PWRCOUNT
+#define	R_VERSION       	0x00c00010	// 00c00010, wbregs names: VERSION
+#define	R_VERSION       	0x00c00010	// 00c00010, wbregs names: VERSION
+#define	R_BKRAM         	0x00e00000	// 00e00000, wbregs names: RAM
+#define	R_FLASH         	0x01000000	// 01000000, wbregs names: FLASH
 
 
 //
@@ -95,9 +100,9 @@
 #define	RESET_ADDRESS	0x01000000
 #define	CLKFREQHZ	100000000
 // @REGDEFS.H.DEFNS for peripherals
-#define	BKRAMBASE	14680064
+#define	BKRAMBASE	0x00e00000
 #define	BKRAMLEN	0x00100000
-#define	FLASHBASE	16777216
+#define	FLASHBASE	0x01000000
 #define	FLASHLEN	0x01000000
 #define	FLASHLGLEN	24
 // @REGDEFS.H.DEFNS at the top level

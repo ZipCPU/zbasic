@@ -230,7 +230,7 @@ module ufifo(i_clk, i_rst, i_wr, i_data, o_empty_n, i_rd, o_data, o_status, o_er
 			// not the fill, but (SIZE-1)-fill.
 			if (i_rst)
 				r_fill <= { (LGFLEN){1'b1} };
-			else case({i_wr, (!will_overflow), (i_rd)&&(!will_underflow)})
+			else casez({i_wr, (!will_overflow), (i_rd)&&(!will_underflow)})
 			3'b0?1:   r_fill <= r_fill + 1'b1;
 			3'b110:   r_fill <= r_fill - 1'b1;
 			default: r_fill  <= r_fill;

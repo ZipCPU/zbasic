@@ -46,12 +46,6 @@
 #include "regdefs.h"
 
 const	REGNAME	raw_bregs[] = {
-	{ R_BUSERR        ,	"BUSERR"   	},
-	{ R_PIC           ,	"PIC"      	},
-	{ R_DATE          ,	"RTCDATE"  	},
-	{ R_DATE          ,	"DATE"     	},
-	{ R_PWRCOUNT      ,	"PWRCOUNT" 	},
-	{ R_VERSION       ,	"VERSION"  	},
 	{ R_SDSPI_SCOPC   ,	"SDSCOPC"  	},
 	{ R_SDSPI_SCOPC   ,	"SDSCOPE"  	},
 	{ R_SDSPI_SCOPD   ,	"SDSCOPD"  	},
@@ -76,8 +70,20 @@ const	REGNAME	raw_bregs[] = {
 	{ R_STOPWATCH     ,	"STOPWATCH"	},
 	{ R_CKALARM       ,	"ALARM"    	},
 	{ R_CKALARM       ,	"CKALARM"  	},
-	{ BKRAM           ,	"RAM"      	},
-	{ FLASHMEM        ,	"FLASH"    	}
+	{ R_BUSERR        ,	"BUSERR"   	},
+	{ R_BUSERR        ,	"BUSERR"   	},
+	{ R_PIC           ,	"PIC"      	},
+	{ R_PIC           ,	"PIC"      	},
+	{ R_DATE          ,	"RTCDATE"  	},
+	{ R_DATE          ,	"DATE"     	},
+	{ R_DATE          ,	"RTCDATE"  	},
+	{ R_DATE          ,	"DATE"     	},
+	{ R_PWRCOUNT      ,	"PWRCOUNT" 	},
+	{ R_PWRCOUNT      ,	"PWRCOUNT" 	},
+	{ R_VERSION       ,	"VERSION"  	},
+	{ R_VERSION       ,	"VERSION"  	},
+	{ R_BKRAM         ,	"RAM"      	},
+	{ R_FLASH         ,	"FLASH"    	}
 };
 
 // REGSDEFS.CPP.INSERT for any bus masters
@@ -93,16 +99,16 @@ unsigned	addrdecode(const char *v) {
 		for(int i=0; i<NREGS; i++)
 			if (strcasecmp(v, bregs[i].m_name)==0)
 				return bregs[i].m_addr;
-		fprintf(stderr, "Unknown register: %s\n", v);
-		exit(-2);
 #ifdef	R_ZIPCTRL
-	} else if (strcasecmp(v, "CPU")==0) {
-		return R_ZIPCTRL;
+		if (strcasecmp(v, "CPU")==0)
+			return R_ZIPCTRL;
 #endif	// R_ZIPCTRL
 #ifdef	R_ZIPDATA
-	} else if (strcasecmp(v, "CPUD")==0) {
-		return R_ZIPDATA;
+		if (strcasecmp(v, "CPUD")==0)
+			return R_ZIPDATA;
 #endif	// R_ZIPDATA
+		fprintf(stderr, "Unknown register: %s\n", v);
+		exit(-2);
 	} else
 		return strtoul(v, NULL, 0);
 }
