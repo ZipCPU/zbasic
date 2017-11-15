@@ -53,9 +53,12 @@
 #include "sdspisim.h"
 #include "byteswap.h"
 #include "qspiflashsim.h"
-#include "dblpipecmdr.h"
+#include "dbluartsim.h"
 #include "zipelf.h"
 
+//
+// SIM.DEFINES
+//
 // Looking for string: SIM.DEFINES
 #define	sd_cmd_busy	v__DOT__sdcardi__DOT__r_cmd_busy
 #define	sd_clk		v__DOT__sdcardi__DOT__r_sdspi_clk
@@ -86,7 +89,6 @@
 #define	sd_fifo_wr	v__DOT__sdcard__DOT__r_fifo_wr
 
 #define	block_ram	v__DOT__bkrami__DOT__mem
-#define	PARENT	DBLPIPECMDR<BASECLASS>
 #define	cpu_break 	v__DOT__swic__DOT__cpu_break
 #define	cpu_cmd_halt	v__DOT__swic__DOT__cmd_halt
 #define	cpu_ipc		v__DOT__swic__DOT__thecpu__DOT__ipc
@@ -107,8 +109,9 @@
 #define	cpu_new_pc	v__DOT__swic__DOT__thecpu__DOT__new_pc
 #define	cpu_sim_immv	v__DOT__swic__DOT__thecpu__DOT__op_sim_immv
 
-class	MAINTB : public PARENT {
+class	MAINTB : public TESTB<Vmain> {
 public:
+		// SIM.DEFNS
 // Looking for string: SIM.DEFNS
 #ifdef	SDSPI_ACCESS
 	SDSPISIM	m_sdcard;
@@ -116,6 +119,7 @@ public:
 #ifdef	FLASH_ACCESS
 	QSPIFLASHSIM	*m_flash;
 #endif
+	DBLUARTSIM	*m_wbu;
 	int	m_cpu_bombed;
 	MAINTB(void) {
 		// From sdcard
@@ -126,6 +130,9 @@ public:
 #ifdef	FLASH_ACCESS
 	m_flash = new QSPIFLASHSIM(FLASHLGLEN);
 #endif
+		// From wbu
+		m_wbu = new DBLUARTSIM();
+		m_wbu->setup(100);
 		// From zip
 		m_cpu_bombed = 0;
 	}
@@ -153,6 +160,7 @@ public:
 	void	tick(void) {
 		if (done())
 			return;
+		// KYSIM.TICK tags
 // Looking for string: SIM.TICK
 #ifdef	SDSPI_ACCESS
 		m_core->i_sd_data = m_sdcard((m_core->o_sd_data&8)?1:0,
@@ -165,6 +173,7 @@ public:
 		m_core->i_qspi_dat = (*m_flash)(m_core->o_qspi_cs_n,
 			m_core->o_qspi_sck, m_core->o_qspi_dat);
 #endif
+		m_core->i_wbu_uart_rx = (*m_wbu)(m_core->o_wbu_uart_tx);
 #ifdef	INCLUDE_ZIPCPU
 		// ZipCPU Sim instruction support
 		if ((m_core->cpu_op_sim)
@@ -175,7 +184,7 @@ public:
 			execsim(m_core->cpu_sim_immv);
 		}
 
-		if (m_core->v__DOT__swic__DOT__cpu_break) {
+		if (m_core->cpu_break) {
 			printf("\n\nBOMB : CPU BREAK RECEIVED\n");
 			m_cpu_bombed++;
 			dump(m_core->cpu_regs);
@@ -185,13 +194,15 @@ public:
 		}
 #endif	// INCLUDE_ZIPCPU
 
-		PARENT::tick();
+		TESTB<Vmain>::tick();
 
 		bool	writeout = false;
 
+			// KYSIM.DBGCONDITION tags
 // Looking for string: SIM.DBGCONDITION
 
-		if (writeout) {
+			if (writeout) {
+					// KYSIM.DEBUG tags
 // Looking for string: SIM.DEBUG
 			/*
 			printf(" SDSPI[%d,%d(%d),(%d)]",
@@ -246,38 +257,6 @@ public:
 			*/
 
 		}
-// Looking for string: SIM.TICK
-#ifdef	SDSPI_ACCESS
-		m_core->i_sd_data = m_sdcard((m_core->o_sd_data&8)?1:0,
-				m_core->o_sd_sck, m_core->o_sd_cmd);
-		m_core->i_sd_data &= 1;
-		m_core->i_sd_data |= (m_core->o_sd_data&0x0e);
-		m_core->i_sd_detect = 1;
-#endif	// SDSPI_ACCESS
-#ifdef	FLASH_ACCESS
-		m_core->i_qspi_dat = (*m_flash)(m_core->o_qspi_cs_n,
-			m_core->o_qspi_sck, m_core->o_qspi_dat);
-#endif
-#ifdef	INCLUDE_ZIPCPU
-		// ZipCPU Sim instruction support
-		if ((m_core->cpu_op_sim)
-			&&(m_core->cpu_op_valid)
-			&&(m_core->cpu_alu_ce)
-			&&(!m_core->cpu_new_pc)) {
-			//
-			execsim(m_core->cpu_sim_immv);
-		}
-
-		if (m_core->v__DOT__swic__DOT__cpu_break) {
-			printf("\n\nBOMB : CPU BREAK RECEIVED\n");
-			m_cpu_bombed++;
-			dump(m_core->cpu_regs);
-		} else if (m_cpu_bombed) {
-			if (m_cpu_bombed++ > 12)
-				m_done = true;
-		}
-#endif	// INCLUDE_ZIPCPU
-
 	}
 
 	bool	load(uint32_t addr, const char *buf, uint32_t len) {
@@ -338,6 +317,9 @@ public:
 		return false;
 	}
 
+	//
+	// KYSIM.METHODS
+	//
 // Looking for string: SIM.METHODS
 #ifdef	SDSPI_ACCESS
 	void	setsdcard(const char *fn) {
@@ -355,7 +337,7 @@ public:
 			secp = secpp[s];
 
 			load(secp->m_start, secp->m_data, secp->m_len);
-		}
+		} free(secpp);
 	}
 
 
