@@ -62,8 +62,7 @@ module	wbuart(i_clk, i_rst,
 	localparam [3:0]	LCLLGFLEN = (LGFLEN > 4'ha)? 4'ha
 					: ((LGFLEN < 4'h2) ? 4'h2 : LGFLEN);
 	//
-	input	wire		i_clk;
-	input	wire		i_rst;
+	input	wire		i_clk, i_rst;
 	// Wishbone inputs
 	input	wire		i_wb_cyc;	// We ignore CYC for efficiency
 	input	wire		i_wb_stb, i_wb_we;

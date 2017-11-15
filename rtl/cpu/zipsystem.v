@@ -177,23 +177,27 @@ module	zipsystem(i_clk, i_rst,
 `endif
 		);
 	parameter	RESET_ADDRESS=32'h0100000, ADDRESS_WIDTH=30,
-			LGICACHE=10, START_HALTED=1, EXTERNAL_INTERRUPTS=1,
+			LGICACHE=10;
+	parameter [0:0]	START_HALTED=1'b1;
+	parameter	EXTERNAL_INTERRUPTS=1;
+	parameter
 `ifdef	OPT_MULTIPLY
-			IMPLEMENT_MPY = `OPT_MULTIPLY,
+			IMPLEMENT_MPY = `OPT_MULTIPLY;
 `else
-			IMPLEMENT_MPY = 0,
+			IMPLEMENT_MPY = 0;
 `endif
+	parameter [0:0]
 `ifdef	OPT_DIVIDE
-			IMPLEMENT_DIVIDE=1,
+			IMPLEMENT_DIVIDE=1'b1,
 `else
 			IMPLEMENT_DIVIDE=0,
 `endif
 `ifdef	OPT_IMPLEMENT_FPU
-			IMPLEMENT_FPU=1,
+			IMPLEMENT_FPU=1'b1,
 `else
 			IMPLEMENT_FPU=0,
 `endif
-			IMPLEMENT_LOCK=1;
+			IMPLEMENT_LOCK=1'b1;
 	localparam	// Derived parameters
 			AW=ADDRESS_WIDTH;
 	input	wire	i_clk, i_rst;
@@ -280,7 +284,7 @@ module	zipsystem(i_clk, i_rst,
 	// verilator lint_on  UNUSED
 	wire		dbg_err;
 	assign		dbg_err = 1'b0;
-	busdelay #(1,32) wbdelay(i_clk,
+	busdelay #(1,32) wbdelay(i_clk, 1'b0,
 		i_dbg_cyc, i_dbg_stb, i_dbg_we, i_dbg_addr, i_dbg_data, 4'hf,
 			o_dbg_ack, o_dbg_stall, o_dbg_data, no_dbg_err,
 		dbg_cyc, dbg_stb, dbg_we, dbg_addr, dbg_idata, dbg_sel,
@@ -322,39 +326,56 @@ module	zipsystem(i_clk, i_rst,
 	reg		cmd_reset, cmd_halt, cmd_step, cmd_clear_pf_cache;
 	reg	[5:0]	cmd_addr;
 	wire	[3:0]	cpu_dbg_cc;
-	assign	dbg_cmd_write = (dbg_cyc)&&(dbg_stb)&&(dbg_we)&&(~dbg_addr);
+	assign	dbg_cmd_write = (dbg_stb)&&(dbg_we)&&(!dbg_addr);
+	//
+`define	RESET_BIT	6
+`define	STEP_BIT	8
+`define	HALT_BIT	10
+`define	CLEAR_CACHE_BIT	11
+
+	// Always start us off with an initial reset
 	//
 	initial	cmd_reset = 1'b1;
 	always @(posedge i_clk)
-		cmd_reset <= ((dbg_cmd_write)&&(dbg_idata[6]));
+		if ((i_rst)||(wdt_reset))
+			cmd_reset <= 1'b1;
+		else if (START_HALTED)
+			cmd_reset <= ((dbg_cmd_write)&&(dbg_idata[`RESET_BIT]))
+				||((cmd_reset)&&(!dbg_cmd_write));
+		else
+			cmd_reset <= ((dbg_cmd_write)&&(dbg_idata[`RESET_BIT]));
 	//
 	initial	cmd_halt  = START_HALTED;
 	always @(posedge i_clk)
-		if (i_rst)
-			cmd_halt <= (START_HALTED == 1)? 1'b1 : 1'b0;
+		if ((i_rst)||(cmd_reset))
+			cmd_halt <= START_HALTED;
 		else if (dbg_cmd_write)
-			cmd_halt <= ((dbg_idata[10])||(dbg_idata[8]));
+			cmd_halt <= ((dbg_idata[`HALT_BIT])&&(!dbg_idata[`STEP_BIT]));
 		else if ((cmd_step)||(cpu_break))
 			cmd_halt  <= 1'b1;
 
 	initial	cmd_clear_pf_cache = 1'b1;
 	always @(posedge i_clk)
-		cmd_clear_pf_cache <= (~i_rst)&&(dbg_cmd_write)
-					&&((dbg_idata[11])||(dbg_idata[6]));
+		if (i_rst)
+			cmd_clear_pf_cache <= 1'b0;
+		else if (dbg_cmd_write)
+			cmd_clear_pf_cache <= (dbg_idata[`CLEAR_CACHE_BIT]);
+		else
+			cmd_clear_pf_cache <= 1'b0;
 	//
 	initial	cmd_step  = 1'b0;
 	always @(posedge i_clk)
-		cmd_step <= (dbg_cmd_write)&&(dbg_idata[8]);
+		cmd_step <= (dbg_cmd_write)&&(dbg_idata[`STEP_BIT]);
 	//
 	always @(posedge i_clk)
 		if (dbg_cmd_write)
 			cmd_addr <= dbg_idata[5:0];
 
 	wire	cpu_reset;
-	assign	cpu_reset = (cmd_reset)||(wdt_reset)||(i_rst);
+	assign	cpu_reset = (cmd_reset);
 
 	wire	cpu_halt, cpu_dbg_stall;
-	assign	cpu_halt = (i_rst)||((cmd_halt)&&(~cmd_step));
+	assign	cpu_halt = (cmd_halt);
 	wire	[31:0]	pic_data;
 	wire	[31:0]	cmd_data;
 	// Values:
@@ -695,14 +716,14 @@ module	zipsystem(i_clk, i_rst,
 	wire	[31:0]	cpu_dbg_data;
 	assign cpu_dbg_we = ((dbg_cyc)&&(dbg_stb)&&(~cmd_addr[5])
 					&&(dbg_we)&&(dbg_addr));
-	zipcpu	#(
-			.RESET_ADDRESS(RESET_ADDRESS),
+	zipcpu	#(	.RESET_ADDRESS(RESET_ADDRESS),
 			.ADDRESS_WIDTH(ADDRESS_WIDTH),
 			.LGICACHE(LGICACHE),
 			.IMPLEMENT_MPY(IMPLEMENT_MPY),
 			.IMPLEMENT_DIVIDE(IMPLEMENT_DIVIDE),
 			.IMPLEMENT_FPU(IMPLEMENT_FPU),
-			.IMPLEMENT_LOCK(IMPLEMENT_LOCK)
+			.IMPLEMENT_LOCK(IMPLEMENT_LOCK),
+			.WITH_LOCAL_BUS(1'b1)
 		)
 		thecpu(i_clk, cpu_reset, pic_interrupt,
 			cpu_halt, cmd_clear_pf_cache, cmd_addr[4:0], cpu_dbg_we,
@@ -774,7 +795,7 @@ module	zipsystem(i_clk, i_rst,
 				ext_ack, ext_stall, ext_err);
 
 `ifdef	DELAY_EXT_BUS
-	busdelay #(AW,32) extbus(i_clk,
+	busdelay #(AW,32) extbus(i_clk, 1'b0,
 			ext_cyc, ext_stb, ext_we, ext_addr, ext_odata,
 				ext_ack, ext_stall, ext_idata, ext_err,
 			o_wb_cyc, o_wb_stb, o_wb_we, o_wb_addr, o_wb_data, o_wb_sel,

@@ -58,7 +58,7 @@ module	toplevel(i_clk,
 		// Top level Quad-SPI I/O ports
 		o_qspi_cs_n, io_qspi_dat,
 		// UART/host to wishbone interface
-		i_host_uart_rx, o_host_uart_tx,
+		i_wbu_uart_rx, o_wbu_uart_tx,
 		// A reset wire for the ZipCPU
 		i_cpu_resetn);
 	//
@@ -81,9 +81,8 @@ module	toplevel(i_clk,
 	// Quad SPI flash
 	output	wire		o_qspi_cs_n;
 	inout	wire	[3:0]	io_qspi_dat;
-	// UART/host to wishbone interface
-	input	wire		i_host_uart_rx;
-	output	wire		o_host_uart_tx;
+	input	wire		i_wbu_uart_rx;
+	output	wire		o_wbu_uart_tx;
 	// A reset wire for the ZipCPU
 	input	wire		i_cpu_resetn;
 
@@ -99,17 +98,6 @@ module	toplevel(i_clk,
 	wire		w_qspi_sck, w_qspi_cs_n;
 	wire	[1:0]	qspi_bmod;
 	wire	[3:0]	qspi_dat;
-	//
-	//
-	// UART interface
-	//
-	//
-	localparam [23:0] BUSUART = 24'h64;	// 1000000 baud
-	wire	[7:0]	rx_data, tx_data;
-	wire		rx_break, rx_parity_err, rx_frame_err, rx_stb;
-	wire		tx_stb, tx_busy;
-
-	wire	w_ck_uart, w_uart_tx;
 	wire		s_clk, s_reset;
 
 
@@ -133,8 +121,8 @@ module	toplevel(i_clk,
 		o_sd_sck, w_sd_cmd, w_sd_data, io_sd_cmd, io_sd, i_sd_cs,
 		// Quad SPI flash
 		w_qspi_cs_n, w_qspi_sck, qspi_dat, io_qspi_dat, qspi_bmod,
-		// External USB-UART bus control
-		rx_stb, rx_data, tx_stb, tx_data, tx_busy,
+		// UART/host to wishbone interface
+		i_wbu_uart_rx, o_wbu_uart_tx,
 		// Reset wire for the ZipCPU
 		(!i_cpu_resetn));
 
@@ -226,13 +214,6 @@ module	toplevel(i_clk,
 	//	low allows the output of this pin to be as stated above.
 	.USRDONETS(1'b1)
 	);
-
-
-	// The Host USB interface, to be used by the WB-UART bus
-	rxuartlite	#(BUSUART) rcv(s_clk, i_host_uart_rx,
-				rx_stb, rx_data);
-	txuartlite	#(BUSUART) txv(s_clk,
-				tx_stb, tx_data, o_host_uart_tx, tx_busy);
 
 
 	assign	s_clk = i_clk;

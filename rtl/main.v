@@ -1,3 +1,4 @@
+`timescale	1ps / 1ps
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename:	./main.v
@@ -83,10 +84,10 @@
 // `endif // MUST_NOT_HAVE_B
 // `endif // MUST_HAVE_A
 //
-`ifndef	RTC_ACCESS
+`ifdef	RTC_ACCESS
 `define	RTCDATE_ACCESS
 `endif
-`ifndef	SDSPI_ACCESS
+`ifdef	SDSPI_ACCESS
 `define	SDSPI_SCOPE
 `endif
 //
@@ -106,9 +107,8 @@ module	main(i_clk, i_reset,
 		o_sd_sck, o_sd_cmd, o_sd_data, i_sd_cmd, i_sd_data, i_sd_detect,
 		// The QSPI Flash
 		o_qspi_cs_n, o_qspi_sck, o_qspi_dat, i_qspi_dat, o_qspi_mod,
-		// Command and Control port
-		i_host_rx_stb, i_host_rx_data,
-		o_host_tx_stb, o_host_tx_data, i_host_tx_busy,
+		// UART/host to wishbone interface
+		i_wbu_uart_rx, o_wbu_uart_tx,
 		i_cpu_reset);
 //
 // Any parameter definitions
@@ -117,6 +117,14 @@ module	main(i_clk, i_reset,
 // As they aren't connected to the toplevel at all, it would
 // be best to use localparam over parameter, but here we don't
 // check
+	//
+	//
+	// UART interface
+	//
+	//
+	// Baudrate : 1000000
+	// Clock    : 100000000
+	localparam [23:0] BUSUART = 24'h64;	// 1000000 baud
 	//
 	//
 	// Variables/definitions needed by the ZipCPU BUS master
@@ -160,11 +168,8 @@ module	main(i_clk, i_reset,
 	output	wire	[3:0]	o_qspi_dat;
 	input	wire	[3:0]	i_qspi_dat;
 	output	wire	[1:0]	o_qspi_mod;
-	input	wire		i_host_rx_stb;
-	input	wire	[7:0]	i_host_rx_data;
-	output	wire		o_host_tx_stb;
-	output	wire	[7:0]	o_host_tx_data;
-	input	wire		i_host_tx_busy;
+	input	wire		i_wbu_uart_rx;
+	output	wire		o_wbu_uart_tx;
 	input	wire		i_cpu_reset;
 	// Make Verilator happy ... defining bus wires for lots of components
 	// often ends up with unused wires lying around.  We'll turn off
@@ -199,17 +204,17 @@ module	main(i_clk, i_reset,
 	//
 // Looking for string: MAIN.DEFNS
 	wire[31:0]	sdspi_debug;
-	// Bus arbiter's internal lines
-	wire		dwbi_cyc, dwbi_stb, dwbi_we,
-			dwbi_ack, dwbi_stall, dwbi_err;
-	wire	[(23-1):0]	dwbi_addr;
-	wire	[31:0]	dwbi_odata, dwbi_idata;
-	wire	[3:0]	dwbi_sel;
 	// Definitions in support of the GPS driven RTC
 	wire	rtc_ppd;
 	reg	r_rtc_ack;
 	wire	scope_sdcard_trigger,
 		scope_sdcard_ce;
+	// UART interface
+	wire	[7:0]	wbu_rx_data, wbu_tx_data;
+	wire		wbu_rx_stb;
+	wire		wbu_tx_stb, wbu_tx_busy;
+
+	wire	w_ck_uart, w_uart_tx;
 	// Definitions for the WB-UART converter.  We really only need one
 	// (more) non-bus wire--one to use to select if we are interacting
 	// with the ZipCPU or not.
@@ -222,6 +227,12 @@ module	main(i_clk, i_reset,
 	wire		zip_dbg_ack, zip_dbg_stall;
 	wire	[31:0]	zip_dbg_data;
 `endif
+	// Bus arbiter's internal lines
+	wire		wbu_dwbi_cyc, wbu_dwbi_stb, wbu_dwbi_we,
+			wbu_dwbi_ack, wbu_dwbi_stall, wbu_dwbi_err;
+	wire	[(23-1):0]	wbu_dwbi_addr;
+	wire	[31:0]	wbu_dwbi_odata, wbu_dwbi_idata;
+	wire	[3:0]	wbu_dwbi_sel;
 	// ZipSystem/ZipCPU connection definitions
 	// All we define here is a set of scope wires
 	wire	[31:0]	zip_debug;
@@ -244,17 +255,20 @@ module	main(i_clk, i_reset,
 	wire	[14:0]	bus_int_vector;
 	wire	[14:0]	sys_int_vector;
 	wire	[14:0]	alt_int_vector;
-//
-//
-// Define bus wires
-//
-//
+	//
+	//
+	// Define bus wires
+	//
+	//
+
 	// Bus wb
 	// Wishbone master wire definitions for bus: wb
-	wire		wb_cyc, wb_stb, wb_we, wb_stall, wb_err;
-	wire		wb_none_sel, wb_many_ack;
+	wire		wb_cyc, wb_stb, wb_we, wb_stall, wb_err,
+			wb_none_sel;
+	reg		wb_many_ack;
 	wire	[22:0]	wb_addr;
-	wire	[31:0]	wb_data, wb_idata;
+	wire	[31:0]	wb_data;
+	reg	[31:0]	wb_idata;
 	wire	[3:0]	wb_sel;
 	reg		wb_ack;
 
@@ -310,12 +324,29 @@ module	main(i_clk, i_reset,
 	wire		flash_sel, flash_ack, flash_stall;
 	wire	[31:0]	flash_data;
 
+	// Bus zip
+	// Wishbone master wire definitions for bus: zip
+	wire		zip_cyc, zip_stb, zip_we, zip_stall, zip_err,
+			zip_none_sel;
+	reg		zip_many_ack;
+	wire	[22:0]	zip_addr;
+	wire	[31:0]	zip_data;
+	reg	[31:0]	zip_idata;
+	wire	[3:0]	zip_sel;
+	reg		zip_ack;
+
+	// Wishbone slave definitions for bus zip, slave zip_dwb
+	wire		zip_dwb_sel, zip_dwb_ack, zip_dwb_stall, zip_dwb_err;
+	wire	[31:0]	zip_dwb_data;
+
 	// Bus wbu
 	// Wishbone master wire definitions for bus: wbu
-	wire		wbu_cyc, wbu_stb, wbu_we, wbu_stall, wbu_err;
-	wire		wbu_none_sel, wbu_many_ack;
+	wire		wbu_cyc, wbu_stb, wbu_we, wbu_stall, wbu_err,
+			wbu_none_sel;
+	reg		wbu_many_ack;
 	wire	[23:0]	wbu_addr;
-	wire	[31:0]	wbu_data, wbu_idata;
+	wire	[31:0]	wbu_data;
+	reg	[31:0]	wbu_idata;
 	wire	[3:0]	wbu_sel;
 	reg		wbu_ack;
 
@@ -327,19 +358,6 @@ module	main(i_clk, i_reset,
 	wire		zip_dbg_sel, zip_dbg_ack, zip_dbg_stall;
 	wire	[31:0]	zip_dbg_data;
 
-	// Bus zip
-	// Wishbone master wire definitions for bus: zip
-	wire		zip_cyc, zip_stb, zip_we, zip_stall, zip_err;
-	wire		zip_none_sel, zip_many_ack;
-	wire	[22:0]	zip_addr;
-	wire	[31:0]	zip_data, zip_idata;
-	wire	[3:0]	zip_sel;
-	reg		zip_ack;
-
-	// Wishbone slave definitions for bus zip, slave zip_dwb
-	wire		zip_dwb_sel, zip_dwb_ack, zip_dwb_stall, zip_dwb_err;
-	wire	[31:0]	zip_dwb_data;
-
 
 	//
 	// Peripheral address decoding
@@ -350,6 +368,7 @@ module	main(i_clk, i_reset,
 	// Select lines for bus: wb
 	//
 	// Address width: 23
+	// Data width:    32
 	//
 	//
 	
@@ -372,26 +391,29 @@ module	main(i_clk, i_reset,
 	//
 	//
 	//
-	// Select lines for bus: wbu
+	// Select lines for bus: zip
 	//
-	// Address width: 24
+	// Address width: 23
+	// Data width:    32
 	//
 	//
 	
-	assign	     wbu_dwb_sel = ((wbu_addr[23:23] &  1'h1) ==  1'h0);
-	assign	     zip_dbg_sel = ((wbu_addr[23:23] &  1'h1) ==  1'h1);
+	assign	     zip_dwb_sel = (zip_cyc); // Only one peripheral on this bus
 	//
 
 	//
 	//
 	//
-	// Select lines for bus: zip
+	// Select lines for bus: wbu
 	//
-	// Address width: 23
+	// Address width: 24
+	// Data width:    32
 	//
 	//
 	
-	assign	     zip_dwb_sel = (zip_cyc); // Only one peripheral on this bus
+	assign	     wbu_dwb_sel = ((wbu_addr[23:23] &  1'h1) ==  1'h0);
+//x2	Was a master bus as well
+	assign	     zip_dbg_sel = ((wbu_addr[23:23] &  1'h1) ==  1'h1);
 	//
 
 	//
@@ -410,7 +432,7 @@ module	main(i_clk, i_reset,
 	//
 	// many_ack
 	//
-	// It is also a violation of the bus protocol to produce multiply
+	// It is also a violation of the bus protocol to produce multiple
 	// acks at once and on the same clock.  In that case, the bus
 	// can't decide which result to return.  Worse, if someone is waiting
 	// for a return value, that value will never come since another ack
@@ -449,17 +471,19 @@ module	main(i_clk, i_reset,
 		r_wb_sio_ack <= (wb_stb)&&(wb_sio_sel);
 	assign	wb_sio_ack = r_wb_sio_ack;
 	reg	r_wb_sio_ack;
+	reg	[31:0]	r_wb_sio_data;
 	always	@(posedge i_clk)
 		// mask        = 00000007
 		// lgdw        = 2
 		// unused_lsbs = 0
 		casez( wb_addr[2:0] )
-			3'h0: wb_sio_data <= buserr_data;
-			3'h1: wb_sio_data <= buspic_data;
-			3'h2: wb_sio_data <= date_data;
-			3'h3: wb_sio_data <= pwrcount_data;
-			default: wb_sio_data <= version_data;
+			3'h0: r_wb_sio_data <= buserr_data;
+			3'h1: r_wb_sio_data <= buspic_data;
+			3'h2: r_wb_sio_data <= date_data;
+			3'h3: r_wb_sio_data <= pwrcount_data;
+			default: r_wb_sio_data <= version_data;
 		endcase
+	assign	wb_sio_data = r_wb_sio_data;
 
 	//
 	// Finally, determine what the response is from the wb bus
@@ -531,6 +555,18 @@ module	main(i_clk, i_reset,
 
 	assign wb_err = ((wb_stb)&&(wb_none_sel))||(wb_many_ack);
 	//
+	// BUS-LOGIC for zip
+	//
+	assign	zip_none_sel = 1'b0;
+	always @(*)
+		zip_many_ack = 1'b0;
+	assign	zip_err = zip_dwb_err;
+	assign	zip_stall = zip_dwb_stall;
+	always @(*)
+		zip_ack = zip_dwb_ack;
+	always @(*)
+		zip_idata = zip_dwb_data;
+	//
 	// BUS-LOGIC for wbu
 	//
 	assign	wbu_none_sel = (wbu_stb)&&({
@@ -540,7 +576,7 @@ module	main(i_clk, i_reset,
 	//
 	// many_ack
 	//
-	// It is also a violation of the bus protocol to produce multiply
+	// It is also a violation of the bus protocol to produce multiple
 	// acks at once and on the same clock.  In that case, the bus
 	// can't decide which result to return.  Worse, if someone is waiting
 	// for a return value, that value will never come since another ack
@@ -604,18 +640,6 @@ module	main(i_clk, i_reset,
 				||((zip_dbg_sel)&&(zip_dbg_stall));
 
 	assign wbu_err = ((wbu_stb)&&(wbu_none_sel))||(wbu_many_ack)||((wbu_dwb_err));
-	//
-	// BUS-LOGIC for zip
-	//
-	assign	zip_none_sel = 1'b0;
-	always @(*)
-		zip_many_ack = 1'b0;
-	assign	zip_err = zip_dwb_err;
-	assign	zip_stall = zip_dwb_stall;
-	always @(*)
-		zip_ack = zip_dwb_ack;
-	always @(*)
-		zip_idata = zip_dwb_data;
 	//
 	// Declare the interrupt busses
 	//
@@ -718,12 +742,15 @@ module	main(i_clk, i_reset,
 	assign	o_sd_sck   = 1'b1;
 	assign	o_sd_cmd   = 1'b1;
 	assign	o_sd_data  = 4'hf;
+
+	// In the case that there is no sdcard peripheral responding on the wb bus
 	reg	r_sdcard_ack;
 	initial	r_sdcard_ack = 1'b0;
 	always @(posedge i_clk)	r_sdcard_ack <= (wb_stb)&&(sdcard_sel);
 	assign	sdcard_ack   = r_sdcard_ack;
 	assign	sdcard_stall = 0;
 	assign	sdcard_data  = 0;
+
 	assign	sdcard_int = 1'b0;	// sdcard.INT.SDCARD.WIRE
 `endif	// SDSPI_ACCESS
 
@@ -734,12 +761,15 @@ module	main(i_clk, i_reset,
 	assign	flctl_stall = 1'b0;
 	assign	flctl_data  = 0;
 `else	// FLASH_ACCESS
+
+	// In the case that there is no flctl peripheral responding on the wb bus
 	reg	r_flctl_ack;
 	initial	r_flctl_ack = 1'b0;
 	always @(posedge i_clk)	r_flctl_ack <= (wb_stb)&&(flctl_sel);
 	assign	flctl_ack   = r_flctl_ack;
 	assign	flctl_stall = 0;
 	assign	flctl_data  = 0;
+
 `endif	// FLASH_ACCESS
 
 `ifdef	BUSPIC_ACCESS
@@ -749,81 +779,18 @@ module	main(i_clk, i_reset,
 	icontrol #(15)	buspici(i_clk, 1'b0, (wb_stb)&&(buspic_sel),
 			wb_data, buspic_data, bus_int_vector, w_bus_int);
 `else	// BUSPIC_ACCESS
+
+	// In the case that there is no buspic peripheral responding on the wb bus
 	reg	r_buspic_ack;
 	initial	r_buspic_ack = 1'b0;
 	always @(posedge i_clk)	r_buspic_ack <= (wb_stb)&&(buspic_sel);
 	assign	buspic_ack   = r_buspic_ack;
 	assign	buspic_stall = 0;
 	assign	buspic_data  = 0;
+
 	assign	w_bus_int = 1'b0;	// buspic.INT.BUS.WIRE
 `endif	// BUSPIC_ACCESS
 
-`ifdef	INCLUDE_ZIPCPU
-	//
-	//
-	// And an arbiter to decide who gets access to the bus
-	//
-	//
-	// Clock speed = 100000000
-	wbpriarbiter #(32,23)	bus_arbiter(i_clk,
-		// The Zip CPU bus master --- gets the priority slot
-		zip_cyc, (zip_stb)&&(zip_dwb_sel), zip_we, zip_addr, zip_data, zip_sel,
-			zip_dwb_ack, zip_dwb_stall, zip_dwb_err,
-		// The UART interface master
-		(wbu_cyc)&&(wbu_dwb_sel), (wbu_stb)&&(wbu_dwb_sel), wbu_we,
-			wbu_addr[(23-1):0], wbu_data, wbu_sel,
-			wbu_dwb_ack, wbu_dwb_stall, wbu_dwb_err,
-		// Common bus returns
-		dwbi_cyc, dwbi_stb, dwbi_we, dwbi_addr, dwbi_odata, dwbi_sel,
-			dwbi_ack, dwbi_stall, dwbi_err);
-
-	// And because the ZipCPU and the Arbiter can create an unacceptable
-	// delay, we often fail timing.  So, we add in a delay cycle
-`else
-	// If no ZipCPU, no delay arbiter is needed
-	assign	dwbi_cyc   = wbu_cyc;
-	assign	dwbi_stb   = wbu_stb;
-	assign	dwbi_we    = wbu_we;
-	assign	dwbi_addr  = wbu_addr;
-	assign	dwbi_odata = wbu_data;
-	assign	dwbi_sel   = wbu_sel;
-	assign	wbu_dwb_ack   = dwbi_ack;
-	assign	wbu_dwb_stall = dwbi_stall;
-	assign	wbu_dwb_err   = dwbi_err;
-	assign wbu_dwb_data   = dwbi_idata;
-`endif	// INCLUDE_ZIPCPU
-
-`ifdef	WBUBUS_MASTER
-`ifdef	INCLUDE_ZIPCPU
-`define	BUS_DELAY_NEEDED
-`endif
-`endif
-`ifdef	BUS_DELAY_NEEDED
-	busdelay #(23)	dwbi_delay(i_clk,
-		dwbi_cyc, dwbi_stb, dwbi_we, dwbi_addr, dwbi_odata, dwbi_sel,
-			dwbi_ack, dwbi_stall, dwbi_idata, dwbi_err,
-		wb_cyc, wb_stb, wb_we, wb_addr, wb_data, wb_sel,
-			wb_ack, wb_stall, wb_idata, wb_err);
-`else
-	// If one of the two, the ZipCPU or the WBUBUS, isn't here, then we
-	// don't need the bus delay, and we can go directly from the bus driver
-	// to the bus itself
-	//
-	assign	wb_cyc    = dwbi_cyc;
-	assign	wb_stb    = dwbi_stb;
-	assign	wb_we     = dwbi_we;
-	assign	wb_addr   = dwbi_addr;
-	assign	wb_data   = dwbi_odata;
-	assign	wb_sel    = dwbi_sel;
-	assign	dwbi_ack   = wb_ack;
-	assign	dwbi_stall = wb_stall;
-	assign	dwbi_err   = wb_err;
-	assign	dwbi_idata = wb_idata;
-`endif
-	assign	wbu_dwb_data = dwbi_idata;
-`ifdef	INCLUDE_ZIPCPU
-	assign	zip_dwb_data = dwbi_idata;
-`endif
 `ifdef	BKRAM_ACCESS
 	memdev #(.LGMEMSZ(20), .EXTRACLOCK(1))
 		bkrami(i_clk,
@@ -831,12 +798,15 @@ module	main(i_clk, i_reset,
 				wb_addr[(20-3):0], wb_data, wb_sel,
 				bkram_ack, bkram_stall, bkram_data);
 `else	// BKRAM_ACCESS
+
+	// In the case that there is no bkram peripheral responding on the wb bus
 	reg	r_bkram_ack;
 	initial	r_bkram_ack = 1'b0;
 	always @(posedge i_clk)	r_bkram_ack <= (wb_stb)&&(bkram_sel);
 	assign	bkram_ack   = r_bkram_ack;
 	assign	bkram_stall = 0;
 	assign	bkram_data  = 0;
+
 `endif	// BKRAM_ACCESS
 
 `ifdef	RTC_ACCESS
@@ -850,12 +820,15 @@ module	main(i_clk, i_reset,
 		r_rtc_ack <= (wb_stb)&&(rtc_sel);
 	assign	rtc_ack = r_rtc_ack;
 `else	// RTC_ACCESS
+
+	// In the case that there is no rtc peripheral responding on the wb bus
 	reg	r_rtc_ack;
 	initial	r_rtc_ack = 1'b0;
 	always @(posedge i_clk)	r_rtc_ack <= (wb_stb)&&(rtc_sel);
 	assign	rtc_ack   = r_rtc_ack;
 	assign	rtc_stall = 0;
 	assign	rtc_data  = 0;
+
 	assign	rtc_int = 1'b0;	// rtc.INT.RTC.WIRE
 `endif	// RTC_ACCESS
 
@@ -872,12 +845,15 @@ module	main(i_clk, i_reset,
 	assign	o_qspi_cs_n = 1'b1;
 	assign	o_qspi_mod  = 2'b01;
 	assign	o_qspi_dat  = 4'b1111;
+
+	// In the case that there is no flash peripheral responding on the wb bus
 	reg	r_flash_ack;
 	initial	r_flash_ack = 1'b0;
 	always @(posedge i_clk)	r_flash_ack <= (wb_stb)&&(flash_sel);
 	assign	flash_ack   = r_flash_ack;
 	assign	flash_stall = 0;
 	assign	flash_data  = 0;
+
 	assign	flash_interrupt = 1'b0;	// flash.INT.FLASH.WIRE
 `endif	// FLASH_ACCESS
 
@@ -899,16 +875,28 @@ module	main(i_clk, i_reset,
 			scope_sdcard_int);
 
 `else	// SDSPI_SCOPE
+
+	// In the case that there is no scope_sdcard peripheral responding on the wb bus
 	reg	r_scope_sdcard_ack;
 	initial	r_scope_sdcard_ack = 1'b0;
 	always @(posedge i_clk)	r_scope_sdcard_ack <= (wb_stb)&&(scope_sdcard_sel);
 	assign	scope_sdcard_ack   = r_scope_sdcard_ack;
 	assign	scope_sdcard_stall = 0;
 	assign	scope_sdcard_data  = 0;
+
 	assign	scope_sdcard_int = 1'b0;	// scope_sdcard.INT.SDSCOPE.WIRE
 `endif	// SDSPI_SCOPE
 
 `ifdef	WBUBUS_MASTER
+	// The Host USB interface, to be used by the WB-UART bus
+	rxuartlite	#(BUSUART) rcv(i_clk, i_wbu_uart_rx,
+				wbu_rx_stb, wbu_rx_data);
+	txuartlite	#(BUSUART) txv(i_clk,
+				wbu_tx_stb,
+				wbu_tx_data,
+				o_wbu_uart_tx,
+				wbu_tx_busy);
+
 `ifdef	INCLUDE_ZIPCPU
 `else
 	assign	zip_dbg_ack   = 1'b0;
@@ -920,11 +908,11 @@ module	main(i_clk, i_reset,
 	assign	w_bus_int = 1'b0;
 `endif
 	wire	[31:0]	wbu_tmp_addr;
-	wbuconsole genbus(i_clk, i_host_rx_stb, i_host_rx_data,
+	wbuconsole genbus(i_clk, wbu_rx_stb, wbu_rx_data,
 			wbu_cyc, wbu_stb, wbu_we, wbu_tmp_addr, wbu_data,
 			wbu_ack, wbu_stall, wbu_err, wbu_idata,
 			w_bus_int,
-			o_host_tx_stb, o_host_tx_data, i_host_tx_busy,
+			wbu_tx_stb, wbu_tx_data, wbu_tx_busy,
 			//
 			w_console_tx_stb, w_console_tx_data, w_console_busy,
 			w_console_rx_stb, w_console_rx_data,
@@ -933,7 +921,108 @@ module	main(i_clk, i_reset,
 	assign	wbu_sel = 4'hf;
 	assign	wbu_addr = wbu_tmp_addr[(24-1):0];
 `else	// WBUBUS_MASTER
+
+	// In the case that nothing drives the wbu bus ...
+	assign	wbu_cyc = 1'b0;
+	assign	wbu_stb = 1'b0;
+	assign	wbu_we  = 1'b0;
+	assign	wbu_sel = 0;
+	assign	wbu_addr= 0;
+	assign	wbu_data= 0;
+	// verilator lint_off UNUSED
+	wire	[35:0]	unused_bus_wbu;
+	assign	unused_bus_wbu = { wbu_ack, wbu_stall, wbu_err, wbu_data };
+	// verilator lint_on  UNUSED
+
 `endif	// WBUBUS_MASTER
+
+`ifdef	INCLUDE_ZIPCPU
+	//
+	//
+	// And an arbiter to decide who gets access to the bus
+	//
+	//
+	// Clock speed = 100000000
+	wbpriarbiter #(32,23)	bus_arbiter(i_clk,
+		// The Zip CPU bus master --- gets the priority slot
+		zip_cyc, (zip_stb)&&(zip_dwb_sel), zip_we, zip_addr, zip_data, zip_sel,
+			zip_dwb_ack, zip_dwb_stall, zip_dwb_err,
+		// The UART interface master
+		(wbu_cyc)&&(wbu_dwb_sel),
+			(wbu_stb)&&(wbu_dwb_sel),
+			wbu_we,
+			wbu_addr[(23-1):0],
+			wbu_data, wbu_sel,
+			wbu_dwb_ack, wbu_dwb_stall, wbu_dwb_err,
+		// Common bus returns
+		wbu_dwbi_cyc, wbu_dwbi_stb, wbu_dwbi_we, wbu_dwbi_addr, wbu_dwbi_odata, wbu_dwbi_sel,
+			wbu_dwbi_ack, wbu_dwbi_stall, wbu_dwbi_err);
+
+	// And because the ZipCPU and the Arbiter can create an unacceptable
+	// delay, we often fail timing.  So, we add in a delay cycle
+`else
+	// If no ZipCPU, no delay arbiter is needed
+	assign	wbu_dwbi_cyc   = wbu_cyc;
+	assign	wbu_dwbi_stb   = wbu_stb;
+	assign	wbu_dwbi_we    = wbu_we;
+	assign	wbu_dwbi_addr  = wbu_addr;
+	assign	wbu_dwbi_odata = wbu_data;
+	assign	wbu_dwbi_sel   = wbu_sel;
+	assign	wbu_dwb_ack    = wbu_dwbi_ack;
+	assign	wbu_dwb_stall  = wbu_dwbi_stall;
+	assign	wbu_dwb_err    = wbu_dwbi_err;
+	assign	wbu_dwb_data   = wbu_dwbi_idata;
+`endif	// INCLUDE_ZIPCPU
+
+`ifdef	WBUBUS_MASTER
+`ifdef	INCLUDE_ZIPCPU
+`define	BUS_DELAY_NEEDED
+`endif
+`endif
+`ifdef	BUS_DELAY_NEEDED
+	busdelay #(23)	wbu_dwbi_delay(i_clk, 1'b0,
+		wbu_dwbi_cyc, wbu_dwbi_stb, wbu_dwbi_we, wbu_dwbi_addr, wbu_dwbi_odata, wbu_dwbi_sel,
+			wbu_dwbi_ack, wbu_dwbi_stall, wbu_dwbi_idata, wbu_dwbi_err,
+		wb_cyc, wb_stb, wb_we, wb_addr, wb_data, wb_sel,
+			wb_ack, wb_stall, wb_idata, wb_err);
+`else
+	// If one of the two, the ZipCPU or the WBUBUS, isn't here, then we
+	// don't need the bus delay, and we can go directly from the bus driver
+	// to the bus itself
+	//
+	assign	wb_cyc    = wbu_dwbi_cyc;
+	assign	wb_stb    = wbu_dwbi_stb;
+	assign	wb_we     = wbu_dwbi_we;
+	assign	wb_addr   = wbu_dwbi_addr;
+	assign	wb_data   = wbu_dwbi_odata;
+	assign	wb_sel    = wbu_dwbi_sel;
+	assign	wbu_dwbi_ack   = wb_ack;
+	assign	wbu_dwbi_stall = wb_stall;
+	assign	wbu_dwbi_err   = wb_err;
+	assign	wbu_dwbi_idata = wb_idata;
+`endif
+	assign	wbu_dwb_data = wbu_dwbi_idata;
+`ifdef	INCLUDE_ZIPCPU
+	assign	zip_dwb_data = wbu_dwbi_idata;
+`endif
+`ifdef	RTCDATE_ACCESS
+	//
+	// The Calendar DATE
+	//
+	rtcdate	thedate(i_clk, rtc_ppd,
+		(wb_stb)&&(date_sel), wb_we, wb_data, wb_sel,
+			date_ack, date_stall, date_data);
+`else	// RTCDATE_ACCESS
+
+	// In the case that there is no date peripheral responding on the wb bus
+	reg	r_date_ack;
+	initial	r_date_ack = 1'b0;
+	always @(posedge i_clk)	r_date_ack <= (wb_stb)&&(date_sel);
+	assign	date_ack   = r_date_ack;
+	assign	date_stall = 0;
+	assign	date_data  = 0;
+
+`endif	// RTCDATE_ACCESS
 
 `ifdef	INCLUDE_ZIPCPU
 	//
@@ -955,24 +1044,21 @@ module	main(i_clk, i_reset,
 			zip_debug);
 	assign	zip_trigger = zip_debug[0];
 `else	// INCLUDE_ZIPCPU
+
+	// In the case that nothing drives the zip bus ...
+	assign	zip_cyc = 1'b0;
+	assign	zip_stb = 1'b0;
+	assign	zip_we  = 1'b0;
+	assign	zip_sel = 0;
+	assign	zip_addr= 0;
+	assign	zip_data= 0;
+	// verilator lint_off UNUSED
+	wire	[35:0]	unused_bus_zip;
+	assign	unused_bus_zip = { zip_ack, zip_stall, zip_err, zip_data };
+	// verilator lint_on  UNUSED
+
 	assign	zip_cpu_int = 1'b0;	// zip.INT.ZIP.WIRE
 `endif	// INCLUDE_ZIPCPU
-
-`ifdef	RTCDATE_ACCESS
-	//
-	// The Calendar DATE
-	//
-	rtcdate	thedate(i_clk, rtc_ppd,
-		(wb_stb)&&(date_sel), wb_we, wb_data,
-			date_ack, date_stall, date_data);
-`else	// RTCDATE_ACCESS
-	reg	r_date_ack;
-	initial	r_date_ack = 1'b0;
-	always @(posedge i_clk)	r_date_ack <= (wb_stb)&&(date_sel);
-	assign	date_ack   = r_date_ack;
-	assign	date_stall = 0;
-	assign	date_data  = 0;
-`endif	// RTCDATE_ACCESS
 
 	assign	version_data = `DATESTAMP;
 	assign	version_ack = 1'b0;
@@ -991,12 +1077,15 @@ module	main(i_clk, i_reset,
 			w_console_rx_stb, w_console_rx_data,
 			uartrx_int, uarttx_int, uartrxf_int, uarttxf_int);
 `else	// BUSCONSOLE_ACCESS
+
+	// In the case that there is no uart peripheral responding on the wb bus
 	reg	r_uart_ack;
 	initial	r_uart_ack = 1'b0;
 	always @(posedge i_clk)	r_uart_ack <= (wb_stb)&&(uart_sel);
 	assign	uart_ack   = r_uart_ack;
 	assign	uart_stall = 0;
 	assign	uart_data  = 0;
+
 	assign	uarttxf_int = 1'b0;	// uart.INT.UARTTXF.WIRE
 	assign	uartrxf_int = 1'b0;	// uart.INT.UARTRXF.WIRE
 	assign	uarttx_int = 1'b0;	// uart.INT.UARTTX.WIRE
@@ -1010,6 +1099,9 @@ module	main(i_clk, i_reset,
 	else
 		r_pwrcount_data[31:0] <= r_pwrcount_data[31:0] + 1'b1;
 	assign	pwrcount_data = r_pwrcount_data;
+	//
+	//
+	//
 
 
 endmodule // main.v

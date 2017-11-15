@@ -43,7 +43,13 @@ YYMMDD=`date +%Y%m%d`
 CXX   := g++
 FBDIR := .
 VDIRFB:= $(FBDIR)/obj_dir
+VOBJ := obj_dir
+SUBMAKE := $(MAKE) --no-print-directory --directory=$(VOBJ) -f
+ifeq ($(VERILATOR_ROOT),)
 VERILATOR := verilator
+else
+VERILATOR := $(VERILATOR_ROOT)/bin/verilator
+endif
 VFLAGS     = -MMD -Wall -trace -Mdir $(VDIRFB) $(AUTOVDIRS) -cc
 
 -include make.inc
@@ -93,12 +99,12 @@ design.h: main.v
 	@echo "#ifndef DESIGN_H" >> $@
 	@echo "#define DESIGN_H" >> $@
 	@echo >> $@
-	@grep "^\`" $< | grep -v default_nettype | grep -v include | sed -e '{ s/^`/#/ }' | sed -e ' s/main.v/design.h/' >> $@
+	@grep "^\`" $< | grep -v default_nettype | grep -v include | sed -e '{ s/^`/#/ }' | sed -e ' s/main.v/design.h/' | grep -v timescale >> $@
 	@echo >> $@
 	@echo "#endif // DESIGN_H" >> $@
 
 $(VDIRFB)/V%__ALL.a: $(VDIRFB)/V%.mk
-	cd $(VDIRFB); make -f V$*.mk
+	$(SUBMAKE) V$*.mk
 
 .PHONY:
 archive:
@@ -110,6 +116,7 @@ clean:
 	rm -rf $(VDIRFB)/*.cpp
 	rm -rf $(VDIRFB)/*.h
 	rm -rf $(VDIRFB)/
+	rm -rf design.h cpudefs.h
 
 DEPS := $(wildcard $(VDIRFB)/*.d)
 ifneq ($(DEPS),)

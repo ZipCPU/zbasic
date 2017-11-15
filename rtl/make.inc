@@ -39,24 +39,23 @@
 ################################################################################
 ##
 ##
-FLASH:= wbqspiflash.v llqspi.v flashconfig.v
+FLASH := wbqspiflash.v llqspi.v flashconfig.v
 
 BUSPICD := cpu
-
 BUSPIC  := $(addprefix $(BUSPICD)/,icontrol.v)
+BKRAM := memdev.v
+
+SDSPI := sdspi.v llsdspi.v wbscope.v
+
+WBUBUS := wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v wbudecompress.v wbudeword.v wbuexec.v wbuidleint.v wbuinput.v wbuoutput.v wbureadcw.v wbusixchar.v wbutohex.v wbconsole.v
+
 BUSDLYD := cpu
-
 BUSDLY  := $(addprefix $(BUSDLYD)/,busdelay.v)
-BKRAM:= memdev.v
-
-SDSPI:= sdspi.v llsdspi.v wbscope.v
+RTCDATE := rtcdate.v
 
 ZIPCPUD := cpu
-
 ZIPCPU  := $(addprefix $(ZIPCPUD)/,zipcpu.v cpuops.v pfcache.v pipemem.v pfcache.v idecode.v wbpriarbiter.v zipsystem.v zipcounter.v zipjiffies.v ziptimer.v wbdmac.v icontrol.v wbwatchdog.v busdelay.v cpudefs.v)
-RTCDATE:= rtcdate.v
+CONSOLE := wbconsole.v txuartlite.v rxuartlite.v ufifo.v
 
-WBUBUS:= wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v wbudecompress.v wbudeword.v wbuexec.v wbuidleint.v wbuinput.v wbuoutput.v wbureadcw.v wbusixchar.v wbutohex.v wbconsole.v
-
-VFLIST := main.v  $(FLASH) $(BUSPIC) $(BUSDLY) $(BKRAM) $(SDSPI) $(ZIPCPU) $(RTCDATE) $(WBUBUS)
-AUTOVDIRS :=  -y $(BUSPICD)  -y $(BUSDLYD)  -y $(ZIPCPUD) 
+VFLIST := main.v  $(FLASH) $(BUSPIC) $(BKRAM) $(SDSPI) $(WBUBUS) $(BUSDLY) $(RTCDATE) $(ZIPCPU) $(CONSOLE)
+AUTOVDIRS :=  -y cpu -y cpu -y cpu
