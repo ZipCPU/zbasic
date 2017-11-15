@@ -161,3 +161,17 @@ NETCOMMS::NETCOMMS(const char *host, const int port) {
 	m_fdw = m_fdr;
 }
 
+void	NETCOMMS::close(void) {
+	int	nr;
+	char	buf[256];
+
+	shutdown(m_fdw, SHUT_WR);
+	while(1) {
+		nr = ::read(m_fdr, buf, sizeof(buf));
+		if (nr <= 0)
+			break;
+	}
+	::close(m_fdw);
+}
+
+
