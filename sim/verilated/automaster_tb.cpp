@@ -140,10 +140,9 @@ int	main(int argc, char **argv) {
 	}
 
 	if (debug_flag) {
-		printf("Opening Bus-master with\n");
+		printf("Opening design with\n");
 		printf("\tDebug Access port = %d\n", FPGAPORT); // fpga_port);
 		printf("\tSerial Console    = %d\n", FPGAPORT+1);
-			// (serial_port == 0) ? " (Standard output)" : "");
 		/*
 		printf("\tDebug comms will%s be copied to the standard output%s.",
 			(copy_comms_to_stdout)?"":" not",
@@ -151,6 +150,8 @@ int	main(int argc, char **argv) {
 			? " as well":"");
 		*/
 		printf("\tVCD File         = %s\n", trace_file);
+		if (elfload)
+			printf("\tELF File         = %s\n", elfload);
 	} if (trace_file)
 		tb->opentrace(trace_file);
 
@@ -160,20 +161,11 @@ int	main(int argc, char **argv) {
 #endif
 
 	if (elfload) {
-		uint32_t	entry;
-		ELFSECTION	**secpp = NULL, *secp;
-		elfread(elfload, entry, secpp);
+		fprintf(stderr, "WARNING: Elf loading currently only works for programs starting at the reset address\n");
+		tb->loadelf(elfload);
 
-		if (secpp) for(int i=0; secpp[i]->m_len; i++) {
-			secp = secpp[i];
-			tb->load(secp->m_start, secp->m_data, secp->m_len);
-		}
-
-		tb->m_core->cpu_ipc = entry;
-		tb->tick();
-		tb->m_core->cpu_ipc = entry;
 		tb->m_core->cpu_cmd_halt = 0;
-		tb->tick();
+		tb->m_core->v__DOT__swic__DOT__cmd_reset = 0;
 	}
 
 	if (willexit) {
@@ -184,7 +176,6 @@ int	main(int argc, char **argv) {
 			tb->tick();
 
 	tb->close();
-	tb->kill();
 	delete tb;
 
 	return	EXIT_SUCCESS;
