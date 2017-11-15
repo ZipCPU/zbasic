@@ -47,6 +47,9 @@ NM	:=zip-nm
 OBJDIR	:= obj-zip
 RDELF	:= zip-readelf
 OBJDUMP := zip-objdump
+SUBMAKE:= $(MAKE) --no-print-directory -C
+#
+#
 SOURCES := hello.c sdtest.c
 HEADERS :=
 DUMPRTL := -fdump-rtl-all
@@ -58,7 +61,7 @@ LIBS    := -lc -lzbasic
 INSTALLD=/home/dan/work/rnd/zipcpu/sw/install
 NLIBD=$(INSTALLD)/cross-tools/zip/lib
 ZLIBD=../zlib
-LIB=$(ZLIBD)/libzbaic.a $(NLIBD)/libg.a $(NLIBD)/libc.a
+LIB=$(ZLIBD)/libzbasic.a $(NLIBD)/libg.a $(NLIBD)/libc.a
 #
 # For source analysis, the following macros are defined:
 
@@ -88,10 +91,9 @@ $(OBJDIR)/cputestcis.o: cputest.c
 $(OBJDIR)/cputest.s: cputest.c
 	$(CC) $(CFLAGS) -S -Wa,-cis -fno-builtin $< -o $@
 
-cputest: $(OBJDIR)/cputest.o boardram.ld
-	$(CC) $(CFLAGS) -T boardram.ld -fno-builtin -Wl,-Map=$(OBJDIR)/cputest.map $(OBJDIR)/cputest.o -o $@
-cputestcis: $(OBJDIR)/cputestcis.o boardram.ld
-	$(CC) $(CFLAGS) -T boardram.ld -fno-builtin -Wl,-Map=$(OBJDIR)/cputestcis.map $(OBJDIR)/cputestcis.o -o $@
+cputest: $(OBJDIR)/cputest.o board.ld
+	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
+
 
 $(OBJDIR)/hello.o: hello.c
 	$(CC) -O3 -c $< -o $@
