@@ -314,28 +314,28 @@ int main(int argc, char **argv) {
 		if (m_fpga) m_fpga->readio(R_VERSION); // Check for bus errors
 
 		// Now ... how shall we start this CPU?
+		printf("Clearing the CPUs registers\n");
+		for(int i=0; i<32; i++) {
+			m_fpga->writeio(R_ZIPCTRL, CPU_HALT|i);
+			m_fpga->writeio(R_ZIPDATA, 0);
+		}
+
+		m_fpga->writeio(R_ZIPCTRL, CPU_HALT|CPU_CLRCACHE);
+		printf("Setting PC to %08x\n", entry);
+		m_fpga->writeio(R_ZIPCTRL, CPU_HALT|CPU_sPC);
+		m_fpga->writeio(R_ZIPDATA, entry);
+
 		if (start_when_finished) {
-			printf("Clearing the CPUs registers\n");
-			for(int i=0; i<32; i++) {
-				m_fpga->writeio(R_ZIPCTRL, CPU_HALT|i);
-				m_fpga->writeio(R_ZIPDATA, 0);
-			}
-
-			m_fpga->writeio(R_ZIPCTRL, CPU_HALT|CPU_CLRCACHE);
-			printf("Setting PC to %08x\n", entry);
-			m_fpga->writeio(R_ZIPCTRL, CPU_HALT|CPU_sPC);
-			m_fpga->writeio(R_ZIPDATA, entry);
-
 			printf("Starting the CPU\n");
 			m_fpga->writeio(R_ZIPCTRL, CPU_GO|CPU_sPC);
 		} else {
 			printf("The CPU should be fully loaded, you may now\n");
 			printf("start it (from reset/reboot) with:\n");
-			printf("> wbregs cpu 0x40\n");
+			printf("> wbregs cpu 0x0f\n");
 			printf("\n");
 		}
 	} catch(BUSERR a) {
-		fprintf(stderr, "ARTY-BUS error: %08x\n", a.addr);
+		fprintf(stderr, "ZBASIC-BUS error: %08x\n", a.addr);
 		exit(-2);
 	}
 
