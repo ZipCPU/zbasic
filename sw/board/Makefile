@@ -36,7 +36,7 @@
 ##
 ##
 .PHONY: all
-PROGRAMS := hello sdtest
+PROGRAMS := hello sdtest cputest
 all:	$(PROGRAMS)
 #
 #
@@ -51,7 +51,7 @@ SUBMAKE:= $(MAKE) --no-print-directory -C
 #
 #
 TTTT    := tttt
-SOURCES := hello.c sdtest.c
+SOURCES := hello.c sdtest.c cputest.c
 HEADERS :=
 DUMPRTL := -fdump-rtl-all
 DUMPTREE:= -fdump-tree-all
@@ -112,12 +112,13 @@ ifeq (,$(wildcard tttt/))
 iftttt:
 else
 iftttt: 
-	$(SUBMAKE) tttt
+	$(SUBMAKE) tttt/src ARCH=zip CROSS=zip- zip-tttt
 endif
 
+.PHONY: tttt
 tttt:
 	@bash -c "if [ ! -e $(TTTT) ]; then git submodule add https://github.com/ZipCPU/tttt; git submodule init; git submodule update; fi"
-	$(SUBMAKE) tttt
+	CROSS=zip- ARCH=zip $(SUBMAKE) tttt/src ARCH=zip CROSS=zip- zip-tttt
 
 
 #hellosim: hellosim.s
@@ -154,5 +155,8 @@ clean:
 	rm -rf $(addsuffix .map,$(PROGRAMS))
 	rm -rf $(addsuffix .txt,$(PROGRAMS))
 	rm -rf $(OBJDIR)/
+ifneq (,$(wildcard tttt/))
+	$(SUBMAKE) tttt/src ARCH=zip CROSS=zip- clean
+endif
 
 -include $(OBJDIR)/depends.txt
