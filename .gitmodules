@@ -1,0 +1,3 @@
+[submodule "sw/board/tttt"]
+	path = sw/board/tttt
+	url = https://github.com/ZipCPU/tttt
