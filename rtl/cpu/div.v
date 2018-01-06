@@ -151,9 +151,9 @@ module	div(i_clk, i_rst, i_wr, i_signed, i_numerator, i_denominator,
 			o_busy <= 1'b0;
 		else if (i_wr)
 			o_busy <= 1'b1;
-		else if (((last_bit)&&(~r_sign))||(zero_divisor))
+		else if (((last_bit)&&(!r_sign))||(zero_divisor))
 			o_busy <= 1'b0;
-		else if (~r_busy)
+		else if (!r_busy)
 			o_busy <= 1'b0;
 
 	// If we are asked to divide by zero, we need to halt.  The sooner

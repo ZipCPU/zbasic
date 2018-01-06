@@ -356,7 +356,7 @@ module	zipcpu(i_clk, i_rst, i_interrupt,
 	wire	[31:0]	div_result;
 	wire	[3:0]	div_flags;
 
-	wire	fpu_ce, fpu_error, fpu_busy, fpu_valid;
+	wire		fpu_ce, fpu_error, fpu_busy, fpu_valid;
 	wire	[31:0]	fpu_result;
 	wire	[3:0]	fpu_flags;
 
@@ -905,7 +905,6 @@ module	zipcpu(i_clk, i_rst, i_interrupt,
 	assign op_lock       = 1'b0;
 `endif
 
-`ifdef	OPT_ILLEGAL_INSTRUCTION
 	initial	op_illegal = 1'b0;
 	always @(posedge i_clk)
 		if (clear_pipeline)
@@ -918,7 +917,6 @@ module	zipcpu(i_clk, i_rst, i_interrupt,
 `endif
 		else if(alu_ce)
 			op_illegal <= 1'b0;
-`endif
 
 	always @(posedge i_clk)
 		if (op_ce)
