@@ -1094,19 +1094,11 @@ void	txchr(char v) {
 	uint8_t c = v;
 	_uart->u_tx = (unsigned)c;
 #endif
-/*
-	if (zip_cc() & CC_GIE) {
-		while(*UARTTX & 0x100)
-			;
-	} else
-		wait(INT_UARTTX);
-	*UARTTX = v;
-*/
 }
 
 void	wait_for_uart_idle(void) {
 #ifdef	_ZIP_HAS_WBUART
-	while(_uart->u_fifo & 0x100)	// While the FIFO is non-empty
+	while(_uart->u_tx & 0x100)	// While the transmitter is non-idle
 		;
 #else
 #error "No uart defined"
@@ -1473,6 +1465,8 @@ void entry(void) {
 	txstr("\r\n");
 	txstr("-----------------------------------\r\n");
 	txstr("All tests passed.  Halting CPU.\r\n");
+	wait_for_uart_idle();
+	txstr("\r\n");
 	wait_for_uart_idle();
 	for(int k=0; k<50000; k++)
 		asm("NOOP");
