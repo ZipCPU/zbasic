@@ -165,7 +165,7 @@ int	main(int argc, char **argv) {
 		tb->loadelf(elfload);
 
 		tb->m_core->cpu_cmd_halt = 0;
-		tb->m_core->v__DOT__swic__DOT__cmd_reset = 0;
+		tb->m_core->VVAR(_swic__DOT__cmd_reset) = 0;
 	}
 
 	if (willexit) {
