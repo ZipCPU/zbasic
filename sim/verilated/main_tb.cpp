@@ -56,58 +56,64 @@
 #include "dbluartsim.h"
 #include "zipelf.h"
 
+#ifdef	NEW_VERILATOR
+#define	VVAR(A)	main__DOT_ ## A
+#else
+#define	VVAR(A)	v__DOT_ ## A
+#endif
+
 //
 // SIM.DEFINES
 //
 // Looking for string: SIM.DEFINES
-#define	sd_cmd_busy	v__DOT__sdcardi__DOT__r_cmd_busy
-#define	sd_clk		v__DOT__sdcardi__DOT__r_sdspi_clk
-#define	sd_cmd_state	v__DOT__sdcardi__DOT__r_cmd_state
-#define	sd_rsp_state	v__DOT__sdcardi__DOT__r_rsp_state
-#define	sd_ll_cmd_stb	v__DOT__sdcard__DOT__ll_cmd_stb
-#define	sd_ll_cmd_dat	v__DOT__sdcard__DOT__ll_cmd_dat
-#define	sd_ll_z_counter	v__DOT__sdcard__DOT__lowlevel__DOT__r_z_counter
-#define	sd_ll_clk_counter	v__DOT__sdcard__DOT__lowlevel__DOT__r_clk_counter
-#define	sd_ll_idle	v__DOT__sdcard__DOT__lowlevel__DOT__r_idle
-#define	sd_ll_state	v__DOT__sdcard__DOT__lowlevel__DOT__r_state
-#define	sd_ll_byte	v__DOT__sdcard__DOT__lowlevel__DOT__r_byte
-#define	sd_ll_ireg	v__DOT__sdcard__DOT__lowlevel__DOT__r_ireg
-#define	sd_ll_out_stb	v__DOT__sdcard__DOT__ll_out_stb
-#define	sd_ll_out_dat	v__DOT__sdcard__DOT__ll_out_dat
-#define	sd_lgblklen	v__DOT__sdcard__DOT__r_lgblklen
-#define	sd_fifo_rd_crc	v__DOT__sdcard__DOT__fifo_rd_crc_reg
-#define	sd_cmd_crc	v__DOT__sdcard__DOT__r_cmd_crc,
-#define	sd_cmd_crc_cnt	v__DOT__sdcard__DOT__r_cmd_crc_cnt
-#define	sd_fifo_rd_crc_stb	v__DOT__sdcard__DOT__fifo_rd_crc_stb
-#define	ll_fifo_pkt_state	v__DOT__sdcard__DOT__ll_fifo_pkt_state
-#define	sd_have_data_response_token	v__DOT__sdcard__DOT__r_have_data_response_token
-#define	sd_fifo_wr_crc		v__DOT__sdcard__DOT__fifo_wr_crc_reg
-#define	sd_fifo_wr_crc_stb	v__DOT__sdcard__DOT__fifo_wr_crc_stb,
-#define	sd_ll_fifo_wr_state	v__DOT__sdcard__DOT__ll_fifo_wr_state,
-#define	sd_ll_fifo_wr_complete	v__DOT__sdcard__DOT__ll_fifo_wr_complete
-#define	sd_use_fifo	v__DOT__sdcard__DOT__r_use_fifo
-#define	sd_fifo_wr	v__DOT__sdcard__DOT__r_fifo_wr
+#define	sd_cmd_busy	VVAR(_sdcardi__DOT__r_cmd_busy)
+#define	sd_clk		VVAR(_sdcardi__DOT__r_sdspi_clk)
+#define	sd_cmd_state	VVAR(_sdcardi__DOT__r_cmd_state)
+#define	sd_rsp_state	VVAR(_sdcardi__DOT__r_rsp_state)
+#define	sd_ll_cmd_stb	VVAR(_sdcard__DOT__ll_cmd_stb)
+#define	sd_ll_cmd_dat	VVAR(_sdcard__DOT__ll_cmd_dat)
+#define	sd_ll_z_counter	VVAR(_sdcard__DOT__lowlevel__DOT__r_z_counter)
+#define	sd_ll_clk_counter	VVAR(_sdcard__DOT__lowlevel__DOT__r_clk_counter)
+#define	sd_ll_idle	VVAR(_sdcard__DOT__lowlevel__DOT__r_idle)
+#define	sd_ll_state	VVAR(_sdcard__DOT__lowlevel__DOT__r_state)
+#define	sd_ll_byte	VVAR(_sdcard__DOT__lowlevel__DOT__r_byte)
+#define	sd_ll_ireg	VVAR(_sdcard__DOT__lowlevel__DOT__r_ireg)
+#define	sd_ll_out_stb	VVAR(_sdcard__DOT__ll_out_stb)
+#define	sd_ll_out_dat	VVAR(_sdcard__DOT__ll_out_dat)
+#define	sd_lgblklen	VVAR(_sdcard__DOT__r_lgblklen)
+#define	sd_fifo_rd_crc	VVAR(_sdcard__DOT__fifo_rd_crc_reg)
+#define	sd_cmd_crc	VVAR(_sdcard__DOT__r_cmd_crc,)
+#define	sd_cmd_crc_cnt	VVAR(_sdcard__DOT__r_cmd_crc_cnt)
+#define	sd_fifo_rd_crc_stb	VVAR(_sdcard__DOT__fifo_rd_crc_stb)
+#define	ll_fifo_pkt_state	VVAR(_sdcard__DOT__ll_fifo_pkt_state)
+#define	sd_have_data_response_token	VVAR(_sdcard__DOT__r_have_data_response_token)
+#define	sd_fifo_wr_crc		VVAR(_sdcard__DOT__fifo_wr_crc_reg)
+#define	sd_fifo_wr_crc_stb	VVAR(_sdcard__DOT__fifo_wr_crc_stb,)
+#define	sd_ll_fifo_wr_state	VVAR(_sdcard__DOT__ll_fifo_wr_state,)
+#define	sd_ll_fifo_wr_complete	VVAR(_sdcard__DOT__ll_fifo_wr_complete)
+#define	sd_use_fifo	VVAR(_sdcard__DOT__r_use_fifo)
+#define	sd_fifo_wr	VVAR(_sdcard__DOT__r_fifo_wr)
 
-#define	block_ram	v__DOT__bkrami__DOT__mem
-#define	cpu_break 	v__DOT__swic__DOT__cpu_break
-#define	cpu_cmd_halt	v__DOT__swic__DOT__cmd_halt
-#define	cpu_ipc		v__DOT__swic__DOT__thecpu__DOT__ipc
-#define	cpu_upc		v__DOT__swic__DOT__thecpu__DOT__r_upc
-#define	cpu_gie		v__DOT__swic__DOT__thecpu__DOT__r_gie
-#define	cpu_iflags	v__DOT__swic__DOT__thecpu__DOT__w_iflags
-#define	cpu_uflags	v__DOT__swic__DOT__thecpu__DOT__w_uflags
-#define	cpu_regs	v__DOT__swic__DOT__thecpu__DOT__regset
-#define	cpu_cmd_addr	v__DOT__swic__DOT__cmd_addr
-#define	cpu_bus_err	v__DOT__swic__DOT__thecpu__DOT__bus_err
-#define	cpu_ibus_err	v__DOT__swic__DOT__thecpu__DOT__ibus_err_flag
-#define	cpu_ubus_err	v__DOT__swic__DOT__thecpu__DOT__r_ubus_err_flag
-#define	cpu_mem_rdaddr	v__DOT__swic__DOT__thecpu__DOT__domem__DOT__rdaddr
-#define	cpu_mem_wraddr	v__DOT__swic__DOT__thecpu__DOT__domem__DOT__wraddr
-#define	cpu_op_sim	v__DOT__swic__DOT__thecpu__DOT__op_sim
-#define	cpu_op_valid	v__DOT__swic__DOT__thecpu__DOT__op_valid
-#define	cpu_alu_ce	v__DOT__swic__DOT__thecpu__DOT__alu_ce
-#define	cpu_new_pc	v__DOT__swic__DOT__thecpu__DOT__new_pc
-#define	cpu_sim_immv	v__DOT__swic__DOT__thecpu__DOT__op_sim_immv
+#define	block_ram	VVAR(_bkrami__DOT__mem)
+#define	cpu_break 	VVAR(_swic__DOT__cpu_break)
+#define	cpu_cmd_halt	VVAR(_swic__DOT__cmd_halt)
+#define	cpu_ipc		VVAR(_swic__DOT__thecpu__DOT__ipc)
+#define	cpu_upc		VVAR(_swic__DOT__thecpu__DOT__r_upc)
+#define	cpu_gie		VVAR(_swic__DOT__thecpu__DOT__r_gie)
+#define	cpu_iflags	VVAR(_swic__DOT__thecpu__DOT__w_iflags)
+#define	cpu_uflags	VVAR(_swic__DOT__thecpu__DOT__w_uflags)
+#define	cpu_regs	VVAR(_swic__DOT__thecpu__DOT__regset)
+#define	cpu_cmd_addr	VVAR(_swic__DOT__cmd_addr)
+#define	cpu_bus_err	VVAR(_swic__DOT__thecpu__DOT__bus_err)
+#define	cpu_ibus_err	VVAR(_swic__DOT__thecpu__DOT__ibus_err_flag)
+#define	cpu_ubus_err	VVAR(_swic__DOT__thecpu__DOT__r_ubus_err_flag)
+#define	cpu_mem_rdaddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__rdaddr)
+#define	cpu_mem_wraddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__wraddr)
+#define	cpu_op_sim	VVAR(_swic__DOT__thecpu__DOT__op_sim)
+#define	cpu_op_valid	VVAR(_swic__DOT__thecpu__DOT__op_valid)
+#define	cpu_alu_ce	VVAR(_swic__DOT__thecpu__DOT__alu_ce)
+#define	cpu_new_pc	VVAR(_swic__DOT__thecpu__DOT__new_pc)
+#define	cpu_sim_immv	VVAR(_swic__DOT__thecpu__DOT__op_sim_immv)
 
 class	MAINTB : public TESTB<Vmain> {
 public:

@@ -48,6 +48,7 @@ RTLD	:= ../../rtl
 VOBJDR	:= $(RTLD)/obj_dir
 VERILATOR_ROOT ?= $(shell bash -c 'verilator -V|grep VERILATOR_ROOT | head -1 | sed -e " s/^.*=\s*//"')
 VROOT	:= $(VERILATOR_ROOT)
+VDEFS   := $(shell ./vversion.sh)
 VINCD   := $(VROOT)/include
 VINC	:= -I$(VINCD) -I$(VINCD)/vltstd -I$(VOBJDR)
 INCS	:= -I../../sw/host -I$(RTLD) $(VINC)
@@ -71,7 +72,7 @@ all:	$(PROGRAMS)
 
 $(OBJDIR)/%.o: %.cpp
 	$(mk-objdir)
-	$(CXX) $(CFLAGS) $(INCS) -c $< -o $@
+	$(CXX) $(CFLAGS) $(VDEFS) $(INCS) -c $< -o $@
 
 $(OBJDIR)/%.o: $(VINCD)/%.cpp
 	$(mk-objdir)
@@ -80,7 +81,7 @@ $(OBJDIR)/%.o: $(VINCD)/%.cpp
 
 MAINOBJS := $(OBJDIR)/main_tb.o $(OBJDIR)/automaster_tb.o
 main_tb: $(MAINOBJS) $(SIMOBJECTS) $(VOBJS) $(VOBJDR)/Vmain__ALL.a
-	$(CXX) $(INCS) $^ $(VOBJDR)/Vmain__ALL.a -lelf -o $@
+	$(CXX) $(INCS) $(VDEFS) $^ $(VOBJDR)/Vmain__ALL.a -lelf -o $@
 
 #
 # Build a 64M SD-card image file that we can use for testing
