@@ -1257,7 +1257,7 @@ void entry(void) {
 	// Check whether or not this CPU correctly identifies SIM instructions
 	// as illegal instructions
 	testid("SIM Instructions"); MARKSTART;
-	cc_fail = CC_MMUERR|CC_FPUERR|CC_DIVERR|CC_BUSERR|CC_TRAP|CC_STEP|CC_SLEEP;
+	cc_fail = CC_MMUERR|CC_FPUERR|CC_DIVERR|CC_BUSERR|CC_STEP|CC_SLEEP;
 	if ((run_test(sim_test, user_stack_ptr))||(zip_ucc()&cc_fail))
 		test_fails(start_time, &testlist[tnum]);
 	else if (zip_ucc() & CC_ILL) {
