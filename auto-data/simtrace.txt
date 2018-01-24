@@ -1,0 +1,69 @@
+################################################################################
+##
+## Filename: 	simtrace.c
+##
+## Project:	AutoFPGA, a utility for composing FPGA designs from peripherals
+##
+## Purpose:	Creates a GPIO output port for the Verilator simulation,
+##		indicating if and when the CPU wants a trace to take place.
+##
+## Creator:	Dan Gisselquist, Ph.D.
+##		Gisselquist Technology, LLC
+##
+################################################################################
+##
+## Copyright (C) 2018, Gisselquist Technology, LLC
+##
+## This program is free software (firmware): you can redistribute it and/or
+## modify it under the terms of  the GNU General Public License as published
+## by the Free Software Foundation, either version 3 of the License, or (at
+## your option) any later version.
+##
+## This program is distributed in the hope that it will be useful, but WITHOUT
+## ANY WARRANTY; without even the implied warranty of MERCHANTIBILITY or
+## FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+## for more details.
+##
+## You should have received a copy of the GNU General Public License along
+## with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
+## target there if the PDF file isn't present.)  If not, see
+## <http://www.gnu.org/licenses/> for a copy.
+##
+## License:	GPL, v3, as defined and found on www.gnu.org,
+##		http://www.gnu.org/licenses/gpl.html
+##
+##
+################################################################################
+##
+##
+@PREFIX=simtrace
+@DEVID=TRACE
+@NADDR=4
+@ACCESS=SIMTRACE_ACCESS
+@SLAVE.TYPE=SINGLE
+@SLAVE.BUS=wb
+@BUS.NAME=wb
+@MAIN.PORTLIST=
+		// The Sim trace output wire
+		o_trace
+@MAIN.IODECL=
+	// Sim trace declaration
+	output	reg		o_trace;
+@MAIN.INSERT=
+	always @(posedge i_clk)
+		if (i_reset)
+			o_trace <= 1'b0;
+		else if ((simtrace_sel)&&(wb_stb)&&(wb_we))
+			o_trace <= wb_data[0];
+
+	assign	simtrace_data = { 31'h0, o_trace };
+@MAIN.ALT=
+	assign	o_trace = 1'b0;
+@REGS.N=1
+@REGS.NOTE= // Sim Trace register
+@REGS.0= 0 R_@$(DEVID)		TRACE
+@BDEF.DEFN=
+@BDEF.IONAME=_simtrace
+@BDEF.IOTYPE=unsigned
+@BDEF.OSDEF=_BOARD_HAS_@$(DEVID)
+@BDEF.OSVAL=static volatile @$BDEF.IOTYPE *const @$BDEF.IONAME = ((@$BDEF.IOTYPE *)@$[0x%08x](REGBASE));
