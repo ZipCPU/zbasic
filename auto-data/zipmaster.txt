@@ -149,31 +149,33 @@
 #include "zipelf.h"
 
 @SIM.DEFINES=
+#ifndef	VVAR
 #ifdef	NEW_VERILATOR
 #define	VVAR(A)	main__DOT_ ## A
 #else
 #define	VVAR(A)	v__DOT_ ## A
 #endif
+#endif
 
-#define	cpu_break 	VVAR(_swic__DOT__cpu_break
-#define	cpu_cmd_halt	VVAR(_swic__DOT__cmd_halt
-#define	cpu_ipc		VVAR(_swic__DOT__thecpu__DOT__ipc
-#define	cpu_upc		VVAR(_swic__DOT__thecpu__DOT__r_upc
-#define	cpu_gie		VVAR(_swic__DOT__thecpu__DOT__r_gie
-#define	cpu_iflags	VVAR(_swic__DOT__thecpu__DOT__w_iflags
-#define	cpu_uflags	VVAR(_swic__DOT__thecpu__DOT__w_uflags
-#define	cpu_regs	VVAR(_swic__DOT__thecpu__DOT__regset
-#define	cpu_cmd_addr	VVAR(_swic__DOT__cmd_addr
-#define	cpu_bus_err	VVAR(_swic__DOT__thecpu__DOT__bus_err
-#define	cpu_ibus_err	VVAR(_swic__DOT__thecpu__DOT__ibus_err_flag
-#define	cpu_ubus_err	VVAR(_swic__DOT__thecpu__DOT__r_ubus_err_flag
-#define	cpu_mem_rdaddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__rdaddr
-#define	cpu_mem_wraddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__wraddr
-#define	cpu_op_sim	VVAR(_swic__DOT__thecpu__DOT__op_sim
-#define	cpu_op_valid	VVAR(_swic__DOT__thecpu__DOT__op_valid
-#define	cpu_alu_ce	VVAR(_swic__DOT__thecpu__DOT__alu_ce
-#define	cpu_new_pc	VVAR(_swic__DOT__thecpu__DOT__new_pc
-#define	cpu_sim_immv	VVAR(_swic__DOT__thecpu__DOT__op_sim_immv
+#define	cpu_break 	VVAR(_swic__DOT__cpu_break)
+#define	cpu_cmd_halt	VVAR(_swic__DOT__cmd_halt)
+#define	cpu_ipc		VVAR(_swic__DOT__thecpu__DOT__ipc)
+#define	cpu_upc		VVAR(_swic__DOT__thecpu__DOT__r_upc)
+#define	cpu_gie		VVAR(_swic__DOT__thecpu__DOT__r_gie)
+#define	cpu_iflags	VVAR(_swic__DOT__thecpu__DOT__w_iflags)
+#define	cpu_uflags	VVAR(_swic__DOT__thecpu__DOT__w_uflags)
+#define	cpu_regs	VVAR(_swic__DOT__thecpu__DOT__regset)
+#define	cpu_cmd_addr	VVAR(_swic__DOT__cmd_addr)
+#define	cpu_bus_err	VVAR(_swic__DOT__thecpu__DOT__bus_err)
+#define	cpu_ibus_err	VVAR(_swic__DOT__thecpu__DOT__ibus_err_flag)
+#define	cpu_ubus_err	VVAR(_swic__DOT__thecpu__DOT__r_ubus_err_flag)
+#define	cpu_mem_rdaddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__rdaddr)
+#define	cpu_mem_wraddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__wraddr)
+#define	cpu_op_sim	VVAR(_swic__DOT__thecpu__DOT__op_sim)
+#define	cpu_op_valid	VVAR(_swic__DOT__thecpu__DOT__op_valid)
+#define	cpu_alu_ce	VVAR(_swic__DOT__thecpu__DOT__alu_ce)
+#define	cpu_new_pc	VVAR(_swic__DOT__thecpu__DOT__new_pc)
+#define	cpu_sim_immv	VVAR(_swic__DOT__thecpu__DOT__op_sim_immv)
 
 @SIM.DEFNS=
 	int	m_cpu_bombed;
