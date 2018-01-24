@@ -97,7 +97,15 @@
 #define	sd_use_fifo	VVAR(_sdcard__DOT__r_use_fifo)
 #define	sd_fifo_wr	VVAR(_sdcard__DOT__r_fifo_wr)
 
-#define	block_ram	v__DOT__bkrami__DOT__mem
+#ifndef VVAR
+#ifdef  NEW_VERILATOR
+#define VVAR(A) main__DOT_ ## A
+#else
+#define VVAR(A) v__DOT_ ## A
+#endif
+#endif
+
+#define	block_ram	VVAR(_bkrami__DOT__mem)
 #ifndef	VVAR
 #ifdef	NEW_VERILATOR
 #define	VVAR(A)	main__DOT_ ## A
