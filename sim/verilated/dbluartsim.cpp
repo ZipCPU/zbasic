@@ -303,25 +303,24 @@ void	DBLUARTSIM::received(const char ch) {
 				snt, m_cmdpos);
 		}
 		m_cmdpos = 0;
+	}
+
+	if (m_con >= 0) {
+		int	snt = 0;
+		snt = send(m_con, &m_conbuf[m_conpos-1], 1, 0);
+		if (snt < 0) {
+			printf("Closing CONsole socket\n");
+			close(m_con);
+			m_con = -1;
+			snt = 0;
+		} if (snt < 1) {
+			fprintf(stderr, "CON: no bytes sent!\n");
+		}
 	} if ((m_conpos>0)&&((m_conbuf[m_conpos-1] == '\n')
 				||(m_conpos >= DBLPIPEBUFLEN-2))) {
-			int	snt = 0;
-			if (m_con >= 0) {
-				snt = send(m_con,m_conbuf, m_conpos, 0);
-				if (snt < 0) {
-					printf("Closing CONsole socket\n");
-					close(m_con);
-					m_con = -1;
-					snt = 0;
-				}
-				if (snt < m_conpos) {
-					fprintf(stderr, "CON: Only sent %d bytes of %d!\n",
-						snt, m_conpos);
-				}
-			}
-			m_conbuf[m_conpos] = '\0';
-			printf("%s", m_conbuf);
-			m_conpos = 0;
+		m_conbuf[m_conpos] = '\0';
+		printf("%s", m_conbuf);
+		m_conpos = 0;
 	}
 }
 
