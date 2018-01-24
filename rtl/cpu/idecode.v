@@ -82,11 +82,11 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	input	wire		i_clk, i_reset, i_ce, i_stalled;
 	input	wire [31:0]	i_instruction;
 	input	wire		i_gie;
-	input	wire [(AW-1):0]	i_pc;
+	input	wire [(AW+1):0]	i_pc;
 	input	wire		i_pf_valid, i_illegal;
 	output	wire		o_valid, o_phase;
 	output	reg		o_illegal;
-	output	reg	[AW:0]	o_pc;
+	output	reg	[(AW+1):0]	o_pc;
 	output	reg		o_gie;
 	output	reg	[6:0]	o_dcdR, o_dcdA, o_dcdB;
 	output	wire	[31:0]	o_I;
@@ -98,7 +98,7 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	output	reg		o_lock;
 	output	reg		o_wR, o_rA, o_rB;
 	output	wire		o_early_branch, o_early_branch_stb;
-	output	wire	[(AW-1):0]	o_branch_pc;
+	output	wire	[(AW+1):0]	o_branch_pc;
 	output	wire		o_ljmp;
 	output	wire		o_pipe;
 	output	reg		o_sim		/* verilator public_flat */;
@@ -139,19 +139,13 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	begin
 		if (OPT_CIS)
 		begin : CIS_EARLY_BRANCHING
-			reg	r_pre_ljmp;
-			always @(posedge i_clk)
-			if ((i_reset)||(o_early_branch))
-				r_pre_ljmp <= 1'b0;
-			else if ((i_ce)&&(i_pf_valid))
-				r_pre_ljmp <= (!o_phase)&&(i_instruction[`CISBIT])
-					&&(i_instruction[14:0] == 15'h7cf8);
-			else if (i_ce)
-				r_pre_ljmp <= 1'b0;
-	
-			assign	w_cis_ljmp = r_pre_ljmp;
+
+			assign	w_cis_ljmp = (iword[31:16] == 16'hfcf8);
+
 		end else begin : NOCIS_EARLY_BRANCH
+
 			assign	w_cis_ljmp = 1'b0;
+
 		end
 
 		assign	w_ljmp = (iword == 32'h7c87c000);
@@ -366,12 +360,25 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 		// When no instruction is in the pipe, phase is zero
 		initial	r_phase = 1'b0;
 		always @(posedge i_clk)
-		if ((i_reset)||(o_early_branch)||(w_ljmp_dly))
+		if ((i_reset)||(w_ljmp_dly))
 			r_phase <= 1'b0;
 		else if ((i_ce)&&(i_pf_valid))
-			r_phase <= (o_phase)? 1'b0
-				: ((i_instruction[`CISBIT])&&(i_pf_valid));
-		else if (i_ce)
+		begin
+			if (o_phase)
+				// CIS instructions only have two parts.  On
+				// the second part (o_phase is true), return
+				// back to the first
+				r_phase <= 0;
+			else if ((i_instruction[`CISBIT])&&(w_dcdR_pc)&&(w_wR))
+				// CIS instructions are unconditional.
+				// Therefore, any write to the PC will affect
+				// the PC, and the second half of the
+				// instruction will be irrelevant and may be
+				// ignored.
+				r_phase <= 0;
+			else
+				r_phase <= (i_instruction[`CISBIT]);
+		end else if (i_ce)
 			r_phase <= 1'b0;
 
 		assign	o_phase = r_phase;
@@ -423,6 +430,8 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	always @(posedge i_clk)
 		if (i_ce)
 		begin
+			o_pc[0] <= 1'b0;
+
 			if (OPT_CIS)
 			begin
 				if (!o_phase)
@@ -431,17 +440,17 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 				if (iword[`CISBIT])
 				begin
 					if (o_phase)
-						o_pc <= o_pc + 1'b1;
+						o_pc[AW+1:1] <= o_pc[AW+1:1] + 1'b1;
 					else if (i_pf_valid)
-						o_pc <= { i_pc, 1'b1 };
+						o_pc <= { i_pc[AW+1:2], 1'b1, 1'b0 };
 				end else begin
 					// The normal, non-CIS case
-					o_pc <= { i_pc + 1'b1, 1'b0 };
+					o_pc <= { i_pc[AW+1:2] + 1'b1, 2'b00 };
 				end
 			end else begin
 				// The normal, non-CIS case
 				o_gie<= i_gie;
-				o_pc <= { i_pc + 1'b1, 1'b0 };
+				o_pc <= { i_pc[AW+1:2] + 1'b1, 2'b00 };
 			end
 
 			// Under what condition will we execute this
@@ -508,7 +517,7 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 		reg			r_early_branch,
 					r_early_branch_stb,
 					r_ljmp;
-		reg	[(AW-1):0]	r_branch_pc;
+		reg	[(AW+1):0]	r_branch_pc;
 
 		initial r_ljmp = 1'b0;
 		always @(posedge i_clk)
@@ -516,14 +525,10 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 				r_ljmp <= 1'b0;
 			else if (i_ce)
 			begin
-				if (r_ljmp)
-					r_ljmp <= 1'b0;
-				else if ((OPT_CIS)&&(o_phase))
+				if ((OPT_CIS)&&(iword[`CISBIT]))
 					r_ljmp <= w_cis_ljmp;
 				else if (i_pf_valid)
 					r_ljmp <= (w_ljmp);
-				else if (!i_stalled)
-					r_ljmp <= 1'b0;
 			end
 		assign	o_ljmp = r_ljmp;
 
@@ -538,7 +543,7 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 		begin
 			if (r_ljmp)
 			begin
-				// LOD (PC),PC
+				// LW (PC),PC
 				r_early_branch     <= 1'b1;
 				r_early_branch_stb <= 1'b1;
 			end else if ((!iword[`CISBIT])&&(iword[30:27]==`CPU_PC_REG)
@@ -548,10 +553,10 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 				begin
 					// Add x,PC
 					r_early_branch     <= 1'b1;
-					r_early_branch_stb  <= 1'b1;
+					r_early_branch_stb <= 1'b1;
 				end else begin
 					r_early_branch     <= 1'b0;
-					r_early_branch_stb  <= 1'b0;
+					r_early_branch_stb <= 1'b0;
 				end
 			// LDI #x,PC is no longer supported
 			end else begin
@@ -569,11 +574,15 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 			if (i_ce)
 			begin
 				if (r_ljmp)
-					r_branch_pc <= iword[(AW+1):2];
-				else // Add x,PC
-				r_branch_pc <= i_pc
+					r_branch_pc <= { iword[(AW+1):2],
+							2'b00 };
+				else begin
+				// Add x,PC
+				r_branch_pc[AW+1:2] <= i_pc[AW+1:2]
 					+ {{(AW-15){iword[17]}},iword[16:2]}
 					+ {{(AW-1){1'b0}},1'b1};
+				r_branch_pc[1:0] <= 2'b00;
+				end
 			end
 
 		assign	w_ljmp_dly         = r_ljmp;
@@ -584,7 +593,7 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 		assign	w_ljmp_dly         = 1'b0;
 		assign	o_early_branch     = 1'b0;
 		assign	o_early_branch_stb = 1'b0;
-		assign	o_branch_pc = {(AW){1'b0}};
+		assign	o_branch_pc = {(AW+2){1'b0}};
 		assign	o_ljmp = 1'b0;
 	end endgenerate
 
@@ -651,8 +660,8 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 
 	// Make Verilator happy across all our various options
 	// verilator lint_off  UNUSED
-	wire	[3:0] possibly_unused;
-	assign	possibly_unused = { w_lock, w_ljmp, w_ljmp_dly, w_cis_ljmp };
+	wire	[5:0] possibly_unused;
+	assign	possibly_unused = { w_lock, w_ljmp, w_ljmp_dly, w_cis_ljmp, i_pc[1:0] };
 	// verilator lint_on  UNUSED
 `ifdef	FORMAL
 	reg	f_past_valid;
@@ -1277,77 +1286,90 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	end
 
 	generate if (OPT_EARLY_BRANCHING)
-	begin always @(posedge i_clk)
-	if ((f_past_valid)&&($past(i_ce))&&(!$past(i_reset)))
 	begin
-		if ($past(i_pf_valid))
+		always @(posedge i_clk)
+		if ((f_past_valid)&&($past(i_ce))&&(!$past(i_reset)))
 		begin
-			if ($past(o_ljmp))
+			if ($past(i_pf_valid))
 			begin
-				// 2nd half of LOD(PC),PC
-				assert(o_early_branch);
-				assert(o_early_branch_stb);
-				assert(!o_ljmp);
-			end else if ((!$past(iword[`CISBIT]))&&($past(w_add))
-				&&(!$past(w_rB))
-				&&($past(w_cond[3]))
-				&&(o_dcdR[4:0]=={ i_gie, 4'hf }))
+				if ($past(o_ljmp))
+				begin
+					// 2nd half of LW (PC),PC
+					assert(o_early_branch);
+					assert(o_early_branch_stb);
+				end else if ((!$past(iword[`CISBIT]))&&($past(w_add))
+					&&(!$past(w_rB))
+					&&($past(w_cond[3]))
+					&&(o_dcdR[4:0]=={ i_gie, 4'hf }))
+				begin
+					// ADD #x,PC
+					assert(o_early_branch);
+					assert(o_early_branch_stb);
+				end else if ((!$past(iword[`CISBIT]))
+					&&($past(w_cis_op == 5'h12))
+					&&($past(w_rB))
+					&&($past(w_cond[3]))
+					&&(o_zI)
+					&&(o_dcdB[4:0]=={ i_gie, 4'hf })
+					&&(o_dcdR[4:0]=={ i_gie, 4'hf }))
+				begin
+					// LW (PC),PC
+					assert(!o_early_branch);
+					assert(!o_early_branch_stb);
+				end else if ((OPT_CIS)&&($past(o_phase))
+					&&($past(w_cis_op == 5'h12))
+					&&($past(w_rB))
+					&&($past(w_cond[3]))
+					&&($past(w_Iz))
+					&&($past(w_dcdB_pc))
+					&&($past(w_dcdR_pc))
+					&&(o_dcdR[4:0]=={ i_gie, 4'hf }))
+				begin
+					// (CIS) LW (PC),PC
+					assert(!o_early_branch);
+					assert(!o_early_branch_stb);
+				end else begin
+					assert(!o_early_branch);
+				end
+			end else if ((OPT_CIS)&&($past(o_phase)))
 			begin
-				// ADD #x,PC
-				assert(o_early_branch);
-				assert(o_early_branch_stb);
-				assert(!o_ljmp);
-			end else if ((!$past(iword[`CISBIT]))
-				&&($past(w_cis_op == 5'h12))
-				&&($past(w_rB))
-				&&($past(w_cond[3]))
-				&&(o_zI)
-				&&(o_dcdB[4:0]=={ i_gie, 4'hf })
-				&&(o_dcdR[4:0]=={ i_gie, 4'hf }))
-			begin
-				// LOD (PC),PC
+				if (($past(w_cis_op == 5'h12))
+					&&($past(w_rB))
+					&&($past(w_cond[3]))
+					&&($past(w_Iz))
+					&&($past(w_dcdB_pc))
+					&&($past(w_dcdR_pc)))
+				begin
+				// (CIS) LW (PC),PC
 				assert(!o_early_branch);
 				assert(!o_early_branch_stb);
-				assert(o_ljmp);
-			end else if ((OPT_CIS)&&($past(o_phase))
-				&&($past(w_cis_op == 5'h12))
-				&&($past(w_rB))
-				&&($past(w_cond[3]))
-				&&(o_zI)
-				&&(o_dcdB[4:0]=={ i_gie, 4'hf })
-				&&(o_dcdR[4:0]=={ i_gie, 4'hf }))
-			begin
-				assert(!o_early_branch);
-				assert(!o_early_branch_stb);
-				assert(o_ljmp);
-			end else begin
-				assert(!o_ljmp);
-				assert(!o_early_branch);
-			end
-		end else if ((OPT_CIS)&&($past(o_phase)))
-		begin
-			if (($past(w_cis_op == 5'h12))
-				&&($past(w_rB))
-				&&($past(w_cond[3]))
-				&&(o_zI)
-				&&(o_dcdB[4:0]=={ i_gie, 4'hf })
-				&&(o_dcdR[4:0]=={ i_gie, 4'hf }))
-			begin
-				assert(!o_early_branch);
-				assert(!o_early_branch_stb);
-				assert(o_ljmp);
-			end else begin
-				assert(!o_early_branch);
-				assert(!o_early_branch_stb);
-				assert(!o_ljmp);
+				end else begin
+					assert(!o_early_branch);
+					assert(!o_early_branch_stb);
+				end
 			end
 		end else begin
-			assert(!o_ljmp);
-			assert(!o_early_branch);
+			assert(!o_early_branch_stb);
 		end
+
+		always @(*)
+			assume(i_instruction[31:16] != 16'hfcf8);
+
+		always @(*)
+		if ((o_valid)
+				// LW
+				&&(o_M)&&(o_op[2:0]==3'b010)
+				// Zero immediate
+				&&(o_zI)
+				// Unconditional
+				&&(o_cond[3])
+				// From PC to PC
+				&&(o_dcdR[5])&&(o_dcdB[5]))
+			assert(o_ljmp);
+		else if (o_valid)
+			assert(!o_ljmp);
+
 	end else begin
-		assert(!o_early_branch_stb);
-	end end else begin
 		always @(*)
 			assert(!o_early_branch_stb);
 		always @(*)
@@ -1382,9 +1404,10 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 
 			if ((!$past(o_phase))&&($past(i_ce))
 					&&($past(i_pf_valid))
-					&&(!$past(o_early_branch))
 					&&(!$past(w_ljmp_dly))
-					&&($past(i_instruction[`CISBIT])))
+					&&($past(i_instruction[`CISBIT]))
+					&&((!$past(w_dcdR_pc))
+						||(!$past(w_wR))))
 				assert(o_phase);
 			else if (($past(o_phase))&&($past(i_ce)))
 				assert(!o_phase);
@@ -1407,14 +1430,15 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 		if ((f_past_valid)&&(!$past(i_stalled))&&($past(i_pf_valid))
 				&&($past(i_ce)))
 		begin
+			assert(o_pc[0] == 1'b0);
 			if (!$past(iword[`CISBIT]))
 			begin
-				assert(!o_pc[0]);
-				assert(o_pc[AW:1] == $past(i_pc)+1'b1);
+				assert(o_pc[1:0]==2'b00);
+				assert(o_pc[AW+1:2] == $past(i_pc[AW+1:2])+1'b1);
 			end else if ($past(iword[`CISBIT])&&($past(o_phase)))
-				assert(o_pc == $past(o_pc) + 1'b1);
+				assert(o_pc[(AW+1):1] == $past(o_pc[(AW+1):1]) + 1'b1);
 			else if ($past(iword[`CISBIT]))
-				assert(o_pc == { $past(i_pc), 1'b1});
+				assert(o_pc[(AW+1):1] == { $past(i_pc[(AW+1):2]), 1'b1});
 		end
 
 
@@ -1450,9 +1474,12 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 
 		always @(posedge i_clk)
 		if ((f_past_valid)&&($past(i_ce)))
-			assert(o_pc[AW:1] == $past(i_pc) + 1'b1);
+			assert(o_pc[AW+1:2] == $past(i_pc[AW+1:2]) + 1'b1);
 		else if (f_past_valid)
 			assert(o_pc == $past(o_pc));
+
+		always @(*)
+			assert(o_pc[1:0] == 2'b00);
 
 		always @(*)
 			assert((!w_ldi)||(w_I == iword[22:0]));
@@ -1535,5 +1562,9 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	always @(posedge i_clk)
 	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_ce)))
 		assert((OPT_MPY)||(o_illegal));
+
+	always @(*)
+	if (o_valid)
+		assert((!o_phase)||(!o_early_branch));
 `endif
 endmodule

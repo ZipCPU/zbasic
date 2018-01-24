@@ -60,9 +60,9 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 	input	wire			i_clk, i_reset, i_new_pc;
 	input	wire			i_clear_cache;
 	input	wire			i_stall_n;
-	input	wire	[(AW-1):0]	i_pc;
+	input	wire	[(AW+1):0]	i_pc;
 	output	wire	[(BUSW-1):0]	o_i;
-	output	wire	[(AW-1):0]	o_pc;
+	output	wire	[(AW+1):0]	o_pc;
 	output	wire			o_v;
 	//
 	output	reg		o_wb_cyc, o_wb_stb;
@@ -86,7 +86,7 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 	reg	[(AW-CW-1):0]	tags	[0:((1<<(LGLINES))-1)];
 	reg	[((1<<(LGLINES))-1):0]	vmask;
 
-	reg	[(AW-1):0]	lastpc;
+	reg	[(AW+1):0]	lastpc;
 	reg	[(CW-1):0]	rdaddr;
 	reg	[(AW-1):CW]	tagvalipc, tagvallst;
 	wire	[(AW-1):CW]	tagval;
@@ -97,7 +97,7 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 	// initial	o_i = 32'h76_00_00_00;	// A NOOP instruction
 	// initial	o_pc = 0;
 	reg	[(BUSW-1):0]	r_pc_cache, r_last_cache;
-	reg	[(AW-1):0]	r_pc, r_lastpc;
+	reg	[(AW+1):0]	r_pc, r_lastpc;
 	reg	isrc;
 	always @(posedge i_clk)
 	begin
@@ -114,8 +114,8 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 
 		// Here we read both, and select which was write using isrc
 		// on the next clock.
-		r_pc_cache <= cache[i_pc[(CW-1):0]];
-		r_last_cache <= cache[lastpc[(CW-1):0]];
+		r_pc_cache <= cache[i_pc[(CW+1):2]];
+		r_last_cache <= cache[lastpc[(CW+1):2]];
 		r_pc <= i_pc;
 		r_lastpc <= lastpc;
 	end
@@ -133,10 +133,10 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 			tagsrc <= 1'b0;
 	initial	tagvalipc = 0;
 	always @(posedge i_clk)
-		tagvalipc <= tags[i_pc[(CW-1):PW]];
+		tagvalipc <= tags[i_pc[(CW+1):PW+2]];
 	initial	tagvallst = 0;
 	always @(posedge i_clk)
-		tagvallst <= tags[lastpc[(CW-1):PW]];
+		tagvallst <= tags[lastpc[(CW+1):PW+2]];
 	assign	tagval = (tagsrc)?tagvalipc : tagvallst;
 
 	// i_pc will only increment when everything else isn't stalled, thus
@@ -149,16 +149,16 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 		if (((r_v)&&(i_stall_n))||(i_clear_cache)||(i_new_pc))
 			lastpc <= i_pc;
 
-	assign	lasttag = lastpc[(AW-1):PW];
+	assign	lasttag = lastpc[(AW+1):PW+2];
 
 	wire	w_v_from_pc, w_v_from_last;
-	assign	w_v_from_pc = ((i_pc[(AW-1):PW] == lasttag)
-				&&(tagvalipc == i_pc[(AW-1):CW])
-				&&(vmask[i_pc[(CW-1):PW]]));
+	assign	w_v_from_pc = ((i_pc[(AW+1):PW+2] == lasttag)
+				&&(tagvalipc == i_pc[(AW+1):CW+2])
+				&&(vmask[i_pc[(CW+1):PW+2]]));
 	assign	w_v_from_last = (
 				//(lastpc[(AW-1):PW] == lasttag)&&
-				(tagval == lastpc[(AW-1):CW])
-				&&(vmask[lastpc[(CW-1):PW]]));
+				(tagval == lastpc[(AW+1):CW+2])
+				&&(vmask[lastpc[(CW+1):PW+2]]));
 
 	reg	[1:0]	delay;
 
@@ -206,10 +206,10 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 	initial	needload = 1'b0;
 	always @(posedge i_clk)
 		needload <= ((!r_v)&&(delay==0)
-			&&((tagvallst != lastpc[(AW-1):CW])
-				||(!vmask[lastpc[(CW-1):PW]]))
+			&&((tagvallst != lastpc[(AW+1):CW+2])
+				||(!vmask[lastpc[(CW+1):PW+2]]))
 			&&((!illegal_valid)
-				||(lastpc[(AW-1):PW] != illegal_cache)));
+				||(lastpc[(AW+1):PW+2] != illegal_cache)));
 
 	reg	last_addr;
 	initial	last_addr = 1'b0;
@@ -262,13 +262,13 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 		if ((o_wb_cyc)&&(i_wb_ack))
 			rdaddr <= rdaddr + 1;
 		else if (!o_wb_cyc)
-			rdaddr <= { lastpc[(CW-1):PW], {(PW){1'b0}} };
+			rdaddr <= { lastpc[(CW+1):PW+2], {(PW){1'b0}} };
 			
 	always @(posedge i_clk)
 		if ((o_wb_stb)&&(!i_wb_stall)&&(!last_addr))
 			o_wb_addr[(PW-1):0] <= o_wb_addr[(PW-1):0]+1;
 		else if (!o_wb_cyc)
-			o_wb_addr <= { lastpc[(AW-1):PW], {(PW){1'b0}} };
+			o_wb_addr <= { lastpc[(AW+1):PW+2], {(PW){1'b0}} };
 
 	// Can't initialize an array, so leave cache uninitialized
 	// We'll also never get an ack without sys being active, so skip
@@ -301,7 +301,7 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 			if (svmask)
 				vmask[saddr] <= (!bus_abort);
 			if ((!o_wb_cyc)&&(needload))
-				vmask[lastpc[(CW-1):PW]] <= 1'b0;
+				vmask[lastpc[(CW+1):PW+2]] <= 1'b0;
 		end
 	always @(posedge i_clk)
 		if ((o_wb_cyc)&&(i_wb_ack))
@@ -326,7 +326,7 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 			o_illegal <= 1'b0;
 		else
 			o_illegal <= (illegal_valid)
-				&&(illegal_cache == i_pc[(AW-1):PW]);
+				&&(illegal_cache == i_pc[(AW+1):PW+2]);
 
 `ifdef	FORMAL
 //
@@ -535,10 +535,18 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 	always @(posedge i_clk)
 	if (o_v)
 	begin
-		assert(tags[o_pc[(CW-1):PW]] == o_pc[(AW-1):CW]);
-		assert(vmask[o_pc[(CW-1):PW]]);
-		assert(o_i == cache[o_pc[(CW-1):0]]);
-		assert(o_illegal == (illegal_cache == o_pc[(AW-1):PW]));
+		assert(tags[o_pc[(CW+1):PW+2]] == o_pc[(AW+1):CW+2]);
+		assert(vmask[o_pc[(CW+1):PW+2]]);
+		assert(o_i == cache[o_pc[(CW+1):2]]);
+		assert(o_illegal == (illegal_cache == o_pc[(AW+1):PW+2]));
+	end
+
+	always @(*)
+	begin
+		assume(i_pc[1:0] == 2'b00);
+		assert(o_pc[1:0] == 2'b00);
+		assert(r_pc[1:0] == 2'b00);
+		assert(r_lastpc[1:0] == 2'b00);
 	end
 
 	always @(posedge i_clk)
@@ -547,7 +555,7 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 			&&(!$past(i_new_pc))
 			&&(!$past(i_stall_n)))
 		begin
-			assert(tags[o_pc[(CW-1):PW]] == o_pc[(AW-1):CW]);
+			assert(tags[o_pc[(CW+1):PW+2]] == o_pc[(AW+1):CW+2]);
 		end
 
 `endif	// FORMAL
