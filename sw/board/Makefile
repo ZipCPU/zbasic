@@ -117,7 +117,7 @@ endif
 
 .PHONY: tttt
 tttt:
-	@bash -c "if [ ! -e $(TTTT) ]; then git submodule add https://github.com/ZipCPU/tttt; git submodule init; git submodule update; fi"
+	@bash -c "if [ ! -e $(TTTT)/src/Makefile ]; then git submodule add https://github.com/ZipCPU/tttt; git submodule init; git submodule update; fi"
 	CROSS=zip- ARCH=zip $(SUBMAKE) tttt/src ARCH=zip CROSS=zip- zip-tttt
 
 
