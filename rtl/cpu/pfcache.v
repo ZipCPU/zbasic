@@ -99,6 +99,9 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 	reg	[(BUSW-1):0]	r_pc_cache, r_last_cache;
 	reg	[(AW+1):0]	r_pc, r_lastpc;
 	reg	isrc;
+
+	initial	r_pc = 0;
+	initial	r_lastpc = 0;
 	always @(posedge i_clk)
 	begin
 		// We don't have the logic to select what to read, we must
@@ -557,6 +560,13 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 		begin
 			assert(tags[o_pc[(CW+1):PW+2]] == o_pc[(AW+1):CW+2]);
 		end
+
+	always @(posedge i_clk)
+	if ((f_past_valid)&&($past(o_v))&&($past(i_stall_n)))
+	begin
+		// Should always advance the instruction
+		assert((!o_v)||(o_pc != $past(o_pc)));
+	end
 
 `endif	// FORMAL
 
