@@ -992,6 +992,12 @@ module	zipcpu(i_clk, i_rst, i_interrupt,
 	assign	op_phase = r_op_phase;
 `else
 	assign	op_phase = 1'b0;
+`ifdef	VERILATOR
+	// verilator lint_off UNUSED
+	wire	OPT_CIS_dcdRpc;
+	assign	OPT_CIS_dcdRpc = dcd_Rpc;
+	// verilator lint_on  UNUSED
+`endif
 `endif
 
 	// This is tricky.  First, the PC and Flags registers aren't kept in
@@ -1871,7 +1877,7 @@ module	zipcpu(i_clk, i_rst, i_interrupt,
 			pf_pc <= { upc[(AW+1):2], 2'b00 };
 		else if ((wr_reg_ce)&&(wr_reg_id[4] == gie)&&(wr_write_pc))
 			pf_pc <= { wr_spreg_vl[(AW+1):2], 2'b00 };
-		else if ((dcd_early_branch)&&(!clear_pipeline))
+		else if ((dcd_early_branch_stb)&&(!clear_pipeline))
 			pf_pc <= { dcd_branch_pc[AW+1:2] + 1'b1, 2'b00 };
 		else if ((new_pc)||((!pf_stalled)&&(pf_valid)))
 			pf_pc <= { pf_pc[(AW+1):2] + 1'b1, 2'b00 };
