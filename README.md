@@ -11,6 +11,10 @@ ZBasic has three primary goals:
 
 - To demonstrate the utility of [autofpga](https://github.com/ZipCPU/autofpga), and its ability to quickly, easily, and seemlessly add components to a design
 
+If you'd like to give this a spin, consider the instructions
+[in this article](http://zipcpu.com/zipcpu/2018/02/12/zbasic-intro.html)
+describing how to do so.
+
 # Status
 
 The ZBasic system can now be made using [autofpga](https://github.com/ZipCPU/autofpga), all the way from zero to Hello World successfully in Verilator testing.
