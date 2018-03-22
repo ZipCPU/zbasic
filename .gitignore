@@ -26,3 +26,4 @@ design.h
 20*build.v
 builddate.v
 octave-workspace
+*.xdc

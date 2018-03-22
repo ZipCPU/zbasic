@@ -42,6 +42,10 @@
 //
 // SIM.INCLUDE
 //
+// Any SIM.INCLUDE tags you define will be pasted here.
+// This is useful for guaranteeing any include functions
+// your simulation needs are called.
+//
 // Looking for string: SIM.INCLUDE
 #include "verilated.h"
 #include "Vmain.h"
@@ -58,6 +62,9 @@
 
 //
 // SIM.DEFINES
+//
+// This tag is useful fr pasting in any #define values that
+// might then control the simulation following.
 //
 // Looking for string: SIM.DEFINES
 
@@ -133,10 +140,24 @@
 #define	cpu_alu_ce	VVAR(_swic__DOT__thecpu__DOT__alu_ce)
 #define	cpu_new_pc	VVAR(_swic__DOT__thecpu__DOT__new_pc)
 #define	cpu_sim_immv	VVAR(_swic__DOT__thecpu__DOT__op_sim_immv)
+#define	cpu_alu_pc_valid	VVAR(_swic__DOT__thecpu__DOT__alu_pc_valid)
+#define	cpu_mem_pc_valid	VVAR(_swic__DOT__thecpu__DOT__mem_pc_valid)
+#ifdef	OPT_PIPELINED
+#define	cpu_alu_pc	VVAR(_swic__DOT__thecpu__DOT__alu_pc)
+#else
+#define	cpu_alu_pc	VVAR(_swic__DOT__thecpu__DOT__op_pc)
+#endif
+#ifdef	OPT_CIS
+#define	cpu_alu_phase	VVAR(_swic__DOT__thecpu__DOT__r_op_phase)
+#endif
 
 class	MAINTB : public TESTB<Vmain> {
 public:
 		// SIM.DEFNS
+		//
+		// If you have any simulation components, create a
+		// SIM.DEFNS tag to have those components defined here
+		// as part of the main_tb.cpp function.
 // Looking for string: SIM.DEFNS
 #ifdef	SDSPI_ACCESS
 	SDSPISIM	m_sdcard;
@@ -147,6 +168,12 @@ public:
 	DBLUARTSIM	*m_wbu;
 	int	m_cpu_bombed;
 	MAINTB(void) {
+		// SIM.INIT
+		//
+		// If your simulation components need to be initialized,
+		// create a SIM.INIT tag.  That tag's value will be pasted
+		// here.
+		//
 		// From sdcard
 #ifdef	SDSPI_ACCESS
 		m_sdcard.debug(false);
@@ -163,10 +190,20 @@ public:
 	}
 
 	void	reset(void) {
+		// SIM.SETRESET
+		// If your simulation component needs logic before the
+		// tick with reset set, that logic can be placed into
+		// the SIM.SETRESET tag and thus pasted here.
+		//
 // Looking for string: SIM.SETRESET
 		m_core->i_cpu_reset = 1;
 		m_core->i_clk = 1;
 		m_core->eval();
+		// SIM.CLRRESET
+		// If your simulation component needs logic following the
+		// reset tick, that logic can be placed into the
+		// SIM.CLRRESET tag and thus pasted here.
+		//
 // Looking for string: SIM.CLRRESET
 		m_core->i_cpu_reset = 0;
 	}
@@ -224,10 +261,19 @@ public:
 		bool	writeout = false;
 
 			// KYSIM.DBGCONDITION tags
+			//
+			// SIM.DBGCONDITION
+			// Set writeout to true here for debug by printf access
+			// to this routine
+			//
 // Looking for string: SIM.DBGCONDITION
 
 			if (writeout) {
-					// KYSIM.DEBUG tags
+				// SIM.DEBUG tags can print here, supporting
+				// any attempts to debug by printf.  Following any
+				// code you place here, a newline will close the
+				// debug section.
+		//
 // Looking for string: SIM.DEBUG
 			/*
 			printf(" SDSPI[%d,%d(%d),(%d)]",
@@ -284,9 +330,20 @@ public:
 		}
 	}
 
+	//
+	// The load function
+	//
+	// This function is required by designs that need the flash or memory
+	// set prior to run time.  The test harness should be able to call
+	// this function to load values into any (memory-type) location
+	// on the bus.
+	//
 	bool	load(uint32_t addr, const char *buf, uint32_t len) {
 		uint32_t	start, offset, wlen, base, naddr;
 
+		//
+		// Loading the bkram component
+		//
 		base  = 0x00e00000;
 		naddr = 0x00040000;
 
@@ -315,8 +372,15 @@ public:
 #else	// BKRAM_ACCESS
 			return false;
 #endif	// BKRAM_ACCESS
+		//
+		// End of components with a SIM.LOAD tag, and a
+		// non-zero number of addresses (NADDR)
+		//
 		}
 
+		//
+		// Loading the flash component
+		//
 		base  = 0x01000000;
 		naddr = 0x00400000;
 
@@ -337,6 +401,10 @@ public:
 #else	// FLASH_ACCESS
 			return false;
 #endif	// FLASH_ACCESS
+		//
+		// End of components with a SIM.LOAD tag, and a
+		// non-zero number of addresses (NADDR)
+		//
 		}
 
 		return false;
@@ -344,6 +412,10 @@ public:
 
 	//
 	// KYSIM.METHODS
+	//
+	// If your simulation code will need to call any of its own function
+	// define this tag by those functions (or other sim code), and
+	// it will be pasated here.
 	//
 // Looking for string: SIM.METHODS
 #ifdef	SDSPI_ACCESS
