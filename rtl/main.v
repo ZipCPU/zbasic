@@ -373,19 +373,24 @@ module	main(i_clk, i_reset,
 	//
 	
 	assign	      buserr_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h0));
+ // 0x000000
 	assign	      buspic_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h1));
+ // 0x000004
 	assign	        date_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h2));
+ // 0x000008
 	assign	    pwrcount_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h3));
+ // 0x00000c
 	assign	     version_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h4));
-	assign	scope_sdcard_sel = ((wb_addr[22:19] &  4'hf) ==  4'h1);
-	assign	       flctl_sel = ((wb_addr[22:19] &  4'hf) ==  4'h2);
-	assign	      sdcard_sel = ((wb_addr[22:19] &  4'hf) ==  4'h3);
-	assign	        uart_sel = ((wb_addr[22:19] &  4'hf) ==  4'h4);
-	assign	         rtc_sel = ((wb_addr[22:19] &  4'hf) ==  4'h5);
-	assign	      wb_sio_sel = ((wb_addr[22:19] &  4'hf) ==  4'h6);
+ // 0x000010
+	assign	scope_sdcard_sel = ((wb_addr[22:19] &  4'hf) ==  4'h1); // 0x200000 - 0x200007
+	assign	       flctl_sel = ((wb_addr[22:19] &  4'hf) ==  4'h2); // 0x400000 - 0x40000f
+	assign	      sdcard_sel = ((wb_addr[22:19] &  4'hf) ==  4'h3); // 0x600000 - 0x60000f
+	assign	        uart_sel = ((wb_addr[22:19] &  4'hf) ==  4'h4); // 0x800000 - 0x80000f
+	assign	         rtc_sel = ((wb_addr[22:19] &  4'hf) ==  4'h5); // 0xa00000 - 0xa0001f
+	assign	      wb_sio_sel = ((wb_addr[22:19] &  4'hf) ==  4'h6); // 0xc00000 - 0xc0001f
 //x2	Was a master bus as well
-	assign	       bkram_sel = ((wb_addr[22:19] &  4'hf) ==  4'h7);
-	assign	       flash_sel = ((wb_addr[22:19] &  4'h8) ==  4'h8);
+	assign	       bkram_sel = ((wb_addr[22:19] &  4'hf) ==  4'h7); // 0xe00000 - 0xefffff
+	assign	       flash_sel = ((wb_addr[22:19] &  4'h8) ==  4'h8); // 0x1000000 - 0x1ffffff
 	//
 
 	//
@@ -411,9 +416,9 @@ module	main(i_clk, i_reset,
 	//
 	//
 	
-	assign	     wbu_dwb_sel = ((wbu_addr[23:23] &  1'h1) ==  1'h0);
+	assign	     wbu_dwb_sel = ((wbu_addr[23:23] &  1'h1) ==  1'h0); // 0x000000 - 0x1ffffff
 //x2	Was a master bus as well
-	assign	     zip_dbg_sel = ((wbu_addr[23:23] &  1'h1) ==  1'h1);
+	assign	     zip_dbg_sel = ((wbu_addr[23:23] &  1'h1) ==  1'h1); // 0x2000000 - 0x2000007
 	//
 
 	//
@@ -793,7 +798,7 @@ module	main(i_clk, i_reset,
 
 `ifdef	BKRAM_ACCESS
 	memdev #(.LGMEMSZ(20), .EXTRACLOCK(1))
-		bkrami(i_clk,
+		bkrami(i_clk, i_reset,
 			(wb_cyc), (wb_stb)&&(bkram_sel), wb_we,
 				wb_addr[(20-3):0], wb_data, wb_sel,
 				bkram_ack, bkram_stall, bkram_data);
@@ -1032,7 +1037,7 @@ module	main(i_clk, i_reset,
 	//
 	assign	zip_int_vector = { alt_int_vector[14:8], sys_int_vector[14:6] };
 	zipsystem #(RESET_ADDRESS,ZIP_ADDRESS_WIDTH,10,ZIP_START_HALTED,ZIP_INTS)
-		swic(i_clk, i_cpu_reset,
+		swic(i_clk, (i_reset)||(i_cpu_reset),
 			// Zippys wishbone interface
 			zip_cyc, zip_stb, zip_we, zip_addr, zip_data, zip_sel,
 					zip_ack, zip_stall, zip_idata, zip_err,

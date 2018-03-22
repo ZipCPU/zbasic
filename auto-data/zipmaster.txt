@@ -100,7 +100,7 @@
 	//
 	assign	zip_int_vector = { alt_int_vector[14:8], sys_int_vector[14:6] };
 	zipsystem #(RESET_ADDRESS,ZIP_ADDRESS_WIDTH,10,ZIP_START_HALTED,ZIP_INTS)
-		swic(i_clk, i_cpu_reset,
+		swic(i_clk, (i_reset)||(i_cpu_reset),
 			// Zippys wishbone interface
 			zip_cyc, zip_stb, zip_we, zip_addr, zip_data, zip_sel,
 					zip_ack, zip_stall, zip_idata, zip_err,
@@ -176,6 +176,16 @@
 #define	cpu_alu_ce	VVAR(_swic__DOT__thecpu__DOT__alu_ce)
 #define	cpu_new_pc	VVAR(_swic__DOT__thecpu__DOT__new_pc)
 #define	cpu_sim_immv	VVAR(_swic__DOT__thecpu__DOT__op_sim_immv)
+#define	cpu_alu_pc_valid	VVAR(_swic__DOT__thecpu__DOT__alu_pc_valid)
+#define	cpu_mem_pc_valid	VVAR(_swic__DOT__thecpu__DOT__mem_pc_valid)
+#ifdef	OPT_PIPELINED
+#define	cpu_alu_pc	VVAR(_swic__DOT__thecpu__DOT__alu_pc)
+#else
+#define	cpu_alu_pc	VVAR(_swic__DOT__thecpu__DOT__op_pc)
+#endif
+#ifdef	OPT_CIS
+#define	cpu_alu_phase	VVAR(_swic__DOT__thecpu__DOT__r_op_phase)
+#endif
 
 @SIM.DEFNS=
 	int	m_cpu_bombed;

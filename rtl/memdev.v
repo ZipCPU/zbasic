@@ -18,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -44,11 +44,13 @@
 //
 `default_nettype	none
 //
-module	memdev(i_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel,
+module	memdev(i_clk, i_reset,
+		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel,
 		o_wb_ack, o_wb_stall, o_wb_data);
 	parameter	LGMEMSZ=15, DW=32, EXTRACLOCK= 0;
 	localparam	AW = LGMEMSZ - 2;
-	input	wire			i_clk, i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire			i_clk, i_reset;
+	input	wire			i_wb_cyc, i_wb_stb, i_wb_we;
 	input	wire	[(AW-1):0]	i_wb_addr;
 	input	wire	[(DW-1):0]	i_wb_data;
 	input	wire	[(DW/8-1):0]	i_wb_sel;
@@ -77,6 +79,9 @@ module	memdev(i_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel
 		always @(posedge i_clk)
 			last_wstb <= (i_wb_stb)&&(i_wb_we);
 		always @(posedge i_clk)
+		if (i_reset)
+			last_stb <= 1'b0;
+		else
 			last_stb <= (i_wb_stb);
 
 		reg	[(AW-1):0]	last_addr;
@@ -112,8 +117,13 @@ module	memdev(i_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel
 			mem[w_addr][ 7: 0] <= w_data[7:0];
 	end
 
+	initial	o_wb_ack = 1'b0;
 	always @(posedge i_clk)
-		o_wb_ack <= (w_stb);
+	if (i_reset)
+		o_wb_ack <= 1'b0;
+	else
+		o_wb_ack <= (w_stb)&&(i_wb_cyc);
+
 	assign	o_wb_stall = 1'b0;
 
 	// Make verilator happy
@@ -121,4 +131,84 @@ module	memdev(i_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel
 	wire	unused;
 	assign	unused = i_wb_cyc;
 	// verilator lint_on UNUSED
+
+
+`ifdef	FORMAL
+	reg	f_past_valid;
+	initial	f_past_valid = 1'b0;
+	always @(posedge i_clk)
+		f_past_valid <= 1'b1;
+
+	always @(*)
+	if (!f_past_valid)
+		assume(i_reset);
+
+	always @(posedge i_clk)
+	if ((!f_past_valid)||($past(i_reset)))
+		assume(!i_wb_cyc);
+
+	// Bus related properties
+	assume	property((!i_wb_stb)||(i_wb_cyc));
+	assume	property((!i_wb_stb)||(!i_wb_we)||(|i_wb_sel));
+	//
+	assert	property(!o_wb_stall);
+
+	always @(posedge i_clk)
+	if ((f_past_valid)&&(!$past(i_wb_cyc))&&(!i_wb_cyc))
+		assert(!o_wb_ack);
+
+	wire	[(AW-1):0]	f_addr;
+	reg	[31:0]		f_value;
+
+	assign	f_addr = $anyconst;
+	initial	f_value = 0;
+
+	initial	assume(mem[f_addr] == 0);
+	always @(posedge i_clk)
+	if ((w_wstb)&&(f_addr == w_addr))
+	begin
+		if (w_sel[3])
+			f_value[31:24] <= w_data[31:24];
+		if (w_sel[2])
+			f_value[23:16] <= w_data[23:16];
+		if (w_sel[1])
+			f_value[15: 8] <= w_data[15: 8];
+		if (w_sel[0])
+			f_value[ 7: 0] <= w_data[ 7: 0];
+	end
+
+	generate if (EXTRACLOCK == 0)
+	begin
+		always @(posedge i_clk)
+		if ((!f_past_valid)||($past(i_reset)))
+			assert(!o_wb_ack);
+		else if ($past(i_wb_stb))
+			assert(o_wb_ack);
+
+		always @(posedge i_clk)
+		if ((f_past_valid)&&($past(i_wb_stb))&&(!$past(i_wb_we))
+				&&($past(i_wb_addr) == f_addr))
+			assert(o_wb_data == f_value);
+
+	end else begin
+
+		always @(posedge i_clk)
+		if ((!f_past_valid)||($past(i_reset)))
+			assert(!o_wb_ack);
+		else if ((!$past(f_past_valid))||($past(i_reset,2)))
+			assert(!o_wb_ack);
+		else if (($past(i_wb_stb,2))&&($past(i_wb_cyc,1)))
+			assert(o_wb_ack);
+			
+		always @(posedge i_clk)
+		if ((f_past_valid)&&($past(f_past_valid))
+				&&($past(i_wb_stb))&&(!$past(i_wb_we,2))
+				&&($past(i_wb_addr,2) == f_addr))
+			assert(o_wb_data == f_value);
+
+	end endgenerate
+
+	assert	property(mem[f_addr] == f_value);
+	
+`endif
 endmodule
