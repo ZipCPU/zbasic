@@ -4,14 +4,18 @@
 //
 // Project:	wbuart32, a full featured UART with simulator
 //
-// Purpose:	To forward a Verilator simulated UART link over a TCP/IP pipe.
+// Purpose:	To forward a Verilator simulated UART link over a pair of
+//		TCP/IP pipes.  This version goes beyond the capabilities of
+//	the original UARTSIM by forwarding (control) bytes with the high bit
+//	set to one TCP/IP port, and the (console) bytes with the high bit clear
+//	to another TCP/IP port.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -290,6 +294,8 @@ void	DBLUARTSIM::received(const char ch) {
 		int	snt = 0;
 		if (m_cmd >= 0)
 			snt = send(m_cmd,m_cmdbuf, m_cmdpos, 0);
+		else
+			snt = m_cmdpos;
 		if (snt < 0) {
 			printf("Closing CMD socket\n");
 			close(m_cmd);
@@ -305,7 +311,7 @@ void	DBLUARTSIM::received(const char ch) {
 		m_cmdpos = 0;
 	}
 
-	if (m_con >= 0) {
+	if ((m_con >= 0)&&(m_conpos > 0)) {
 		int	snt = 0;
 		snt = send(m_con, &m_conbuf[m_conpos-1], 1, 0);
 		if (snt < 0) {
@@ -315,7 +321,7 @@ void	DBLUARTSIM::received(const char ch) {
 			snt = 0;
 		} if (snt < 1) {
 			fprintf(stderr, "CON: no bytes sent!\n");
-		}
+		} m_conpos = 0;
 	} if ((m_conpos>0)&&((m_conbuf[m_conpos-1] == '\n')
 				||(m_conpos >= DBLPIPEBUFLEN-2))) {
 		m_conbuf[m_conpos] = '\0';
