@@ -149,66 +149,6 @@ module	icontrol(i_clk, i_reset, i_wr, i_data, o_data,
 	// verilator lint_on  UNUSED
 
 `ifdef	FORMAL
-`ifdef	ICONTROL
-`define	ASSUME	assume
-`else
-`define	ASSUME	assert
-`endif
-
-	reg	f_past_valid;
-
-	initial	f_past_valid = 1'b0;
-	always @(posedge i_clk)
-		f_past_valid <= 1'b1;
-
-	initial	`ASSUME(i_reset);
-	always @(*)
-	if (!f_past_valid)
-		`ASSUME(i_reset);
-
-	always @(posedge i_clk)
-	if ((!f_past_valid)||($past(i_reset)))
-	begin
-		assert(w_any == 0);
-		assert(r_interrupt == 0);
-		assert(r_gie == 0);
-		assert(r_int_enable == 0);
-	end
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset)))
-		assert((r_int_state & $past(i_brd_ints))==$past(i_brd_ints));
-
-	always @(posedge i_clk)
-	if (((f_past_valid)&&(!$past(i_reset)))
-			&&($past(r_int_state) & $past(r_int_enable))
-			&&($past(r_gie)) )
-		assert(o_interrupt);
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&($past(w_any))&&(!$past(i_wr))&&(!$past(i_reset)))
-		assert(w_any);
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(r_gie)))
-		assert(!o_interrupt);
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(w_any)))
-		assert(!o_interrupt);
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_wr)))
-	begin
-		// Interrupts cannot be cleared, unless they are set
-		assert(r_int_state == (($past(i_brd_ints))
-			|(($past(r_int_state))&(~$past(i_data[IUSED-1:0])))));
-		assert(r_gie == $past(i_data[BW-1]));
-	end else if ((f_past_valid)&&(!$past(i_reset)))
-	begin
-		assert(r_int_state == ($past(r_int_state)|$past(i_brd_ints)));
-		assert(r_gie == $past(r_gie));
-	end
-
+// Formal properties for this module are maintained elsewhere
 `endif
 endmodule

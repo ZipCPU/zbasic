@@ -50,7 +50,7 @@ VERILATOR := verilator
 else
 VERILATOR := $(VERILATOR_ROOT)/bin/verilator
 endif
-VFLAGS     = -MMD -Wall -trace -Mdir $(VDIRFB) $(AUTOVDIRS) -cc
+VFLAGS     = -MMD -O3 -Wall -trace -Mdir $(VDIRFB) $(AUTOVDIRS) -cc
 
 -include make.inc
 

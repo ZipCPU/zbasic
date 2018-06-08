@@ -51,7 +51,7 @@ DATA := global.txt bkram.txt buserr.txt clock.txt			\
 	dlyarbiter.txt flash.txt rtclight.txt	rtcdate.txt		\
 	pic.txt pwrcount.txt						\
 	version.txt busconsole.txt zipmaster.txt sdspi.txt
-	# hdmi.txt
+	# hdmi.txt profile.txt
 
 AUTOFPGA := ../../../autofpga/trunk/sw/autofpga
 

@@ -39,7 +39,7 @@
 #define	TBCLOCK_H
 
 class	TBCLOCK	{
-	unsigned long	m_increment_ps, m_now_ps, m_last_edge_ps;
+	unsigned long	m_increment_ps, m_now_ps, m_last_edge_ps, m_ticks;
 
 public:
 	TBCLOCK(void) {
@@ -47,11 +47,14 @@ public:
 
 		m_now_ps = m_increment_ps+1;
 		m_last_edge_ps = 0;
+		m_ticks = 0;
 	}
 
 	TBCLOCK(unsigned long increment_ps) {
 		init(increment_ps);
 	}
+
+	unsigned long ticks(void) { return m_ticks; }
 
 	void	init(unsigned long increment_ps) {
 		set_interval_ps(increment_ps);
@@ -84,6 +87,7 @@ public:
 		m_now_ps += itime;
 		if (m_now_ps >= m_last_edge_ps + 2*m_increment_ps) {
 			m_last_edge_ps += 2*m_increment_ps;
+			m_ticks++;
 			return 1;
 		} else if (m_now_ps >= m_last_edge_ps + m_increment_ps)
 			return 0;

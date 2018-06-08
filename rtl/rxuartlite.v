@@ -21,7 +21,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -56,22 +56,25 @@
 `define	RXUL_BIT_SIX		4'h6
 `define	RXUL_BIT_SEVEN		4'h7
 `define	RXUL_STOP		4'h8
+`define	RXUL_WAIT		4'h9
 `define	RXUL_IDLE		4'hf
 
 module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
-	parameter [23:0] CLOCKS_PER_BAUD = 24'd868;
+	parameter	TIMER_BITS = 10;
+	parameter [(TIMER_BITS-1):0] CLOCKS_PER_BAUD = 868;
+	localparam	TB = TIMER_BITS;
 	input	wire		i_clk;
 	input	wire		i_uart_rx;
 	output	reg		o_wr;
 	output	reg	[7:0]	o_data;
 
 
-	wire	[23:0]	half_baud;
-	reg	[3:0]	state;
+	wire	[(TB-1):0]	half_baud;
+	reg	[3:0]		state;
 
-	assign	half_baud = { 1'b0, CLOCKS_PER_BAUD[23:1] } - 24'h1;
-	reg	[23:0]	baud_counter;
-	reg		zero_baud_counter;
+	assign	half_baud = { 1'b0, CLOCKS_PER_BAUD[(TB-1):1] };
+	reg	[(TB-1):0]	baud_counter;
+	reg			zero_baud_counter;
 
 
 	// Since this is an asynchronous receiver, we need to register our
@@ -79,26 +82,22 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	// metastability.  We do that here, and then ignore all but the
 	// ck_uart wire.
 	reg	q_uart, qq_uart, ck_uart;
-	initial	q_uart  = 1'b0;
-	initial	qq_uart = 1'b0;
-	initial	ck_uart = 1'b0;
+	initial	q_uart  = 1'b1;
+	initial	qq_uart = 1'b1;
+	initial	ck_uart = 1'b1;
 	always @(posedge i_clk)
-	begin
-		q_uart <= i_uart_rx;
-		qq_uart <= q_uart;
-		ck_uart <= qq_uart;
-	end
+		{ ck_uart, qq_uart, q_uart } <= { qq_uart, q_uart, i_uart_rx };
 
 	// Keep track of the number of clocks since the last change.
 	//
 	// This is used to determine if we are in either a break or an idle
 	// condition, as discussed further below.
-	reg	[23:0]	chg_counter;
-	initial	chg_counter = 24'h00;
+	reg	[(TB-1):0]	chg_counter;
+	initial	chg_counter = {(TB){1'b1}};
 	always @(posedge i_clk)
 		if (qq_uart != ck_uart)
-			chg_counter <= 24'h00;
-		else
+			chg_counter <= 0;
+		else if (chg_counter != { (TB){1'b1} })
 			chg_counter <= chg_counter + 1;
 
 	// Are we in the middle of a baud iterval?  Specifically, are we
@@ -108,7 +107,7 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	reg	half_baud_time;
 	initial	half_baud_time = 0;
 	always @(posedge i_clk)
-		half_baud_time <= (~ck_uart)&&(chg_counter >= half_baud);
+		half_baud_time <= (!ck_uart)&&(chg_counter >= half_baud-1'b1-1'b1);
 
 
 	initial	state = `RXUL_IDLE;
@@ -118,19 +117,19 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 		begin // Idle state, independent of baud counter
 			// By default, just stay in the IDLE state
 			state <= `RXUL_IDLE;
-			if ((~ck_uart)&&(half_baud_time))
+			if ((!ck_uart)&&(half_baud_time))
 				// UNLESS: We are in the center of a valid
 				// start bit
 				state <= `RXUL_BIT_ZERO;
-		end else if (zero_baud_counter)
+		end else if ((state >= `RXUL_WAIT)&&(ck_uart))
+			state <= `RXUL_IDLE;
+		else if (zero_baud_counter)
 		begin
-			if (state < `RXUL_STOP)
+			if (state <= `RXUL_STOP)
 				// Data arrives least significant bit first.
 				// By the time this is clocked in, it's what
 				// you'll have.
 				state <= state + 1;
-			else // Wait for the next character
-				state <= `RXUL_IDLE;
 		end
 	end
 
@@ -142,8 +141,8 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	// data in all other cases.  Hence, let's keep it real simple.
 	reg	[7:0]	data_reg;
 	always @(posedge i_clk)
-		if (zero_baud_counter)
-			data_reg <= { ck_uart, data_reg[7:1] };
+		if ((zero_baud_counter)&&(state != `RXUL_STOP))
+			data_reg <= { qq_uart, data_reg[7:1] };
 
 	// Our data bit logic doesn't need nearly the complexity of all that
 	// work above.  Indeed, we only need to know if we are at the end of
@@ -151,9 +150,10 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	// data register, o_data, and tell others (for one clock) that data is
 	// available.
 	//
+	initial	o_wr = 1'b0;
 	initial	o_data = 8'h00;
 	always @(posedge i_clk)
-		if ((zero_baud_counter)&&(state == `RXUL_STOP))
+		if ((zero_baud_counter)&&(state == `RXUL_STOP)&&(ck_uart))
 		begin
 			o_wr   <= 1'b1;
 			o_data <= data_reg;
@@ -166,10 +166,15 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	// to be reset before any byte can be decoded.  In all other respects,
 	// we set ourselves up for CLOCKS_PER_BAUD counts between baud
 	// intervals.
+	initial	baud_counter = 0;
 	always @(posedge i_clk)
-		if ((zero_baud_counter)|||(state == `RXUL_IDLE))
+		if (((state==`RXUL_IDLE))&&(!ck_uart)&&(half_baud_time))
 			baud_counter <= CLOCKS_PER_BAUD-1'b1;
-		else
+		else if (state == `RXUL_WAIT)
+			baud_counter <= 0;
+		else if ((zero_baud_counter)&&(state < `RXUL_STOP))
+			baud_counter <= CLOCKS_PER_BAUD-1'b1;
+		else if (!zero_baud_counter)
 			baud_counter <= baud_counter-1'b1;
 
 	// zero_baud_counter
@@ -178,14 +183,20 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	// (already too complicated) state transition tables, we use
 	// zero_baud_counter to pre-charge that test on the clock
 	// before--cleaning up some otherwise difficult timing dependencies.
-	initial	zero_baud_counter = 1'b0;
+	initial	zero_baud_counter = 1'b1;
 	always @(posedge i_clk)
-		if (state == `RXUL_IDLE)
+		if ((state == `RXUL_IDLE)&&(!ck_uart)&&(half_baud_time))
 			zero_baud_counter <= 1'b0;
-		else
-			zero_baud_counter <= (baud_counter == 24'h01);
+		else if (state == `RXUL_WAIT)
+			zero_baud_counter <= 1'b1;
+		else if ((zero_baud_counter)&&(state < `RXUL_STOP))
+			zero_baud_counter <= 1'b0;
+		else if (baud_counter == 1)
+			zero_baud_counter <= 1'b1;
 
-
+`ifdef	FORMAL
+// Formal properties for this module are maintained elsewhere
+`endif
 endmodule
 
 

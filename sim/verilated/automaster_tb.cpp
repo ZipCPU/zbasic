@@ -76,10 +76,11 @@ int	main(int argc, char **argv) {
 #ifdef	SDSPI_ACCESS
 			*sdimage_file = NULL,
 #endif
+			*profile_file = NULL,
 			*trace_file = NULL; // "trace.vcd";
 	bool	debug_flag = false, willexit = false;
-//	int	fpga_port = FPGAPORT, serial_port = -(FPGAPORT+1);
-//	int	copy_comms_to_stdout = -1;
+	FILE	*profile_fp;
+
 #ifdef	OLEDSIM_H
 	Gtk::Main	main_instance(argc, argv);
 #endif
@@ -97,8 +98,7 @@ int	main(int argc, char **argv) {
 				if (trace_file == NULL)
 					trace_file = "trace.vcd";
 				break;
-			// case 'p': fpga_port = atoi(argv[++argn]); j=1000; break;
-			// case 's': serial_port=atoi(argv[++argn]); j=1000; break;
+			case 'f': profile_file = "pfile.bin"; break;
 			case 't': trace_file = argv[++argn]; j=1000; break;
 			case 'h': usage(); exit(0); break;
 			default:
@@ -155,6 +155,16 @@ int	main(int argc, char **argv) {
 	} if (trace_file)
 		tb->opentrace(trace_file);
 
+	if (profile_file) {
+		profile_fp = fopen(profile_file, "w");
+		if (profile_fp == NULL) {
+			fprintf(stderr, "ERR: Cannot open profile output file, %s\n", profile_file);
+			exit(EXIT_FAILURE);
+		}
+	} else
+		profile_fp = NULL;
+
+
 	tb->reset();
 #ifdef	SDSPI_ACCESS
 	tb->setsdcard(sdimage_file);
@@ -168,7 +178,28 @@ int	main(int argc, char **argv) {
 		tb->m_core->VVAR(_swic__DOT__cmd_reset) = 0;
 	}
 
-	if (willexit) {
+	if (profile_fp) {
+		unsigned long	last_instruction_tick = 0, now = 0;
+		while((!willexit)||(!tb->done())) {
+			unsigned long	iticks;
+			unsigned	buf[2];
+
+			now++;
+			tb->tick();
+
+			if (((tb->m_core->cpu_alu_pc_valid)
+					||(tb->m_core->cpu_mem_pc_valid))
+				&&(!tb->m_core->cpu_alu_phase)
+				&&(!tb->m_core->cpu_new_pc)) {
+				iticks = now - last_instruction_tick;
+				buf[0] = tb->m_core->cpu_alu_pc;
+				buf[1] = (unsigned)iticks;
+				fwrite(buf, sizeof(unsigned), 2, profile_fp);
+
+				last_instruction_tick = now;
+			}
+		}
+	} else if (willexit) {
 		while(!tb->done())
 			tb->tick();
 	} else

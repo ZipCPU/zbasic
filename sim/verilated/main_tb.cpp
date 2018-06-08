@@ -121,35 +121,40 @@
 #endif
 #endif
 
+#define	CPUVAR(A)	VVAR(_swic__DOT__thecpu__DOT_ ## A)
+
 #define	cpu_break 	VVAR(_swic__DOT__cpu_break)
 #define	cpu_cmd_halt	VVAR(_swic__DOT__cmd_halt)
-#define	cpu_ipc		VVAR(_swic__DOT__thecpu__DOT__ipc)
-#define	cpu_upc		VVAR(_swic__DOT__thecpu__DOT__r_upc)
-#define	cpu_gie		VVAR(_swic__DOT__thecpu__DOT__r_gie)
-#define	cpu_iflags	VVAR(_swic__DOT__thecpu__DOT__w_iflags)
-#define	cpu_uflags	VVAR(_swic__DOT__thecpu__DOT__w_uflags)
-#define	cpu_regs	VVAR(_swic__DOT__thecpu__DOT__regset)
+#define	cpu_ipc		CPUVAR(_ipc)
+#define	cpu_upc		CPUVAR(_SET_USER_PC__DOT__r_upc)
+#define	cpu_gie		CPUVAR(_SET_GIE__DOT__r_gie)
+#define	cpu_iflags	CPUVAR(_w_iflags)
+#define	cpu_uflags	CPUVAR(_w_uflags)
+#define	cpu_regs	CPUVAR(_regset)
 #define	cpu_cmd_addr	VVAR(_swic__DOT__cmd_addr)
-#define	cpu_bus_err	VVAR(_swic__DOT__thecpu__DOT__bus_err)
-#define	cpu_ibus_err	VVAR(_swic__DOT__thecpu__DOT__ibus_err_flag)
-#define	cpu_ubus_err	VVAR(_swic__DOT__thecpu__DOT__r_ubus_err_flag)
-#define	cpu_mem_rdaddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__rdaddr)
-#define	cpu_mem_wraddr	VVAR(_swic__DOT__thecpu__DOT__domem__DOT__wraddr)
-#define	cpu_op_sim	VVAR(_swic__DOT__thecpu__DOT__op_sim)
-#define	cpu_op_valid	VVAR(_swic__DOT__thecpu__DOT__op_valid)
-#define	cpu_alu_ce	VVAR(_swic__DOT__thecpu__DOT__alu_ce)
-#define	cpu_new_pc	VVAR(_swic__DOT__thecpu__DOT__new_pc)
-#define	cpu_sim_immv	VVAR(_swic__DOT__thecpu__DOT__op_sim_immv)
-#define	cpu_alu_pc_valid	VVAR(_swic__DOT__thecpu__DOT__alu_pc_valid)
-#define	cpu_mem_pc_valid	VVAR(_swic__DOT__thecpu__DOT__mem_pc_valid)
+#define	cpu_bus_err	CPUVAR(_bus_err)
+#define	cpu_ibus_err	CPUVAR(_ibus_err_flag)
+#define	cpu_ubus_err	CPUVAR(_r_ubus_err_flag)
+#define	cpu_mem_rdaddr	CPUVAR(_domem__DOT__rdaddr)
+#define	cpu_mem_wraddr	CPUVAR(_domem__DOT__wraddr)
+#define	cpu_op_sim	CPUVAR(_op_sim)
+#define	cpu_op_valid	CPUVAR(_op_valid)
+#define	cpu_alu_ce	CPUVAR(_alu_ce)
+#define	cpu_new_pc	CPUVAR(_new_pc)
+#define	cpu_sim_immv	CPUVAR(_op_sim_immv)
+#define	cpu_alu_pc_valid	CPUVAR(_alu_pc_valid)
+#define	cpu_mem_pc_valid	CPUVAR(_mem_pc_valid)
 #ifdef	OPT_PIPELINED
-#define	cpu_alu_pc	VVAR(_swic__DOT__thecpu__DOT__alu_pc)
+#define	cpu_alu_pc	CPUVAR(_GEN_ALU_PC__DOT__r_alu_pc)
 #else
-#define	cpu_alu_pc	VVAR(_swic__DOT__thecpu__DOT__op_pc)
+#define	cpu_alu_pc	CPUVAR(_op_pc)
 #endif
 #ifdef	OPT_CIS
-#define	cpu_alu_phase	VVAR(_swic__DOT__thecpu__DOT__r_op_phase)
+#define	cpu_alu_phase	CPUVAR(_GEN_ALU_PHASE__DOT__r_alu_phase)
 #endif
+#define	cpu_wr_ce	CPUVAR(_wr_reg_ce)
+#define	cpu_wr_reg_id	CPUVAR(_wr_reg_id)
+#define	cpu_wr_gpreg	CPUVAR(_wr_gpreg_vl)
 
 class	MAINTB : public TESTB<Vmain> {
 public:
@@ -239,20 +244,19 @@ public:
 #ifdef	INCLUDE_ZIPCPU
 		// ZipCPU Sim instruction support
 		if ((m_core->cpu_op_sim)
-			&&(m_core->cpu_op_valid)
-			&&(m_core->cpu_alu_ce)
-			&&(!m_core->cpu_new_pc)) {
-			//
+			 &&(m_core->cpu_op_valid)
+			 &&(m_core->cpu_alu_ce)
+			 &&(!m_core->cpu_new_pc)) {
 			execsim(m_core->cpu_sim_immv);
 		}
 
-		if (m_core->cpu_break) {
+		if (m_cpu_bombed) {
+			if (m_cpu_bombed++ > 12)
+				m_done = true;
+		} else if (m_core->cpu_break) {
 			printf("\n\nBOMB : CPU BREAK RECEIVED\n");
 			m_cpu_bombed++;
 			dump(m_core->cpu_regs);
-		} else if (m_cpu_bombed) {
-			if (m_cpu_bombed++ > 12)
-				m_done = true;
 		}
 #endif	// INCLUDE_ZIPCPU
 
@@ -512,14 +516,20 @@ public:
 			exit(0);
 		} else if ((imm & 0x0ffff0)==0x00310) {
 			// SIM Exit(User-Reg)
-			int	rcode;
-			rcode = regp[(imm&0x0f)+16] & 0x0ff;
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+16;
+			rcode = regp[rnum] & 0x0ff;
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
 			close();
 			exit(rcode);
 		} else if ((imm & 0x0ffff0)==0x00300) {
 			// SIM Exit(Reg)
-			int	rcode;
-			rcode = regp[(imm&0x0f)+rbase] & 0x0ff;
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+rbase;
+			rcode = regp[rnum] & 0x0ff;
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
 			close();
 			exit(rcode);
 		} else if ((imm & 0x0fff00)==0x00100) {
@@ -534,23 +544,38 @@ public:
 			dump(regp);
 		} else if ((imm & 0x0ffff0)==0x00200) {
 			// Dump a register
-			int rid = (imm&0x0f)+rbase;
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+rbase;
+			rcode = regp[rnum];
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
 			printf("%8lu @%08x R[%2d] = 0x%08x\n", m_time_ps/1000,
-			m_core->cpu_ipc, rid, regp[rid]);
+				m_core->cpu_ipc, rnum, rcode);
 		} else if ((imm & 0x0ffff0)==0x00210) {
 			// Dump a user register
-			int rid = (imm&0x0f);
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+16;
+			rcode = regp[rnum] & 0x0ff;
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
 			printf("%8lu @%08x uR[%2d] = 0x%08x\n", m_time_ps/1000,
-				m_core->cpu_ipc,
-				rid, regp[rid+16]);
+				m_core->cpu_ipc, rnum, rcode);
 		} else if ((imm & 0x0ffff0)==0x00230) {
 			// SOUT[User Reg]
-			int rid = (imm&0x0f)+16;
-			printf("%c", regp[rid]&0x0ff);
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+16;
+			rcode = regp[rnum];
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
+			printf("%c", rcode&0x0ff);
 		} else if ((imm & 0x0fffe0)==0x00220) {
 			// SOUT[User Reg]
-			int rid = (imm&0x0f)+rbase;
-			printf("%c", regp[rid]&0x0ff);
+			int	rcode, rnum;
+			rnum  = (imm&0x0f)+rbase;
+			rcode = regp[rnum];
+			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				rcode = m_core->cpu_wr_gpreg;
+			printf("%c", rcode&0x0ff);
 		} else if ((imm & 0x0fff00)==0x00400) {
 			// SOUT[Imm]
 			printf("%c", imm&0x0ff);

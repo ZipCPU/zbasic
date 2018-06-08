@@ -16,7 +16,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017, Gisselquist Technology, LLC
+## Copyright (C) 2017-2018, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -94,9 +94,9 @@
 @ZIP_DBGDATA.FORMAT= 0x%08x
 @MAIN.INSERT=
 	// The Host USB interface, to be used by the WB-UART bus
-	rxuartlite	#(BUSUART) rcv(@$(CLOCK.WIRE), i_@$(PREFIX)_uart_rx,
+	rxuartlite	#(24,BUSUART) rcv(@$(CLOCK.WIRE), i_@$(PREFIX)_uart_rx,
 				@$(PREFIX)_rx_stb, @$(PREFIX)_rx_data);
-	txuartlite	#(BUSUART) txv(@$(CLOCK.WIRE),
+	txuartlite	#(24,BUSUART) txv(@$(CLOCK.WIRE),
 				@$(PREFIX)_tx_stb,
 				@$(PREFIX)_tx_data,
 				o_@$(PREFIX)_uart_tx,

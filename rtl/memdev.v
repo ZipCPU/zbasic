@@ -168,78 +168,87 @@ module	memdev(i_clk, i_reset,
 	if (!f_past_valid)
 		assume(i_reset);
 
-	always @(posedge i_clk)
-	if ((!f_past_valid)||($past(i_reset)))
-		assume(!i_wb_cyc);
+	localparam	F_LGDEPTH = 2;
+	wire	[F_LGDEPTH-1:0]	f_nreqs, f_nacks, f_outstanding;
 
-	// Bus related properties
-	assume	property((!i_wb_stb)||(i_wb_cyc));
-	assume	property((!i_wb_stb)||(!i_wb_we)||(|i_wb_sel));
-	//
-	assert	property(!o_wb_stall);
+	fwb_slave #(
+		.AW(AW), .DW(DW), .F_MAX_STALL(1), .F_MAX_ACK_DELAY(2),
+		.F_OPT_DISCONTINUOUS(1), .F_LGDEPTH(F_LGDEPTH)
+		) fwb(i_clk, i_reset, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr,
+			i_wb_data, i_wb_sel, o_wb_ack, o_wb_stall, o_wb_data,
+			1'b0, f_nreqs, f_nacks, f_outstanding);
 
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_wb_cyc))&&(!i_wb_cyc))
-		assert(!o_wb_ack);
+	generate if (EXTRACLOCK)
+	begin
+
+		always @(posedge i_clk)
+		if ((f_past_valid)&&(!i_reset)&&(i_wb_cyc)&&($past(i_wb_cyc)))
+			assert((f_outstanding == 0)
+				== ((!$past(w_stb))&&(!$past(i_wb_stb))));
+
+		always @(posedge i_clk)
+		if ((f_past_valid)&&(!i_reset)&&(i_wb_cyc))
+			assert((f_outstanding == 1)
+				== ( (($past(w_stb))&&($past(i_wb_cyc)))
+					^($past(i_wb_stb))));
+
+		always @(posedge i_clk)
+		if ((f_past_valid)&&(!i_reset)&&(i_wb_cyc))
+			assert((f_outstanding == 2'h2)
+				== (($past(w_stb))&&($past(i_wb_cyc))
+					&&($past(i_wb_stb))));
+
+		always @(posedge i_clk)
+			assert(f_outstanding <= 2);
+
+	end else begin
+
+		always @(posedge i_clk)
+		if (f_outstanding > 0)
+			assert(o_wb_ack);
+
+		always @(posedge i_clk)
+			assert(f_outstanding <= 1);
+		always @(posedge i_clk)
+		if ((f_past_valid)&&(!i_reset)&&(i_wb_cyc)&&($past(i_wb_stb)))
+			assert(f_outstanding == 1);
+
+	end endgenerate
+
+	always @(*)
+		assert(!o_wb_stall);
 
 	wire	[(AW-1):0]	f_addr;
-	reg	[31:0]		f_value;
+	reg	[31:0]		f_data;
 
 	assign	f_addr = $anyconst;
-	initial	f_value = 0;
+	initial	assume(mem[f_addr] == f_data);
 
-	initial	assume(mem[f_addr] == 0);
 
-	generate if (!OPT_ROM)
+	generate if (OPT_ROM)
 	begin : F_MATCH_WRITES
 
 		always @(posedge i_clk)
 		if ((w_wstb)&&(f_addr == w_addr))
 		begin
 			if (w_sel[3])
-				f_value[31:24] <= w_data[31:24];
+				f_data[31:24] <= w_data[31:24];
 			if (w_sel[2])
-				f_value[23:16] <= w_data[23:16];
+				f_data[23:16] <= w_data[23:16];
 			if (w_sel[1])
-				f_value[15: 8] <= w_data[15: 8];
+				f_data[15: 8] <= w_data[15: 8];
 			if (w_sel[0])
-				f_value[ 7: 0] <= w_data[ 7: 0];
+				f_data[ 7: 0] <= w_data[ 7: 0];
 		end
 
 	end endgenerate
 
-	generate if (EXTRACLOCK == 0)
-	begin
-		always @(posedge i_clk)
-		if ((!f_past_valid)||($past(i_reset)))
-			assert(!o_wb_ack);
-		else if ($past(i_wb_stb))
-			assert(o_wb_ack);
-
-		always @(posedge i_clk)
-		if ((f_past_valid)&&($past(i_wb_stb))&&(!$past(i_wb_we))
-				&&($past(i_wb_addr) == f_addr))
-			assert(o_wb_data == f_value);
-
-	end else begin
-
-		always @(posedge i_clk)
-		if ((!f_past_valid)||($past(i_reset)))
-			assert(!o_wb_ack);
-		else if ((!$past(f_past_valid))||($past(i_reset,2)))
-			assert(!o_wb_ack);
-		else if (($past(i_wb_stb,2))&&($past(i_wb_cyc,1)))
-			assert(o_wb_ack);
-			
-		always @(posedge i_clk)
-		if ((f_past_valid)&&($past(f_past_valid))
-				&&($past(i_wb_stb))&&(!$past(i_wb_we,2))
-				&&($past(i_wb_addr,2) == f_addr))
-			assert(o_wb_data == f_value);
-
-	end endgenerate
-
-	assert	property(mem[f_addr] == f_value);
+	always @(*)
+		assert(mem[f_addr] == f_data);
+	
+	always @(posedge i_clk)
+	if ((f_past_valid)&&(OPT_ROM))
+		assert($stable(f_data));
 	
 `endif
 endmodule

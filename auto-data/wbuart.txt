@@ -150,7 +150,7 @@ typedef struct  WBUART_S {
 #endif
 @SIM.INIT=
 #ifdef	@$(ACCESS)
-		m_@$(PREFIX) = new UARTSIM(FPGAPORT+$(SIM.PORTOFFSET),@$(SIM.UARTSETUP));
+		m_@$(PREFIX) = new UARTSIM(FPGAPORT+@$(SIM.PORTOFFSET),@$(SIM.UARTSETUP));
 		m_core->@$CTS = 0; // The sim doesnt use flow control
 #endif
 @SIM.TICK=

@@ -894,9 +894,9 @@ module	main(i_clk, i_reset,
 
 `ifdef	WBUBUS_MASTER
 	// The Host USB interface, to be used by the WB-UART bus
-	rxuartlite	#(BUSUART) rcv(i_clk, i_wbu_uart_rx,
+	rxuartlite	#(24,BUSUART) rcv(i_clk, i_wbu_uart_rx,
 				wbu_rx_stb, wbu_rx_data);
-	txuartlite	#(BUSUART) txv(i_clk,
+	txuartlite	#(24,BUSUART) txv(i_clk,
 				wbu_tx_stb,
 				wbu_tx_data,
 				o_wbu_uart_tx,
