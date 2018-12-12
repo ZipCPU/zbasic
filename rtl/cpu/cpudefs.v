@@ -229,7 +229,7 @@
 // can be cachable in terms of three separate address regions: one for the
 // SDRAM, one for the flash, and another for the block RAM.
 //
-// `define	OPT_DCACHE
+`define	OPT_DCACHE
 //
 //	DMIPS/MHZ w/ No cache/pipelined	0.211
 //	DMIPS/MHZ w/ Cache		0.195

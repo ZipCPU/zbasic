@@ -51,8 +51,43 @@
 @BUS.CLOCK=clk
 @SCOPE.TRIGGER=zip_trigger
 @SCOPE.DATA=zip_debug
+@$RESET_ADDRESS=@$(flash.REGBASE)+(4<<20)
 @INT.ZIP.WIRE=zip_cpu_int
 @INT.ZIP.BUS=buspic
+@LD.FILE=board.ld
+@LD.DEFNS=
+/* LD.DEFNS from zipmaster.txt */
+_kram  = 0; /* No high-speed kernel RAM */
+_ram   = ORIGIN(bkram);
+_rom   = ORIGIN(flash);
+_top_of_stack = ORIGIN(bkram) + LENGTH(bkram);
+
+@LD.SCRIPT=
+/* LD.SCRIPT from zipmaster.txt */
+SECTIONS
+{
+	.rocode @$[0x%08x](RESET_ADDRESS) : ALIGN(4) {
+		_boot_address = .;
+		*(.start) *(.boot)
+	} > flash
+	_kram_start = . ;
+	_kram_end   = . ;
+	_ram_image_start = . ;
+	.ramcode : ALIGN_WITH_INPUT {
+		*(.kernel)
+		*(.text.startup)
+		*(.text*)
+		*(.rodata*) *(.strings)
+		*(.data) *(COMMON)
+		}> bkram AT> flash
+	_ram_image_end = . ;
+	.bss : ALIGN_WITH_INPUT {
+		*(.bss)
+		_bss_image_end = . ;
+		} > bkram
+	_top_of_heap = .;
+}
+@CACHABLE.FILE=iscachable.v
 @TOP.PORTLIST=
 		// A reset wire for the ZipCPU
 		i_cpu_resetn
@@ -99,7 +134,7 @@
 	//
 	//
 	assign	zip_int_vector = { alt_int_vector[14:8], sys_int_vector[14:6] };
-	zipsystem #(RESET_ADDRESS,ZIP_ADDRESS_WIDTH,10,ZIP_START_HALTED,ZIP_INTS)
+	zipsystem #(RESET_ADDRESS,ZIP_ADDRESS_WIDTH,12,ZIP_START_HALTED,ZIP_INTS)
 		swic(i_clk, (i_reset)||(i_cpu_reset),
 			// Zippys wishbone interface
 			zip_cyc, zip_stb, zip_we, zip_addr, zip_data, zip_sel,
@@ -144,6 +179,8 @@
 #define	CPU_uCC		0x001e
 #define	CPU_uPC		0x001f
 
+#define	RESET_ADDRESS	@$[0x%08x](RESET_ADDRESS)
+
 
 @SIM.INCLUDE=
 #include "zipelf.h"
@@ -162,6 +199,7 @@
 #define	cpu_break 	VVAR(_swic__DOT__cpu_break)
 #define	cpu_cmd_halt	VVAR(_swic__DOT__cmd_halt)
 #define	cpu_ipc		CPUVAR(_ipc)
+#define	cpu_pf_pc	CPUVAR(_pf_pc)
 #define	cpu_upc		CPUVAR(_SET_USER_PC__DOT__r_upc)
 #define	cpu_gie		CPUVAR(_SET_GIE__DOT__r_gie)
 #define	cpu_iflags	CPUVAR(_w_iflags)
@@ -209,9 +247,18 @@
 		elfread(elfname, entry, secpp);
 
 		for(int s=0; secpp[s]->m_len; s++) {
+			bool	successful_load;
 			secp = secpp[s];
 
-			load(secp->m_start, secp->m_data, secp->m_len);
+			successful_load = load(secp->m_start,
+				secp->m_data, secp->m_len);
+
+			if (!successful_load) {
+				printf("Could not load section "
+					"from %08x to %08x--no such address\n",
+					secp->m_start,
+					secp->m_start+secp->m_len);
+			}
 		} free(secpp);
 	}
 

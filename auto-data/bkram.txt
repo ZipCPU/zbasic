@@ -12,7 +12,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017, Gisselquist Technology, LLC
+## Copyright (C) 2017-2018, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -46,7 +46,6 @@
 @ACCESS=@$(DEVID)_ACCESS
 @SLAVE.TYPE=MEMORY
 @SLAVE.BUS=wb
-@LD.PERM=wx
 @MAIN.INSERT=
 	memdev #(.LGMEMSZ(@$THIS.LGMEMSZ), .EXTRACLOCK(1))
 		@$(PREFIX)i(i_clk, i_reset,
@@ -61,10 +60,8 @@
 @BDEF.OSDEF=_BOARD_HAS_@$(DEVID)
 @MEM.NAME= @$(PREFIX)
 @BDEF.OSVAL=extern char	_@$(MEM.NAME)[@$NBYTES];
-@LDSCRIPT.PSTR=	wx
-@LDSCRIPT.PTR=	@$(MEM.NAME)
-@LDSCRIPT.DEF=
-_@$(MEM.NAME) = ORIGIN(@$(MEM.NAME))
+@LD.PERM=	wx
+@LD.NAME=	@$(MEM.NAME)
 @RTL.MAKE.GROUP= @$(DEVID)
 @RTL.MAKE.FILES= memdev.v
 @$NADDRHX = @$NADDR

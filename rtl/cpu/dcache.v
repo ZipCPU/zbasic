@@ -69,11 +69,6 @@
 //
 `default_nettype	none
 //
-`define	DC_IDLE		2'b00
-`define	DC_WRITE	2'b01
-`define	DC_READS	2'b10	// Read from a non-cachable address
-`define	DC_READC	2'b11	// Read a cache line
-//
 //
 module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		i_op, i_addr, i_data, i_oreg,
@@ -85,26 +80,36 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		, f_nreqs, f_nacks, f_outstanding, f_pc
 `endif
 	);
-	parameter	LGCACHELEN = 8,
+	parameter	LGCACHELEN = 12,
 			ADDRESS_WIDTH=30,
-			LGNLINES=5, // Log of the number of separate cache lines
+			LGNLINES=(LGCACHELEN-4), // Log of the number of separate cache lines
 			NAUX=5;	// # of aux d-wires to keep aligned w/memops
 	parameter [0:0]	OPT_LOCAL_BUS=1'b1;
 	parameter [0:0]	OPT_PIPE=1'b1;
 	parameter [0:0]	OPT_LOCK=1'b1;
-	parameter	F_LGDEPTH=LS+1;
+	parameter [0:0]	OPT_DUAL_READ_PORT=1'b1;
+	parameter 	OPT_FIFO_DEPTH = 4;
+	parameter	F_LGDEPTH=1 + (((!OPT_PIPE)||(LS > OPT_FIFO_DEPTH))
+					? LS : OPT_FIFO_DEPTH);
 	localparam	AW = ADDRESS_WIDTH; // Just for ease of notation below
 	localparam	CS = LGCACHELEN; // Number of bits in a cache address
 	localparam	LS = CS-LGNLINES; // Bits to spec position w/in cline
 	localparam	LGAUX = 3; // log_2 of the maximum number of piped data
 	localparam	DW = 32; // Bus data width
-	input			i_clk, i_reset;
+	localparam	DP = OPT_FIFO_DEPTH;
+	//
+	localparam [1:0]	DC_IDLE  = 2'b00; // Bus is idle
+	localparam [1:0]	DC_WRITE = 2'b01; // Write
+	localparam [1:0]	DC_READS = 2'b10; // Read a single value(!cachd)
+	localparam [1:0]	DC_READC = 2'b11; // Read a whole cache line
+	//
+	input	wire		i_clk, i_reset;
 	// Interface from the CPU
-	input			i_pipe_stb, i_lock;
-	input	[2:0]		i_op;
-	input	[(DW-1):0]	i_addr;
-	input	[(DW-1):0]	i_data;
-	input	[(NAUX-1):0]	i_oreg;	// Aux data, such as reg to write to
+	input	wire		i_pipe_stb, i_lock;
+	input	wire [2:0]		i_op;
+	input	wire [(DW-1):0]	i_addr;
+	input	wire [(DW-1):0]	i_data;
+	input	wire [(NAUX-1):0] i_oreg; // Aux data, such as reg to write to
 	// Outputs, going back to the CPU
 	output	reg		o_busy;
 	output	reg		o_pipe_stalled;
@@ -119,16 +124,15 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	output	reg [(DW-1):0]	o_wb_data;
 	output	wire [(DW/8-1):0] o_wb_sel;
 	// Wishbone bus slave response inputs
-	input				i_wb_ack, i_wb_stall, i_wb_err;
-	input		[(DW-1):0]	i_wb_data;
-`ifdef FORMAL
-	output	wire [(F_LGDEPTH-1):0]	f_nreqs, f_nacks, f_outstanding;
-	output	wire			f_pc;
-`endif
+	input	wire			i_wb_ack, i_wb_stall, i_wb_err;
+	input	wire	[(DW-1):0]	i_wb_data;
 
 
 	reg	cyc, stb, last_ack, end_of_line, last_line_stb;
 	reg	r_wb_cyc_gbl, r_wb_cyc_lcl;
+	// npending is the number of pending non-cached operations, counted
+	// from the i_pipe_stb to the o_wb_ack
+	reg	[DP:0]	npending;
 
 
 	reg	[((1<<LGNLINES)-1):0] c_v;	// One bit per cache line, is it valid?
@@ -161,8 +165,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 
 	wire	raw_cachable_address;
 
-	iscachable #(.ADDRESS_WIDTH(AW))
-		chkaddress(i_addr[AW+1:2], raw_cachable_address);
+	iscachable chkaddress(i_addr[AW+1:2], raw_cachable_address);
 
 	assign	w_cachable = ((!OPT_LOCAL_BUS)||(i_addr[(DW-1):(DW-8)]!=8'hff))
 		&&((!i_lock)||(!OPT_LOCK))&&(raw_cachable_address);
@@ -178,13 +181,6 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	assign	r_caddr = r_addr[(CS-1):0];
 	assign	r_ctag  = r_addr[(AW-1):LS];
 
-/*
-	integer k;
-	initial begin
-		for(k=0; k<(1<<(LGNLINES)); k=k+1)
-			c_vtags[k] <= k;
-	end
-*/
 
 	reg	wr_cstb, r_iv, in_cache;
 	reg	[(AW-LS-1):0]	r_itag;
@@ -199,6 +195,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	initial	r_cache_miss = 1'b0;
 	initial	r_addr = 0;
 	initial	last_tag_valid = 0;
+	initial	r_rd_pending = 0;
 	always @(posedge i_clk)
 	if (i_reset)
 	begin
@@ -215,8 +212,8 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		// The valid for the single clock path
 		//	Only ... we need to wait if we are currently writing
 		//	to our cache.
-		r_svalid<= (!i_op[0])&&(!cache_miss_inow)&&(w_cachable)
-				&&(i_pipe_stb)&&(!c_wr)&&(!wr_cstb);
+		r_svalid<= (i_pipe_stb)&&(!i_op[0])&&(w_cachable)
+				&&(!cache_miss_inow)&&(!c_wr)&&(!wr_cstb);
 
 		//
 		// The two clock in-cache path
@@ -225,20 +222,20 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		// clock
 		if ((!o_pipe_stalled)&&(!r_rd_pending))
 			r_addr <= i_addr[(AW+1):2];
-		if (!o_busy)
+		if ((!o_pipe_stalled)&&(!r_rd_pending))
 		begin
 			r_iv   <= c_v[i_cline];
 			r_itag <= c_vtags[i_cline];
 			r_cachable <= (!i_op[0])&&(w_cachable)&&(i_pipe_stb);
-			o_wreg <= i_oreg;
-			r_rd_pending <= (i_pipe_stb)&&(!i_op[0]);
+			r_rd_pending <= (i_pipe_stb)&&(!i_op[0])&&(w_cachable)
+				&&((cache_miss_inow)||(c_wr)||(wr_cstb));
+				// &&((!c_wr)||(!wr_cstb));
 		end else begin
 			r_iv   <= c_v[r_cline];
 			r_itag <= c_vtags[r_cline];
-			r_rd_pending <= (r_rd_pending)&&(!r_svalid)
-					&&(!r_dvalid)
-					&&((r_cachable)||(!i_wb_ack))
-					&&((!cyc)||(!i_wb_err));
+			r_rd_pending <= (r_rd_pending)
+				&&((!cyc)||(!i_wb_err))
+				&&((r_itag != r_ctag)||(!r_iv));
 		end
 		r_rd <= (i_pipe_stb)&&(!i_op[0]);
 		// r_itag contains the tag we didn't have available to us on the
@@ -246,11 +243,11 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		// one clock delayed address.
 		r_dvalid <= (!r_svalid)&&(!r_dvalid)&&(r_itag == r_ctag)&&(r_iv)
 						&&(r_cachable)&&(r_rd_pending);
-		if ((r_itag == r_ctag)&&(r_iv)&&(r_cachable))
+		if ((r_itag == r_ctag)&&(r_iv)&&(r_cachable)&&(r_rd_pending))
 		begin
 			last_tag_valid <= 1'b1;
 			last_tag <= r_ctag;
-		end else if ((state == `DC_READC)
+		end else if ((state == DC_READC)
 				&&(last_tag[CS-LS-1:0]==o_wb_addr[CS-1:LS])
 				&&((i_wb_ack)||(i_wb_err)))
 			last_tag_valid <= 1'b0;
@@ -277,7 +274,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	always @(posedge i_clk)
 	if (i_reset)
 		r_sel <= 4'hf;
-	else if (!o_busy)
+	else if (!o_pipe_stalled)
 	begin
 		casez({i_op[2:1], i_addr[1:0]})
 		4'b0???: r_sel <= 4'b1111;
@@ -290,7 +287,8 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		endcase
 	end
 
-	assign	o_wb_sel = (state == `DC_READC) ? 4'hf : r_sel;
+
+	assign	o_wb_sel = (state == DC_READC) ? 4'hf : r_sel;
 
 	initial	o_wb_data = 0;
 	always @(posedge i_clk)
@@ -305,9 +303,80 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		endcase
 	end
 
+	reg	[(NAUX+4-1):0]	req_data;
+	reg			gie;
+
+	generate if (OPT_PIPE)
+	begin : OPT_PIPE_FIFO
+		reg	[NAUX+4-2:0]	fifo_data [0:((1<<OPT_FIFO_DEPTH)-1)];
+
+		reg	[DP:0]		wraddr, rdaddr;
+		reg	[NAUX+4-2:0]	r_req_data, r_last_data;
+
+		always @(posedge i_clk)
+		if (i_pipe_stb)
+			fifo_data[wraddr[DP-1:0]]
+				<= { i_oreg[NAUX-2:0], i_op[2:1], i_addr[1:0] };
+
+		always @(posedge i_clk)
+		if (i_pipe_stb)
+			gie <= i_oreg[NAUX-1];
+
+		always @(posedge i_clk)
+			r_req_data <= fifo_data[rdaddr[DP-1:0]];
+
+		always @(posedge i_clk)
+		if (i_pipe_stb)
+			r_last_data <= { i_oreg[NAUX-2:0],
+						i_op[2:1], i_addr[1:0] };
+
+		always @(*)
+		begin
+			req_data[NAUX+4-1] = gie;
+			if ((r_svalid)||(state == DC_READS))
+				req_data[NAUX+4-2:0] = r_last_data;
+			else
+				req_data[NAUX+4-2:0] = r_req_data;
+		end
+
+		initial	wraddr = 0;
+		always @(posedge i_clk)
+		if ((i_reset)||((cyc)&&(i_wb_err)))
+			wraddr <= 0;
+		else if (i_pipe_stb)
+			wraddr <= wraddr + 1'b1;
+
+		initial	rdaddr = 0;
+		always @(posedge i_clk)
+		if ((i_reset)||((cyc)&&(i_wb_err)))
+			rdaddr <= 0;
+		else if ((r_dvalid)||(r_svalid))
+			rdaddr <= rdaddr + 1'b1;
+		else if ((state == DC_WRITE)&&(i_wb_ack))
+			rdaddr <= rdaddr + 1'b1;
+		else if ((state == DC_READS)&&(i_wb_ack))
+			rdaddr <= rdaddr + 1'b1;
+
+
+		always @(posedge i_clk)
+			o_wreg <= req_data[(NAUX+4-1):4];
+
+	end else begin : NO_FIFO
+
+		always @(posedge i_clk)
+		if (i_pipe_stb)
+			req_data <= { i_oreg, i_op[2:1], i_addr[1:0] };
+
+		always @(*)
+			o_wreg <= req_data[(NAUX+4-1):4];
+
+
+	end endgenerate
+		
+
+
 	reg			set_vflag;
 	reg	[1:0]		state;
-	reg	[LS+1:0]	npending;
 	reg	[(CS-1):0]	wr_addr;
 
 	initial	r_wb_cyc_gbl = 0;
@@ -318,7 +387,8 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	initial	cyc = 0;
 	initial	stb = 0;
 	initial	c_wr = 0;
-	initial	state = `DC_IDLE;
+	initial	wr_cstb = 0;
+	initial	state = DC_IDLE;
 	always @(posedge i_clk)
 	if (i_reset)
 	begin
@@ -332,10 +402,10 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		wr_cstb <= 1'b0;
 		last_line_stb <= 1'b0;
 		end_of_line <= 1'b0;
-		state <= `DC_IDLE;
+		state <= DC_IDLE;
 		cyc <= 1'b0;
 		stb <= 1'b0;
-		state <= `DC_IDLE;
+		state <= DC_IDLE;
 		set_vflag <= 1'b0;
 	end else begin
 		// By default, update the cache from the write 1-clock ago
@@ -356,7 +426,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		else
 			wr_addr <= wr_addr;
 
-		if (LS <= 1)
+		if (LS <= 0)
 			end_of_line <= 1'b1;
 		else if (!cyc)
 			end_of_line <= 1'b0;
@@ -371,7 +441,9 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		end
 
 		if (!cyc)
-			last_line_stb <= (LS <= 1);
+			last_line_stb <= (LS <= 0);
+		else if ((stb)&&(!i_wb_stall)&&(LS <= 1))
+			last_line_stb <= 1'b1;
 		else if ((stb)&&(!i_wb_stall))
 			last_line_stb <= (o_wb_addr[(LS-1):1]=={(LS-1){1'b1}});
 		else if (stb)
@@ -379,7 +451,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 
 		//
 		//
-		if (state == `DC_IDLE)
+		if (state == DC_IDLE)
 		begin
 			o_wb_we <= 1'b0;
 
@@ -394,7 +466,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 			in_cache <= (i_op[0])&&(w_cachable);
 			if ((i_pipe_stb)&&(i_op[0]))
 			begin // Write  operation
-				state <= `DC_WRITE;
+				state <= DC_WRITE;
 				o_wb_addr <= i_addr[(AW+1):2];
 				o_wb_we <= 1'b1;
 
@@ -414,7 +486,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 
 			end else if (r_cache_miss)
 			begin
-				state <= `DC_READC;
+				state <= DC_READC;
 				o_wb_addr <= { r_ctag, {(LS){1'b0}} };
 
 				c_waddr <= { r_ctag[CS-LS-1:0], {(LS){1'b0}} }-1;
@@ -425,7 +497,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 				wr_addr[LS-1:0] <= 0;
 			end else if ((i_pipe_stb)&&(!w_cachable))
 			begin // Read non-cachable memory area
-				state <= `DC_READS;
+				state <= DC_READS;
 				o_wb_addr <= i_addr[(AW+1):2];
 
 				cyc <= 1'b1;
@@ -442,7 +514,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 				end
 			end // else we stay idle
 
-		end else if (state == `DC_READC)
+		end else if (state == DC_READC)
 		begin
 			// We enter here once we have committed to reading
 			// data into a cache line.
@@ -462,13 +534,13 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 			c_wsel  <= 4'hf;
 
 			set_vflag <= !i_wb_err;
-			if ((i_wb_ack)&&(!end_of_line))
+			if (i_wb_ack)
 				c_vtags[r_addr[(CS-1):LS]]
 						<= r_addr[(AW-1):LS];
 
 			if (((i_wb_ack)&&(end_of_line))||(i_wb_err))
 			begin
-				state          <= `DC_IDLE;
+				state          <= DC_IDLE;
 				cyc <= 1'b0;
 				stb <= 1'b0;
 				r_wb_cyc_gbl <= 1'b0;
@@ -477,7 +549,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 				o_wb_stb_lcl <= 1'b0;
 				//
 			end
-		end else if (state == `DC_READS)
+		end else if (state == DC_READS)
 		begin
 			// We enter here once we have committed to reading
 			// data that cannot go into a cache line
@@ -495,7 +567,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 
 			if (((i_wb_ack)&&(last_ack))||(i_wb_err))
 			begin
-				state        <= `DC_IDLE;
+				state        <= DC_IDLE;
 				cyc          <= 1'b0;
 				stb          <= 1'b0;
 				r_wb_cyc_gbl <= 1'b0;
@@ -503,7 +575,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 				o_wb_stb_gbl <= 1'b0;
 				o_wb_stb_lcl <= 1'b0;
 			end
-		end else if (state == `DC_WRITE)
+		end else if (state == DC_WRITE)
 		begin
 			c_wr    <= (stb)&&(c_v[o_wb_addr[CS-1:LS]])
 				&&(c_vtags[o_wb_addr[CS-1:LS]]==o_wb_addr[AW-1:LS])
@@ -528,7 +600,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 						&&((!OPT_PIPE)||(!i_pipe_stb)))
 				||(i_wb_err))
 			begin
-				state        <= `DC_IDLE;
+				state        <= DC_IDLE;
 				cyc          <= 1'b0;
 				stb          <= 1'b0;
 				r_wb_cyc_gbl <= 1'b0;
@@ -539,18 +611,29 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		end
 	end
 
+	//
+	// npending is the number of outstanding (non-cached) read or write
+	// requests
+	initial	npending = 0;
 	always @(posedge i_clk)
-	if ((i_reset)||(!OPT_PIPE)||(i_wb_err)||((!cyc)&&(!i_pipe_stb))
-			||(state == `DC_READC))
+	if ((i_reset)||(!OPT_PIPE)
+			||((cyc)&&(i_wb_err))
+			||((!cyc)&&(!i_pipe_stb))
+			||(state == DC_READC))
 		npending <= 0;
+	else if (r_svalid)
+		npending <= (i_pipe_stb) ? 1:0;
 	else case({ (i_pipe_stb), (cyc)&&(i_wb_ack) })
 	2'b01: npending <= npending - 1'b1;
 	2'b10: npending <= npending + 1'b1;
 	default: begin end
 	endcase
 
+	initial	last_ack = 1'b0;
 	always @(posedge i_clk)
-	if (state == `DC_IDLE)
+	if (i_reset)
+		last_ack <= 1'b0;
+	else if (state == DC_IDLE)
 	begin
 		last_ack <= 1'b0;
 		if ((i_pipe_stb)&&(i_op[0]))
@@ -559,14 +642,14 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 			last_ack <= (LS == 0);
 		else if ((i_pipe_stb)&&(!w_cachable))
 			last_ack <= 1'b1;
-	end else if (state == `DC_READC)
+	end else if (state == DC_READC)
 	begin
 		if (i_wb_ack)
 			last_ack <= last_ack || (&wr_addr[LS-1:1]);
 		else
 			last_ack <= last_ack || (&wr_addr[LS-1:0]);
-	end else case({ (i_pipe_stb), ((cyc)&&(i_wb_ack)) })
-	2'b01: last_ack <= (npending[4:1] <= 1);
+	end else case({ (i_pipe_stb), (i_wb_ack) })
+	2'b01: last_ack <= (npending <= 2);
 	2'b10: last_ack <= (!cyc)||(npending == 0);
 	default: begin end
 	endcase
@@ -602,11 +685,25 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	// logic on the output.
 	//
 	reg	[(DW-1):0]	cached_idata, cached_rdata;
-	always @(posedge i_clk)
-		cached_idata <= c_mem[i_caddr];
 
-	always @(posedge i_clk)
-		cached_rdata <= c_mem[r_caddr];
+	generate if (OPT_DUAL_READ_PORT)
+	begin
+
+		always @(posedge i_clk)
+			cached_idata <= c_mem[i_caddr];
+
+		always @(posedge i_clk)
+			cached_rdata <= c_mem[r_caddr];
+
+	end else begin
+
+		always @(posedge i_clk)
+			cached_rdata <= c_mem[(o_busy) ? r_caddr : i_caddr];
+
+		always @(*)
+			cached_idata = cached_rdata;
+
+	end endgenerate
 
 // o_data can come from one of three places:
 // 1. The cache, assuming the data was in the last cache line
@@ -617,19 +714,19 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	always @(*)
 		if (r_svalid)
 			pre_data = cached_idata;
-		else if (state == `DC_READS)
+		else if (state == DC_READS)
 			pre_data = i_wb_data;
 		else
 			pre_data = cached_rdata;
 
 	always @(posedge i_clk)
-	case(r_sel)
-	4'b0001: o_data <= { 24'h0, pre_data[ 7: 0] };
-	4'b0010: o_data <= { 24'h0, pre_data[15: 8] };
-	4'b0100: o_data <= { 24'h0, pre_data[23:16] };
-	4'b1000: o_data <= { 24'h0, pre_data[31:24] };
-	4'b0011: o_data <= { 16'h0, pre_data[15: 0] };
-	4'b1100: o_data <= { 16'h0, pre_data[31:16] };
+	casez(req_data[3:0])
+	4'b100?: o_data <= { 16'h0, pre_data[31:16] };
+	4'b101?: o_data <= { 16'h0, pre_data[15: 0] };
+	4'b1100: o_data <= { 24'h0, pre_data[31:24] };
+	4'b1101: o_data <= { 24'h0, pre_data[23:16] };
+	4'b1110: o_data <= { 24'h0, pre_data[15: 8] };
+	4'b1111: o_data <= { 24'h0, pre_data[ 7: 0] };
 	default	o_data <= pre_data;
 	endcase
 
@@ -637,7 +734,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	always @(posedge i_clk)
 	if (i_reset)
 		o_valid <= 1'b0;
-	else if (state == `DC_READS)
+	else if (state == DC_READS)
 		o_valid <= i_wb_ack;
 	else
 		o_valid <= (r_svalid)||(r_dvalid);
@@ -655,10 +752,13 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		o_busy <= 1'b0;
 	else if (i_pipe_stb)
 		o_busy <= 1'b1;
-	else if ((state == `DC_READS)&&(i_wb_ack))
+	else if ((state == DC_READS)&&(i_wb_ack))
 		o_busy <= 1'b0;
-	else if (r_rd_pending)
+	else if ((r_rd_pending)&&(!r_dvalid))
 		o_busy <= 1'b1;
+	else if ((state == DC_WRITE)
+			&&(i_wb_ack)&&(last_ack)&&(!i_pipe_stb))
+		o_busy <= 1'b0;
 	else if (cyc)
 		o_busy <= 1'b1;
 	else // if ((r_dvalid)||(r_svalid))
@@ -671,9 +771,8 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 
 	always @(*)
 	if (OPT_PIPE)
-		o_pipe_stalled = (cyc)&&((!o_wb_we)||(i_wb_stall))
-					||(r_rd_pending)||(r_svalid)||(r_dvalid)
-					||(o_valid);
+		o_pipe_stalled = (cyc)&&((!o_wb_we)||(i_wb_stall)||(!stb))
+				||(r_rd_pending)||(npending[DP]);
 	else
 		o_pipe_stalled = o_busy;
 
@@ -693,6 +792,16 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	assign	o_wb_cyc_gbl = (r_wb_cyc_gbl)||(lock_gbl);
 	assign	o_wb_cyc_lcl = (r_wb_cyc_lcl)||(lock_lcl);
 
+	generate if (AW+2 < DW)
+	begin : UNUSED_BITS
+
+		// Verilator lint_off UNUSED
+		wire	[DW-AW-2:0]	unused;
+		assign	unused = i_addr[DW-1:AW+1];
+		// Verilator lint_on  UNUSED
+	end endgenerate
+
 `ifdef	FORMAL
+// Formal properties for this module are maintained elsewhere
 `endif
 endmodule

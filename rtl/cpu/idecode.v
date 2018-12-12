@@ -61,7 +61,9 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 		o_valid,
 		o_phase, o_illegal,
 		o_pc,
-		o_dcdR, o_dcdA, o_dcdB, o_I, o_zI,
+		o_dcdR, o_dcdA, o_dcdB,
+		o_preA, o_preB,
+		o_I, o_zI,
 		o_cond, o_wF,
 		o_op, o_ALU, o_M, o_DV, o_FP, o_break, o_lock,
 		o_wR, o_rA, o_rB,
@@ -72,13 +74,14 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	parameter		ADDRESS_WIDTH=24;
 	parameter	[0:0]	OPT_MPY = 1'b1;
 	parameter	[0:0]	OPT_EARLY_BRANCHING = 1'b1;
-	parameter	[0:0]	OPT_PIPELINED = 1'b0;
+	parameter	[0:0]	OPT_PIPELINED = 1'b1;
 	parameter	[0:0]	OPT_DIVIDE = (OPT_PIPELINED);
 	parameter	[0:0]	OPT_FPU    = 1'b0;
 	parameter	[0:0]	OPT_CIS    = 1'b1;
 	parameter	[0:0]	OPT_LOCK   = (OPT_PIPELINED);
 	parameter	[0:0]	OPT_OPIPE  = (OPT_PIPELINED);
 	parameter	[0:0]	OPT_SIM    = 1'b0;
+	parameter	[0:0]	OPT_NO_USERMODE = 1'b0;
 	localparam		AW = ADDRESS_WIDTH;
 	//
 	input	wire		i_clk, i_reset, i_ce, i_stalled;
@@ -90,6 +93,7 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	output	reg		o_illegal;
 	output	reg	[(AW+1):0]	o_pc;
 	output	reg	[6:0]	o_dcdR, o_dcdA, o_dcdB;
+	output	wire	[4:0]	o_preA, o_preB;
 	output	wire	[31:0]	o_I;
 	output	reg		o_zI;
 	output	reg	[3:0]	o_cond;
@@ -226,12 +230,12 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	// moves in iword[18] but only for the supervisor, and the other
 	// four bits encoded in the instruction.
 	//
-	assign	w_dcdR = { ((!iword[`CISBIT])&&(w_mov)&&(!i_gie))?iword[`IMMSEL]:i_gie,
+	assign	w_dcdR = { ((!iword[`CISBIT])&&(!OPT_NO_USERMODE)&&(w_mov)&&(!i_gie))?iword[`IMMSEL]:i_gie,
 				iword[30:27] };
 
 	// dcdB - What register is used in the opB?
 	//
-	assign w_dcdB[4] = ((!iword[`CISBIT])&&(w_mov)&&(!i_gie))?iword[13]:i_gie;
+	assign w_dcdB[4] = ((!iword[`CISBIT])&&(w_mov)&&(!OPT_NO_USERMODE)&&(!i_gie))?iword[13]:i_gie;
 	assign w_dcdB[3:0]= (iword[`CISBIT])
 				? (((!iword[`CISIMMSEL])&&(iword[26:25]==2'b10))
 					? `CPU_SP_REG : iword[22:19])
@@ -410,8 +414,8 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 
 			// If the lock function isn't implemented, this should
 			// also cause an illegal instruction error
-			// if ((!OPT_LOCK)&&(w_lock))
-			//	o_illegal <= 1'b1;
+			if ((!OPT_LOCK)&&(w_lock))
+				o_illegal <= 1'b1;
 		end
 
 	initial	o_pc = 0;
@@ -510,6 +514,9 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 				o_sim_immv <= 0;
 			end
 		end
+
+	assign	o_preA = w_dcdA;
+	assign	o_preB = w_dcdB;
 
 	generate if (OPT_EARLY_BRANCHING)
 	begin : GEN_EARLY_BRANCH_LOGIC
@@ -621,7 +628,7 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	// Note that we're not using iword here ... there's a lot of logic
 	// taking place, and it's only valid if the new word is not compressed.
 	//
-	reg	r_valid;
+	reg	r_valid, r_insn_is_pipeable;
 	generate if (OPT_OPIPE)
 	begin : GEN_OPIPE
 		reg	r_pipe;
@@ -629,40 +636,82 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 		wire	[13:0]	pipe_addr_diff;
 		assign		pipe_addr_diff = w_I[13:0] - r_I[13:0];
 
+		// Pipeline logic is too extreme for a single clock.
+		// Let's break it into two clocks, using r_insn_is_pipeable
+		// If this function is true, then the instruction associated
+		// with the current output *may* have a pipeable instruction
+		// following it.
+		// 
+		initial	r_insn_is_pipeable = 1'b0;
+		always @(posedge i_clk)
+		if (i_reset)
+			r_insn_is_pipeable <= 1'b0;
+		else if ((i_ce)&&((!pf_valid)||(i_illegal))&&(!o_phase))
+			// Pipeline bubble, can't pipe through it
+			r_insn_is_pipeable <= 1'b0;
+		else if (o_ljmp)
+			r_insn_is_pipeable <= 1'b0;
+		else if ((i_ce)&&((!OPT_CIS)&&(i_instruction[`CISBIT])))
+			r_insn_is_pipeable <= 1'b0;
+		else if (i_ce)
+		begin	// This is a valid instruction
+			r_insn_is_pipeable <= (w_mem)&&(w_rB)
+				// PC (and CC) registers can change
+				// underneath us.  Therefore they cannot
+				// be used as a base register for piped
+				// memory ops
+				&&(w_dcdB[3:1] != 3'h7)
+				// Writes to PC or CC will destroy any
+				// possibility of pipeing--since they
+				// could create a jump
+				&&(w_dcdR[3:1] != 3'h7)
+				//
+				// Loads landing in the current address
+				// pointer register are not allowed,
+				// as they could then be used to violate
+				// our rule(s)
+				&&((w_cis_op[0])||(w_dcdB != w_dcdA));
+		end // else
+			// The pipeline is stalled
+		
+
 		initial	r_pipe = 1'b0;
 		always @(posedge i_clk)
 		if (i_reset)
 			r_pipe <= 1'b0;
 		else if (i_ce)
-			r_pipe <= (r_valid)&&((pf_valid)||(o_phase))
+			r_pipe <= ((pf_valid)||(o_phase))
+				// The last operation must be capable of
+				// being followed by a pipeable memory op
+				&&(r_insn_is_pipeable)
 				// Both must be memory operations
-				&&(w_mem)&&(o_M)
+				&&(w_mem)
 				// Both must be writes, or both stores
 				&&(o_op[0] == w_cis_op[0])
 				// Both must be register ops
-				&&(w_rB)&&(o_rB)
+				&&(w_rB)
 				// Both must use the same register for B
 				&&(w_dcdB[3:0] == o_dcdB[3:0])
 				// CC or PC registers are not valid addresses
-				&&(o_dcdB[3:1] != 3'h7)
-				&&(w_dcdB[3:1] != 3'h7)
+				//   Captured above
 				// But ... the result can never be B
-				&&((o_op[0])
-					||(w_dcdB[3:0] != o_dcdA[3:0]))
+				//   Captured above
+				//
 				// Reads to CC or PC not allowed
 				// &&((o_op[0])||(w_dcdR[3:1] != 3'h7))
 				// Prior-reads to CC or PC not allowed
-				&&((o_op[0])||(o_dcdR[3:1] != 3'h7))
+				//   Captured above
 				// Same condition, or no condition before
 				&&((w_cond[2:0]==o_cond[2:0])
 					||(o_cond[2:0] == 3'h0))
 				// Same or incrementing immediate
 				&&(w_I[13]==r_I[13])
-				&&((w_I==r_I)
-					||(pipe_addr_diff <= 14'h4));
+				&&(pipe_addr_diff <= 14'h4);
 		assign o_pipe = r_pipe;
 	end else begin
 		assign o_pipe = 1'b0;
+		always @(*)
+			r_insn_is_pipeable = 1'b0;
 	end endgenerate
 
 	initial	r_valid = 1'b0;
@@ -700,6 +749,6 @@ module	idecode(i_clk, i_reset, i_ce, i_stalled,
 	assign	possibly_unused = { w_lock, w_ljmp, w_ljmp_dly, w_cis_ljmp, i_pc[1:0] };
 	// verilator lint_on  UNUSED
 `ifdef	FORMAL
-// Formal properties for this module are maintained elsewhere
+// Formal properties maintained elsewhere
 `endif
 endmodule

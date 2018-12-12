@@ -128,7 +128,6 @@
 @REGDEFS.H.DEFNS=
 #define	R_ZIPCTRL	@$.ZIP_ADDRESS
 #define	R_ZIPDATA	@$.ZIP_DBGDATA
-#define	RESET_ADDRESS	@$[0x%08x](RESET_ADDRESS)
 #define	BAUDRATE	@$[%d](BAUDRATE)
 @RTL.MAKE.GROUP= WBUBUS
 @RTL.MAKE.FILES= wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v

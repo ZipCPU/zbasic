@@ -47,7 +47,7 @@
 @MAIN.DEFNS=
 	// Definitions in support of the GPS driven RTC
 	wire	rtc_ppd;
-	reg	r_rtc_ack;
+	reg	r_@$(PREFIX)_ack;
 @MAIN.INSERT=
 	rtclight	#(@$CLKSTEP) the@$(PREFIX)(i_clk,
 		wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we,
@@ -56,8 +56,8 @@
 	assign	@$(PREFIX)_stall = 1'b0;
 	initial	r_rtc_ack = 1'b0;
 	always @(posedge i_clk)
-		r_rtc_ack <= (wb_stb)&&(rtc_sel);
-	assign	rtc_ack = r_rtc_ack;
+		r_@$(PREFIX)_ack <= (wb_stb)&&(@$(PREFIX)_sel);
+	assign	@$(PREFIX)_ack = r_@$(PREFIX)_ack;
 @REGS.NOTE= // RTC clock registers
 @REGS.N=4
 @REGS.0= 0 R_CLOCK	CLOCK TIMER
@@ -74,3 +74,5 @@ typedef	struct	RTCLIGHT_S	{
 @BDEF.OSVAL=static volatile @$BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)@$[0x%08x](REGBASE));
 #
 #
+@RTL.MAKE.GROUP=RTCLIGHT
+@RTL.MAKE.FILES=rtclight.v

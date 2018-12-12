@@ -1,0 +1,40 @@
+@PREFIX=profiler
+@DEPENDS=INCLUDE_ZIPCPU
+@ACCESS=PROFILE_ZIPCPU
+@SIM.DEFNS=
+	FILE	*m_profile_fp;
+	unsigned long	m_last_instruction_tickcount;
+@SIM.INIT=
+#ifdef	PROFILE_ZIPCPU
+		m_profile_fp = fopen("pfile.bin","wb");
+		m_last_instruction_tickcount = 0;
+#else
+		m_profile_fp = NULL;
+#endif
+@SIM.CLOCK=clk
+@SIM.TICK=
+		if (m_profile_fp) {
+			bool	retire_instruction;
+			static	unsigned m_profile_clock_ticks = 0;
+
+			m_profile_clock_ticks++;
+
+			retire_instruction = (((m_core->cpu_alu_pc_valid)
+				||(m_core->cpu_mem_pc_valid))
+				&&(!m_core->cpu_new_pc));
+			if (retire_instruction) {
+				unsigned long iticks = m_profile_clock_ticks
+						- m_last_instruction_tickcount;
+
+				unsigned buf[2];
+				buf[0] = m_core->cpu_alu_pc-4;
+#ifdef	OPT_CIS
+				if (m_core->cpu_alu_phase)
+					buf[0] += 2;
+#endif
+				buf[1] = (unsigned)iticks;
+				fwrite(buf, sizeof(unsigned), 2, m_profile_fp);
+
+				m_last_instruction_tickcount = m_profile_clock_ticks;
+			}
+		}

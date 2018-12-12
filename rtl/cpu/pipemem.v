@@ -50,9 +50,6 @@ module	pipemem(i_clk, i_reset, i_pipe_stb, i_lock,
 			o_wb_stb_gbl, o_wb_stb_lcl,
 			o_wb_we, o_wb_addr, o_wb_data, o_wb_sel,
 		i_wb_ack, i_wb_stall, i_wb_err, i_wb_data
-`ifdef	FORMAL
-		, f_nreqs, f_nacks, f_outstanding, f_pc
-`endif
 		);
 	parameter	ADDRESS_WIDTH=30;
 	parameter [0:0]	IMPLEMENT_LOCK=1'b1,
@@ -89,19 +86,14 @@ module	pipemem(i_clk, i_reset, i_pipe_stb, i_lock,
 	// Wishbone inputs
 	input	wire		i_wb_ack, i_wb_stall, i_wb_err;
 	input	wire	[31:0]	i_wb_data;
-// Formal
-	parameter	F_LGDEPTH=5;
-`ifdef	FORMAL
-	output	wire	[(F_LGDEPTH-1):0]	f_nreqs, f_nacks, f_outstanding;
-	output	reg	f_pc;
-`endif
 
 
 	reg			cyc;
 	reg			r_wb_cyc_gbl, r_wb_cyc_lcl, fifo_full;
 	reg	[(FLN-1):0]		rdaddr, wraddr;
 	wire	[(FLN-1):0]		nxt_rdaddr, fifo_fill;
-	reg	[(4+5-1):0]	fifo_oreg [0:15];
+	reg	[(3+5-1):0]	fifo_oreg [0:15];
+	reg			fifo_gie;
 	initial	rdaddr = 0;
 	initial	wraddr = 0;
 
@@ -111,16 +103,20 @@ module	pipemem(i_clk, i_reset, i_pipe_stb, i_lock,
 	if (OPT_ALIGNMENT_ERR)
 	begin
 		casez({ i_op[2:1], i_addr[1:0] })
-		4'b01?1: misaligned = 1'b1;
-		4'b0110: misaligned = 1'b1;
-		4'b10?1: misaligned = 1'b1;
-		default: misaligned = 1'b0;
+		4'b01?1: misaligned = i_pipe_stb;
+		4'b0110: misaligned = i_pipe_stb;
+		4'b10?1: misaligned = i_pipe_stb;
+		default: misaligned = i_pipe_stb;
 		endcase
 	end else
 		misaligned = 1'b0;
 
 	always @(posedge i_clk)
-		fifo_oreg[wraddr] <= { i_oreg, i_op[2:1], i_addr[1:0] };
+		fifo_oreg[wraddr] <= { i_oreg[3:0], i_op[2:1], i_addr[1:0] };
+
+	always @(posedge i_clk)
+	if (i_pipe_stb)
+		fifo_gie <= i_oreg[4];
 
 	initial	wraddr = 0;
 	always @(posedge i_clk)
@@ -256,10 +252,10 @@ module	pipemem(i_clk, i_reset, i_pipe_stb, i_lock,
 		o_err <= ((cyc)&&(i_wb_err))||((i_pipe_stb)&&(misaligned));
 	assign	o_busy = cyc;
 
-	wire	[8:0]	w_wreg;
+	wire	[7:0]	w_wreg;
 	assign	w_wreg = fifo_oreg[rdaddr];
 	always @(posedge i_clk)
-		o_wreg <= w_wreg[8:4];
+		o_wreg <= { fifo_gie, w_wreg[7:4] };
 	always @(posedge i_clk)
 		if ((OPT_ZERO_ON_IDLE)&&((!cyc)||((!i_wb_ack)&&(!i_wb_err))))
 			o_result <= 0;
@@ -310,341 +306,6 @@ module	pipemem(i_clk, i_reset, i_pipe_stb, i_lock,
 	// verilator lint_on  UNUSED
 
 `ifdef	FORMAL
-`ifdef	PIPEMEM
-`define	ASSUME	assume
-`define	ASSERT	assert
-	generate if (F_OPT_CLK2FFLOGIC)
-	begin
-		reg	f_last_clk;
-
-		initial	f_last_clk = 0;
-		always @($global_clock)
-		begin
-			assume(i_clk != f_last_clk);
-			f_last_clk <= i_clk;
-		end
-	end endgenerate
-`else
-`define	ASSUME	assert
-`define	ASSERT	assume
-`endif
-
-	reg	f_past_valid;
-	initial	f_past_valid = 0;
-	always @(posedge i_clk)
-		f_past_valid = 1'b1;
-	always @(*)
-		if (!f_past_valid)
-			`ASSUME(i_reset);
-
-	initial	`ASSUME( i_reset);
-	initial	`ASSUME(!i_pipe_stb);
-
-	generate if (F_OPT_CLK2FFLOGIC)
-	begin
-		always @($global_clock)
-		if (!$rose(i_clk))
-		begin
-			`ASSUME($stable(i_reset));
-			`ASSUME($stable(i_pipe_stb));
-			`ASSUME($stable(i_addr));
-			`ASSUME($stable(i_lock));
-			`ASSUME($stable(i_op));
-		end
-	end endgenerate
-
-	wire	f_cyc, f_stb;
-	assign	f_cyc = cyc;
-	assign	f_stb = (o_wb_stb_gbl)||(o_wb_stb_lcl);
-
-`ifdef	PIPEMEM
-`define	MASTER	fwb_master
-`else
-`define	MASTER	fwb_counter
-`endif
-	`MASTER #(.AW(AW), .F_LGDEPTH(F_LGDEPTH),
-			.F_OPT_CLK2FFLOGIC(F_OPT_CLK2FFLOGIC),
-			// .F_MAX_REQUESTS(14), // Not quite true, can do more
-			.F_OPT_RMW_BUS_OPTION(IMPLEMENT_LOCK),
-			.F_OPT_DISCONTINUOUS(IMPLEMENT_LOCK))
-		fwb(i_clk, i_reset,
-			cyc, f_stb, o_wb_we, o_wb_addr, o_wb_data, o_wb_sel,
-				i_wb_ack, i_wb_stall, i_wb_data, i_wb_err,
-			f_nreqs, f_nacks, f_outstanding);
-
-
-	//
-	// Assumptions about inputs
-	//
-	always @(posedge i_clk)
-	if ((!f_past_valid)||($past(i_reset)))
-	begin
-		`ASSERT(!o_err);
-		`ASSERT(!o_busy);
-		`ASSERT(!o_pipe_stalled);
-		`ASSERT(!o_valid);
-	end
-
-	always @(posedge i_clk)
-		if (o_pipe_stalled)
-			`ASSUME(!i_pipe_stb);
-
-	// On any pipe request, the new address is the same or plus one
-	always @(posedge i_clk)
-		if ((f_past_valid)&&(f_cyc)&&(!i_wb_stall)&&(i_pipe_stb))
-		begin
-			`ASSUME( (i_addr[(AW+1):2] == o_wb_addr)
-				||(i_addr[(AW+1):2] == o_wb_addr+1));
-			`ASSUME(i_op[0] == o_wb_we);
-		end
-
-	always @(posedge i_clk)
-		if ((r_wb_cyc_gbl)&&(i_pipe_stb))
-			`ASSUME(gbl_stb);
-
-	always @(posedge i_clk)
-		if ((r_wb_cyc_lcl)&&(i_pipe_stb))
-			`ASSUME(lcl_stb);
-
-	// If stb is false, then either lock is on or there are no more STB's
-	always @(posedge i_clk)
-		if ((f_cyc)&&(!f_stb))
-			`ASSUME((i_lock)||(!i_pipe_stb));
-
-//always @(posedge i_clk)
-//	if ((f_past_valid)&&($past(f_cyc))&&(!$past(i_lock)))
-//		`ASSUME(!i_lock);
-
-	wire	[3:0]	f_pipe_used;
-	assign	f_pipe_used = wraddr - rdaddr;
-	always @(*)
-		`ASSERT(f_pipe_used == fifo_fill);
-	always @(posedge i_clk)
-	if (f_pipe_used == OPT_MAXDEPTH)
-
-	begin
-		`ASSUME(!i_pipe_stb);
-		`ASSERT((o_busy)&&(o_pipe_stalled));
-	end
-
-	always @(*)
-		`ASSERT(fifo_fill <= OPT_MAXDEPTH);
-
-	always @(*)
-		if (!IMPLEMENT_LOCK)
-			`ASSUME(!i_lock);
-
-	always @(*)
-		if ((WITH_LOCAL_BUS)&&(o_wb_cyc_gbl|o_wb_cyc_lcl)
-			&&(i_pipe_stb))
-		begin
-			if (o_wb_cyc_lcl)
-				// `ASSUME(i_addr[31:24] == 8'hff);
-				restrict(i_addr[31:24] == 8'hff);
-			else
-				restrict(i_addr[31:24] != 8'hff);
-		end
-
-	always @(*)
-		if (!WITH_LOCAL_BUS)
-		begin
-			assert(!r_wb_cyc_lcl);
-			assert(!o_wb_cyc_lcl);
-			assert(!o_wb_stb_lcl);
-		end
-
-	always @(posedge i_clk)
-		if ((f_past_valid)&&(!$past(f_cyc))&&(!$past(i_pipe_stb)))
-			`ASSERT(f_pipe_used == 0);
-
-	always @(*)
-	if (!f_cyc)
-		`ASSERT(f_pipe_used == 0);
-
-	always @(posedge i_clk)
-	if (f_pipe_used >= 13)
-		`ASSUME(!i_pipe_stb);
-
-	always @(posedge i_clk)
-	if ((f_cyc)&&(f_pipe_used >= 13))
-		`ASSERT((o_busy)&&(o_pipe_stalled));
-
-
-	always @(posedge i_clk)
-		`ASSERT((!r_wb_cyc_gbl)||(!r_wb_cyc_lcl));
-
-	always @(posedge i_clk)
-		`ASSERT((!o_wb_cyc_gbl)||(!o_wb_cyc_lcl));
-
-	always @(posedge i_clk)
-		`ASSERT((!o_wb_stb_gbl)||(!o_wb_stb_lcl));
-
-	always @(*)
-		if (!WITH_LOCAL_BUS)
-		begin
-			assert(!o_wb_cyc_lcl);
-			assert(!o_wb_stb_lcl);
-			if (o_wb_stb_lcl)
-				assert(o_wb_addr[(AW-1):22] == {(8-(30-AW)){1'b1}});
-		end
-
-	always @(posedge i_clk)
-		if (o_wb_stb_gbl)
-			`ASSERT(o_wb_cyc_gbl);
-
-	always @(posedge i_clk)
-		if (o_wb_stb_lcl)
-			`ASSERT(o_wb_cyc_lcl);
-
-	always @(posedge i_clk)
-		`ASSERT(cyc == (r_wb_cyc_gbl|r_wb_cyc_lcl));
-
-	always @(posedge i_clk)
-		`ASSERT(cyc == (r_wb_cyc_lcl)|(r_wb_cyc_gbl));
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!i_reset)&&(!$past(misaligned)))
-	begin
-		if (f_stb)
-			`ASSERT(f_pipe_used == f_outstanding + 4'h1);
-		else
-			`ASSERT(f_pipe_used == f_outstanding);
-	end
-
-	always @(posedge i_clk)
-		if ((f_past_valid)&&($past(r_wb_cyc_gbl||r_wb_cyc_lcl))
-				&&(!$past(f_stb)))
-			`ASSERT(!f_stb);
-
-	always @(*)
-		`ASSERT((!lcl_stb)||(!gbl_stb));
-
-	wire	[(1<<FLN)-1:0]	f_gie_mem, f_mem_used, f_gie_or_zero, f_zero,
-				f_gie_xor_test;
-	//
-	// insist that we only ever accept memory requests for the same GIE
-	// (i.e. 4th bit of register)
-	//
-	wire	f_next_gie;
-	assign	f_next_gie    = fifo_oreg[rdaddr][8];
-	always @(*)
-	if ((i_pipe_stb)&&(wraddr != rdaddr))
-		`ASSUME(i_oreg[4] == f_next_gie);
-
-	initial	f_pc = 1'b0;
-	always @(posedge i_clk)
-	if(i_reset)
-		f_pc <= 1'b0;
-	else if (i_pipe_stb)
-		f_pc <= (((f_pc)&&(f_cyc))
-				||((!i_op[0])&&(i_oreg[3:1] == 3'h7)));
-	else if (!f_cyc)
-		f_pc <= 1'b0;
-
-	always @(posedge i_clk)
-	if ((f_cyc)&&(o_wb_we))
-		`ASSERT(!f_pc);
-
-	always @(*)
-	if ((f_pc)&&(f_cyc))
-		`ASSUME(!i_pipe_stb);
-
-	always @(*)
-	if (wraddr == rdaddr)
-	begin
-		`ASSERT(!r_wb_cyc_gbl);
-		`ASSERT(!r_wb_cyc_lcl);
-	end else if (f_cyc)
-	begin
-		`ASSERT(fifo_fill == f_outstanding + ((f_stb)?1:0));
-	end
-
-
-`ifdef	PIPEMEM
-	wire	[3:0]	lastaddr = wraddr - 1'b1;
-
-	assign	f_gie_or_zero = (f_gie_mem & f_mem_used);
-	assign	f_gie_xor_test= (f_gie_or_zero)^((f_next_gie)?f_mem_used : 0);
-
-	integer	k;
-	always @(*)
-	begin
-		for(k=0; k<(1<<FLN); k=k+1)
-			f_gie_mem[k] = fifo_oreg[k][8];
-		f_mem_used = 0;
-		for(k = 0 ; k < (1<<FLN); k=k+1)
-		begin
-			if (wraddr == rdaddr)
-				f_mem_used[k] = 1'b0;
-			else if (wraddr > rdaddr)
-			begin
-				if ((k < wraddr)&&(k >= rdaddr))
-					f_mem_used[k] = 1'b1;
-			end else if (k < wraddr)
-				f_mem_used[k] = 1'b1;
-			else if (k >= rdaddr)
-				f_mem_used[k] = 1'b1;
-		end
-	end
-
-
-	always @(*)
-	if (wraddr != rdaddr)
-		`ASSERT(f_gie_xor_test == 0);
-
-	always @(*)
-	begin
-		for(k=0; k<(1<<FLN); k=k+1)
-		if ((f_mem_used[k])&&(!o_wb_we)&&((!f_pc)||(k!=lastaddr)))
-			`ASSERT(fifo_oreg[k][7:5] != 3'h7);
-	end
-
-	initial	assert(!fifo_full);
-
-	always @(posedge i_clk)
-		cover(cyc && !fifo_full);
-
-	always @(posedge i_clk)
-		cover((f_cyc)&&(f_stb)&&(!i_wb_stall)&&(!i_wb_ack)
-			&&(!o_pipe_stalled));
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(f_stb))&&($past(f_cyc)))
-		cover((f_cyc)&&(i_wb_ack));
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(f_stb))&&($past(f_cyc)))
-		cover($past(i_wb_ack)&&(i_wb_ack));
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&($past(o_valid)))
-		cover(o_valid);
-
-`endif // PIPEMEM
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&($past(f_past_valid))&&($past(f_cyc))&&($past(f_cyc,2)))
-		`ASSERT($stable(o_wreg[4]));
-
-	always @(*)
-		`ASSERT((!f_cyc)||(!o_valid)||(o_wreg[3:1]!=3'h7));
-
+// Formal properties for this module are maintained elsewhere
 `endif // FORMAL
 endmodule
-//
-//
-// Usage (from yosys): (Before)	(A,!OPTZ)	(A,OPTZ)
-//	Cells:		302	314		391
-//	  FDRE		138	140		140
-//	  LUT1		  2	  2		  2
-//	  LUT2		 38	 41		 61
-//	  LUT3		 13	 16		 33
-//	  LUT4		  3	  8		 12
-//	  LUT5		 22	 10		  8
-//	  LUT6		 52	 59		 81
-//	  MUXCY		  6	  6		  6
-//	  MUXF7		 10	 13		 21
-//	  MUXF8		  1	  2		 10
-//	  RAM64X1D	  9	  9		  9
-//	  XORCY		  8	  8		  8
-//
-//

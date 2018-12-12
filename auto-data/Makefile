@@ -14,7 +14,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017, Gisselquist Technology, LLC
+## Copyright (C) 2017-2018, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -48,12 +48,13 @@ all:	data
 # main project files.
 #
 DATA := global.txt bkram.txt buserr.txt clock.txt			\
-	dlyarbiter.txt flash.txt rtclight.txt	rtcdate.txt		\
+	dlyarbiter.txt nflash.txt rtclight.txt	rtcdate.txt		\
 	pic.txt pwrcount.txt						\
 	version.txt busconsole.txt zipmaster.txt sdspi.txt
 	# hdmi.txt profile.txt
 
-AUTOFPGA := ../../../autofpga/trunk/sw/autofpga
+AUTOFPGA := autofpga
+$(AUTOFPGA):
 
 .PHONY: data
 data: $(AUTOFPGA) $(DATA)

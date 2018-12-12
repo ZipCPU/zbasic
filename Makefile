@@ -120,6 +120,7 @@ autodata: check-autofpga
 	$(MAKE) --no-print-directory --directory=auto-data
 	$(call copyif-changed,auto-data/toplevel.v,rtl/toplevel.v)
 	$(call copyif-changed,auto-data/main.v,rtl/main.v)
+	$(call copyif-changed,auto-data/iscachable.v,rtl/cpu/iscachable.cpp)
 	$(call copyif-changed,auto-data/regdefs.h,sw/host/regdefs.h)
 	$(call copyif-changed,auto-data/regdefs.cpp,sw/host/regdefs.cpp)
 	$(call copyif-changed,auto-data/board.h,sw/zlib/board.h)
@@ -157,6 +158,14 @@ sw: sw-host sw-zlib sw-board
 
 #
 #
+# Build the host support software
+#
+.PHONY: sw-host
+sw-host:
+	$(SUBMAKE) sw/host
+
+#
+#
 # Build the hardware specific newlib library
 #
 .PHONY: sw-zlib
@@ -171,13 +180,6 @@ sw-zlib: check-zip-gcc
 sw-board: sw-zlib check-zip-gcc
 	+@$(SUBMAKE) sw/board
 
-#
-#
-# Build the host support software
-#
-.PHONY: sw-host
-sw-host: check-gpp
-	+@$(SUBMAKE) sw/host
 
 #
 #

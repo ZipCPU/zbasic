@@ -54,12 +54,18 @@
 #include "llcomms.h"
 #include "ttybus.h"
 #include "regdefs.h"
-#include "flashdrvr.h"
+#include "nflashdrvr.h"
 #include "zipelf.h"
 #include "byteswap.h"
 #include <design.h>
 
 FPGA	*m_fpga;
+
+#ifndef	FLASH_ACCESS
+#ifdef	NFLASH_ACCESS
+#define	FLASH_ACCESS
+#endif
+#endif
 
 void	usage(void) {
 	printf("USAGE: zipload [-hr] <zip-program-file>\n");
@@ -182,7 +188,11 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
+#ifdef	FLASH_ACCESS
 	flash = new FLASHDRVR(m_fpga);
+#else
+	flash = NULL;
+#endif
 
 	if (codef) try {
 		ELFSECTION	**secpp = NULL, *secp;

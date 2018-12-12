@@ -11,7 +11,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2015-2017, Gisselquist Technology, LLC
+## Copyright (C) 2015-2018, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -45,8 +45,7 @@
 # @KEYS.INTLIST is a list of all things that need to be converted to integers
 @KEYS.INTLIST= BUS_ADDRESS_WIDTH NADDR NPIC NSCOPES PIC.MAX REGS.N ID
 @DEFAULT.BUS=wb
-@$RESET_ADDRESS=@$flash.BASE
-@RESET_ADDRESS.FORMAT=32'h%08x
+@REGISTER.BUS=wbu
 @VERILATOR_PREFIX=v
 @REGDEFS.H.INSERT=
 typedef	struct {

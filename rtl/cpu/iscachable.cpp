@@ -55,7 +55,7 @@ module iscachable(i_addr, o_cachable);
 		// bkram
 		if ((i_addr[22:0] & 23'h780000) == 23'h380000)
 			o_cachable = 1'b1;
-		// nflash
+		// flash
 		if ((i_addr[22:0] & 23'h400000) == 23'h400000)
 			o_cachable = 1'b1;
 	end

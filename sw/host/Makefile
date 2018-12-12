@@ -42,8 +42,9 @@ SCOPES :=
 all: $(PROGRAMS) $(SCOPES)
 CXX := g++
 OBJDIR := obj-pc
+FLASHDRVR := nflashdrvr
 BUSSRCS := ttybus.cpp llcomms.cpp regdefs.cpp byteswap.cpp
-SOURCES := wbregs.cpp netuart.cpp flashdrvr.cpp		\
+SOURCES := wbregs.cpp netuart.cpp $(FLASHDRVR).cpp		\
 	 $(BUSSRCS) zipload.cpp zipstate.cpp zipdbg.cpp
 	# netsetup.cpp manping.cpp wbsettime.cpp
 HEADERS := llcomms.h port.h ttybus.h devbus.h
@@ -86,9 +87,9 @@ dumpflash: $(OBJDIR)/dumpflash.o $(BUSOBJS)
 #
 # Programs that depend upon not just the bus objects, but the flash driver
 # as well.
-wbprogram: $(OBJDIR)/wbprogram.o $(OBJDIR)/flashdrvr.o $(BUSOBJS)
+wbprogram: $(OBJDIR)/wbprogram.o $(OBJDIR)/$(FLASHDRVR).o $(BUSOBJS)
 	$(CXX) -g $^ -o $@
-zipload: $(OBJDIR)/zipload.o $(OBJDIR)/flashdrvr.o $(BUSOBJS) $(OBJDIR)/zipelf.o
+zipload: $(OBJDIR)/zipload.o $(OBJDIR)/$(FLASHDRVR).o $(BUSOBJS) $(OBJDIR)/zipelf.o
 	$(CXX) -g $^ -lelf -o $@
 
 
@@ -110,7 +111,7 @@ endef
 define	build-depends
 	@echo "Building dependency file(s)"
 	$(mk-objdir)
-	$(CXX) $(CPPFLAGS) -MM $(SOURCES) > $(OBJDIR)/xdepends.txt
+	$(CXX) $(CFLAGS) -MM $(SOURCES) > $(OBJDIR)/xdepends.txt
 	@sed -e 's/^.*.o: /$(OBJDIR)\/&/' < $(OBJDIR)/xdepends.txt > $(OBJDIR)/depends.txt
 	@rm $(OBJDIR)/xdepends.txt
 endef
@@ -126,4 +127,6 @@ depends: tags
 $(OBJDIR)/depends.txt: $(SOURCES) $(HEADERS)
 	$(build-depends)
 
+ifneq ($(MAKECMDGOALS),clean)
 -include $(OBJDIR)/depends.txt
+endif

@@ -158,7 +158,7 @@ typedef	struct @$(DEVID)_S {
 @SIM.DEFNS=
 #ifdef	SDSPI_ACCESS
 	SDSPISIM	m_sdcard;
-#endif
+#endif // @$(ACCESS)
 @SIM.INIT=
 #ifdef	@$(ACCESS)
 		m_sdcard.debug(false);
@@ -168,7 +168,7 @@ typedef	struct @$(DEVID)_S {
 	void	setsdcard(const char *fn) {
 		m_sdcard.load(fn);
 	}
-#endif
+#endif // @$(ACCESS)
 @SIM.TICK=
 #ifdef	@$(ACCESS)
 		m_core->i_sd_data = m_sdcard((m_core->o_sd_data&8)?1:0,

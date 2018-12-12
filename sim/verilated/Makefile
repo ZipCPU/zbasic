@@ -57,11 +57,11 @@ CFLAGS	:= -Og -g -Wall $(INCS)
 #
 # A list of our sources and headers
 #
-SIMSOURCES:= qspiflashsim.cpp sdspisim.cpp dbluartsim.cpp zipelf.cpp byteswap.cpp
+SIMSOURCES:= flashsim.cpp sdspisim.cpp dbluartsim.cpp zipelf.cpp byteswap.cpp
 SIMOBJECTS:= $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(SIMSOURCES)))
 SIMHEADERS:= $(foreach header,$(subst .cpp,.h,$(SIMSOURCES)),$(wildcard $(header)))
 VOBJS   := $(OBJDIR)/verilated.o $(OBJDIR)/verilated_vcd_c.o
-SIMOBJ := $(subst .cpp,.o,$(SIMSRCS))
+SIMOBJ := $(subst .cpp,.o,$(SIMSOURCES))
 SIMOBJS:= $(addprefix $(OBJDIR)/,$(SIMOBJ)) $(VOBJS)
 
 SOURCES := $(SIMSOURCES) main_tb.cpp automaster_tb.cpp
@@ -137,4 +137,6 @@ tags:	$(SOURCES) $(HEADERS)
 	@ctags $(SOURCES) $(HEADERS)
 
 
+ifneq ($(MAKECMDGOALS),clean)
 -include $(OBJDIR)/depends.txt
+endif

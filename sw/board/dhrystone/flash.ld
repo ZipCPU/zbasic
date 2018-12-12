@@ -90,4 +90,3 @@ SECTIONS
 		} > bkram
 	_top_of_heap = .;
 }
-
