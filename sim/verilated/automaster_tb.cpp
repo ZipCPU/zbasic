@@ -118,27 +118,8 @@ int	main(int argc, char **argv) {
 		}
 	}
 
-	if (elfload) {
-		/*
-		if (serial_port < 0)
-			serial_port = 0;
-		if (copy_comms_to_stdout < 0)
-			copy_comms_to_stdout = 0;
-		tb = new TESTBENCH(fpga_port, serial_port,
-			(copy_comms_to_stdout)?true:false, debug_flag);
-		*/
+	if (elfload)
 		willexit = true;
-	} else {
-		/*
-		if (serial_port < 0)
-			serial_port = -serial_port;
-		if (copy_comms_to_stdout < 0)
-			copy_comms_to_stdout = 1;
-		tb = new TESTBENCH(fpga_port, serial_port,
-			(copy_comms_to_stdout)?true:false, debug_flag);
-		*/
-	}
-
 	if (debug_flag) {
 		printf("Opening design with\n");
 		printf("\tDebug Access port = %d\n", FPGAPORT); // fpga_port);
@@ -158,7 +139,8 @@ int	main(int argc, char **argv) {
 	if (profile_file) {
 		profile_fp = fopen(profile_file, "w");
 		if (profile_fp == NULL) {
-			fprintf(stderr, "ERR: Cannot open profile output file, %s\n", profile_file);
+			fprintf(stderr, "ERR: Cannot open profile output "
+				"file, %s\n", profile_file);
 			exit(EXIT_FAILURE);
 		}
 	} else
@@ -171,7 +153,8 @@ int	main(int argc, char **argv) {
 #endif
 
 	if (elfload) {
-		fprintf(stderr, "WARNING: Elf loading currently only works for programs starting at the reset address\n");
+		fprintf(stderr, "WARNING: Elf loading currently only "
+			"works for programs starting at the reset address\n");
 		tb->loadelf(elfload);
 
 		tb->m_core->cpu_cmd_halt = 0;
