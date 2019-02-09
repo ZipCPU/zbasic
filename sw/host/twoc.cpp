@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015, Gisselquist Technology, LLC
+// Copyright (C) 2015-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -47,6 +47,10 @@ long	sbits(const long val, const int bits) {
 	if (r & (1l << (bits-1)))
 		r |= (-1l << bits);
 	return r;
+}
+
+bool	sfits(const long val, const int bits) {
+	return (sbits(val, bits) == bits);
 }
 
 unsigned long	ubits(const long val, const int bits) {

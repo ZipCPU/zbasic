@@ -12,14 +12,14 @@
 // WARNING: Race conditions exist when updating the date across the Wishbone
 //	bus at or near midnight.  (This should be obvious, but it bears
 //	stating.)  Specifically, if the update command shows up at the same
-//	clock as the ppd clock, then the ppd clock will be ignored and the 
+//	clock as the ppd clock, then the ppd clock will be ignored and the
 //	new date will be the date of the day following midnight.  However,
 // 	if the update command shows up one clock before the ppd, then the date
 //	may be updated, but may have problems dealing with the last day of the
 //	month or year.  To avoid race conditions, update the date sometime
 //	after the stroke of midnight and before 5 clocks before the next
-// 	midnight.  If you are concerned that you might hit a race condition, 
-//	just read the clock again (5+ clocks later) to make certain you set 
+// 	midnight.  If you are concerned that you might hit a race condition,
+//	just read the clock again (5+ clocks later) to make certain you set
 //	it correctly.
 //
 //
@@ -28,7 +28,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -56,6 +56,7 @@
 //
 module rtcdate(i_clk, i_ppd, i_wb_cyc_stb, i_wb_we, i_wb_data, i_wb_sel,
 		o_wb_ack, o_wb_stall, o_wb_data);
+	parameter [0:0]		F_OPT_CLK2FFLOGIC = 1'b0;
 	input	wire		i_clk;
 	// A one part per day signal, i.e. basically a clock enable line that
 	// controls when the beginning of the day happens.  This line should
@@ -181,7 +182,7 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc_stb, i_wb_we, i_wb_data, i_wb_sel,
 			next_mon[4] <= 1;
 		end else
 			next_mon <= r_mon;
-		
+
 	initial	fixd_mon = 5'h01;
 	always @(posedge i_clk)
 		if ((r_mon == 0)||(r_mon > 5'h12)||(r_mon[3:0] > 4'h9))
@@ -219,7 +220,7 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc_stb, i_wb_we, i_wb_data, i_wb_sel,
 					: (r_year[11: 8]);
 		next_year[13:12] <= (next_year_c[2])?(r_year[13:12]+2'h1):r_year[13:12];
 
-		
+
 		if ((i_wb_cyc_stb)&&(i_wb_we)&&(!i_wb_data[31])
 				&&(i_wb_sel[3:2]==2'b11))
 			next_year_c <= 3'h0;
@@ -277,22 +278,26 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc_stb, i_wb_we, i_wb_data, i_wb_sel,
 	initial	assume(!i_wb_we);
 	initial	assume(!i_wb_sel);
 	initial	`ASSUME(!i_ppd);
-	always @($global_clock)
-	if (!$rose(i_clk))
-	begin
-		`ASSUME($stable(i_ppd));
-		`ASSUME($stable(i_wb_cyc_stb));
-		`ASSUME($stable(i_wb_we));
-		`ASSUME($stable(i_wb_data));
-		`ASSUME($stable(i_wb_sel));
 
-		if (f_past_valid)
+	generate if (F_OPT_CLK2FFLOGIC)
+	begin
+		always @($global_clock)
+		if (!$rose(i_clk))
 		begin
-			assert($stable(o_wb_ack));
-			assert($stable(o_wb_stall));
-			assert($stable(o_wb_data));
+			`ASSUME($stable(i_ppd));
+			`ASSUME($stable(i_wb_cyc_stb));
+			`ASSUME($stable(i_wb_we));
+			`ASSUME($stable(i_wb_data));
+			`ASSUME($stable(i_wb_sel));
+
+			if (f_past_valid)
+			begin
+				assert($stable(o_wb_ack));
+				assert($stable(o_wb_stall));
+				assert($stable(o_wb_data));
+			end
 		end
-	end
+	end endgenerate
 
 	always @(posedge i_clk)
 		if (f_past_valid)

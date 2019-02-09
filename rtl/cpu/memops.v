@@ -6,7 +6,7 @@
 //
 // Purpose:	A memory unit to support a CPU.
 //
-//	In the interests of code simplicity, this memory operator is 
+//	In the interests of code simplicity, this memory operator is
 //	susceptible to unknown results should a new command be sent to it
 //	before it completes the last one.  Unpredictable results might then
 //	occurr.
@@ -19,7 +19,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015,2017-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015,2017-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -58,7 +58,6 @@ module	memops(i_clk, i_reset, i_stb, i_lock,
 			WITH_LOCAL_BUS=1'b1,
 			OPT_ALIGNMENT_ERR=1'b1,
 			OPT_ZERO_ON_IDLE=1'b0;
-	parameter [0:0]	F_OPT_CLK2FFLOGIC = 1'b0;
 	localparam	AW=ADDRESS_WIDTH;
 	input	wire		i_clk, i_reset;
 	input	wire		i_stb, i_lock;
@@ -112,22 +111,22 @@ module	memops(i_clk, i_reset, i_stb, i_lock,
 	initial	r_wb_cyc_gbl = 1'b0;
 	initial	r_wb_cyc_lcl = 1'b0;
 	always @(posedge i_clk)
-		if (i_reset)
+	if (i_reset)
+	begin
+		r_wb_cyc_gbl <= 1'b0;
+		r_wb_cyc_lcl <= 1'b0;
+	end else if ((r_wb_cyc_gbl)||(r_wb_cyc_lcl))
+	begin
+		if ((i_wb_ack)||(i_wb_err))
 		begin
 			r_wb_cyc_gbl <= 1'b0;
 			r_wb_cyc_lcl <= 1'b0;
-		end else if ((r_wb_cyc_gbl)||(r_wb_cyc_lcl))
-		begin
-			if ((i_wb_ack)||(i_wb_err))
-			begin
-				r_wb_cyc_gbl <= 1'b0;
-				r_wb_cyc_lcl <= 1'b0;
-			end
-		end else begin // New memory operation
-			// Grab the wishbone
-			r_wb_cyc_lcl <= (lcl_stb);
-			r_wb_cyc_gbl <= (gbl_stb);
 		end
+	end else begin // New memory operation
+		// Grab the wishbone
+		r_wb_cyc_lcl <= (lcl_stb);
+		r_wb_cyc_gbl <= (gbl_stb);
+	end
 	initial	o_wb_stb_gbl = 1'b0;
 	always @(posedge i_clk)
 	if (i_reset)

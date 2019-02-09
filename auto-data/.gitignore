@@ -1,5 +1,6 @@
 board.h
 board.ld
+bkram.ld
 build.xdc
 main.v
 regdefs.h
@@ -9,3 +10,4 @@ testb.h
 toplevel.v
 main_tb.cpp
 iscachable.v
+autofpga.dbg

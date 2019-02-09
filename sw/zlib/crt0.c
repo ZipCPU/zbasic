@@ -289,7 +289,6 @@ void	_bootloader(void) {
 	// linker.
 	// 
 	// while(wrp < sdend)	// Could also be done this way ...
-	// asm("NSTR \"RAM-data\n\"\n");
 	for(int i=0; i< ramend - _ram; i++)
 		*wrp++ = *rdp++;
 
@@ -299,12 +298,10 @@ void	_bootloader(void) {
 	// initialization is expected within it.  We start writing where
 	// the valid SDRAM context, i.e. the non-zero contents, end.
 	//
-	// asm("NSTR \"BSS\n\"\n");
 	for(int i=0; i<bsend - ramend; i++)
 		*wrp++ = 0;
 
 #endif
-	// asm("NSTR \"End of CRT0\n\"\n");
 }
 #endif
 

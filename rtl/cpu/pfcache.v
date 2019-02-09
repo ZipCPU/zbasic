@@ -35,7 +35,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -70,7 +70,6 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 		);
 	parameter	LGCACHELEN = 12, ADDRESS_WIDTH=30,
 			LGLINES=8; // Log of the number of separate cache lines
-	parameter [0:0]	F_OPT_CLK2FFLOGIC = 1'b0;
 	localparam	CACHELEN=(1<<LGCACHELEN); //Wrd Size of our cache memory
 	localparam	CW=LGCACHELEN;	// Short hand for LGCACHELEN
 	localparam	LS=LGCACHELEN-LGLINES; // Size of a cache line
@@ -134,7 +133,7 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 	reg	[(LGLINES-1):0]	saddr;
 
 	wire			w_advance;
-	assign	w_advance = (i_new_pc)||(((r_v)||(o_illegal))&&(i_stall_n));
+	assign	w_advance = (i_new_pc)||((r_v)&&(i_stall_n));
 
 	/////////////////////////////////////////////////
 	//
@@ -274,20 +273,31 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 			delay <= 2'h2;
 		else if (delay != 0)
 			delay <= delay + 2'b11; // i.e. delay -= 1;
-	end else if (o_illegal)
-		delay <= 2'h2;
+	end else begin
+		// After sourcing our output from i_pc, if it wasn't
+		// accepted, source the instruction from the lastpc valid
+		// determination instead
+		rvsrc <= 1'b0;
+		if (o_illegal)
+			delay <= 2'h2;
+	end
 
 	wire	w_invalidate_result;
 	assign	w_invalidate_result = (i_reset)||(i_clear_cache);
 
+	reg	r_prior_illegal;
+	initial	r_prior_illegal = 0;
 	initial	r_new_request = 0;
 	initial	r_v_from_pc = 0;
 	initial	r_v_from_last = 0;
 	always @(posedge i_clk)
 	begin
 		r_new_request <= w_invalidate_result;
-		r_v_from_pc   <= (w_v_from_pc)&&(!w_invalidate_result);
+		r_v_from_pc   <= (w_v_from_pc)&&(!w_invalidate_result)
+					&&(!o_illegal);
 		r_v_from_last <= (w_v_from_last)&&(!w_invalidate_result);
+
+		r_prior_illegal <= (o_wb_cyc)&&(i_wb_err);
 	end
 
 	// Now use rvsrc to determine which of the two valid flags we'll be
@@ -296,7 +306,7 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 	assign	r_v = ((rvsrc)?(r_v_from_pc):(r_v_from_last))&&(!r_new_request);
 	assign	o_valid = (((rvsrc)?(r_v_from_pc):(r_v_from_last))
 			||(o_illegal))
-			&&(!i_new_pc);
+			&&(!i_new_pc)&&(!r_prior_illegal);
 
 	/////////////////////////////////////////////////
 	//
@@ -478,16 +488,15 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 
 	initial o_illegal = 1'b0;
 	always @(posedge i_clk)
-	if ((i_reset)||(i_clear_cache)||((o_wb_cyc)&&(i_wb_err)))
+	if ((i_reset)||(i_clear_cache)||(i_new_pc))
 		o_illegal <= 1'b0;
-	else if (w_advance)
-		o_illegal <= (illegal_valid)
-			&&(illegal_cache == i_pc[(AW+1):LS+2]);
+	else if ((o_illegal)||((o_valid)&&(i_stall_n)))
+		o_illegal <= 1'b0;
 	else
 		o_illegal <= (illegal_valid)
 			&&(illegal_cache == lastpc[(AW+1):LS+2]);
 
 `ifdef	FORMAL
-// Formal verification properties would go here
+// Formal properties for this module are maintained elsewhere
 `endif	// FORMAL
 endmodule

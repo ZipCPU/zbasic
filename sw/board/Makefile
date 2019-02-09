@@ -11,7 +11,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2015-2016, Gisselquist Technology, LLC
+## Copyright (C) 2016-2019, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -36,7 +36,7 @@
 ##
 ##
 .PHONY: all
-PROGRAMS := hello sdtest cputest
+PROGRAMS := hello sdtest cputest gpiotoggle
 all:	$(PROGRAMS)
 #
 #
@@ -51,12 +51,13 @@ SUBMAKE:= $(MAKE) --no-print-directory -C
 #
 #
 TTTT    := tttt
-SOURCES := hello.c sdtest.c cputest.c
+SOURCES := hello.c sdtest.c cputest.c gpiotoggle.c
 HEADERS :=
 DUMPRTL := -fdump-rtl-all
 DUMPTREE:= -fdump-tree-all
 LDSCRIPT:= board.ld
 LFLAGS  := -T $(LDSCRIPT) -L../zlib
+LBKRAM  := -T bkram.ld -L../zlib
 CFLAGS  := -O3 -I../zlib -I../../rtl
 LIBS    := -lc -lzbasic -lgcc
 INSTALLD=/home/dan/work/rnd/zipcpu/sw/install
@@ -65,6 +66,7 @@ ZLIBD=../zlib
 LIB=$(ZLIBD)/libzbasic.a $(NLIBD)/libg.a $(NLIBD)/libc.a
 #
 # For source analysis, the following macros are defined:
+#
 
 %.o: $(OBJDIR)/%.o
 $(OBJDIR)/%.o: %.c
@@ -100,11 +102,16 @@ $(OBJDIR)/hello.o: hello.c
 	$(CC) -O3 -c $< -o $@
 $(OBJDIR)/gettysburg.o: gettysburg.c
 	$(CC) -O3 -c $< -o $@
+$(OBJDIR)/gpiotoggle.o: gpiotoggle.c
+#	$(CC) -O3 -c $< -o $@
 
 hello: $(OBJDIR)/hello.o board.ld
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
 
 sdtest: $(OBJDIR)/sdtest.o board.ld
+	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
+
+gpiotoggle: $(OBJDIR)/gpiotoggle.o bkram.ld
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
 
 .PHONY: iftttt
@@ -127,7 +134,7 @@ tttt:
 
 
 define	mk-objdir
-	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi"
+	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR)/; fi"
 endef
 
 define	build-depends
@@ -159,4 +166,6 @@ ifneq (,$(wildcard tttt/))
 	$(SUBMAKE) tttt/src ARCH=zip CROSS=zip- clean
 endif
 
+ifneq ($(MAKECMDGOALS),clean)
 -include $(OBJDIR)/depends.txt
+endif

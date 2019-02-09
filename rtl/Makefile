@@ -14,7 +14,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2015-2017, Gisselquist Technology, LLC
+## Copyright (C) 2015-2018, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -44,13 +44,13 @@ CXX   := g++
 FBDIR := .
 VDIRFB:= $(FBDIR)/obj_dir
 VOBJ := obj_dir
-SUBMAKE := $(MAKE) --no-print-directory --directory=$(VOBJ) -f
+SUBMAKE := $(MAKE) --no-print-directory -C $(VOBJ) -f
 ifeq ($(VERILATOR_ROOT),)
 VERILATOR := verilator
 else
 VERILATOR := $(VERILATOR_ROOT)/bin/verilator
 endif
-VFLAGS     = -MMD -O3 -Wall -trace -Mdir $(VDIRFB) $(AUTOVDIRS) -cc
+VFLAGS = -Wall --MMD -O3 --trace -Mdir $(VDIRFB) $(AUTOVDIRS) -cc
 
 -include make.inc
 
@@ -99,11 +99,16 @@ design.h: main.v
 	@echo "#ifndef DESIGN_H" >> $@
 	@echo "#define DESIGN_H" >> $@
 	@echo >> $@
-	@grep "^\`" $< | grep -v default_nettype | grep -v include | sed -e '{ s/^`/#/ }' | sed -e ' s/main.v/design.h/' | grep -v timescale >> $@
+	@grep "^\`" $< | grep -v default_nettype		\
+		| grep -v include				\
+		| grep -v timescale				\
+		| sed -e '{ s/^`/#/ }'				\
+		| sed -e ' s/^#elsif/#elif/'			\
+		| sed -e ' s/main.v/design.h/' >> $@
 	@echo >> $@
 	@echo "#endif // DESIGN_H" >> $@
 
-$(VDIRFB)/V%__ALL.a: $(VDIRFB)/V%.mk
+$(VOBJ)/V%__ALL.a: $(VOBJ)/V%.mk
 	$(SUBMAKE) V$*.mk
 
 .PHONY:
@@ -118,11 +123,12 @@ clean:
 	rm -rf $(VDIRFB)/
 	rm -rf design.h cpudefs.h
 
+#
+# Note Verilator's dependency created information, and include it here if we
+# can
 DEPS := $(wildcard $(VDIRFB)/*.d)
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(DEPS),)
 include $(DEPS)
 endif
 endif
-
-include make.inc

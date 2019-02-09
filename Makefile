@@ -117,7 +117,7 @@ archive:
 #
 .PHONY: autodata
 autodata: check-autofpga
-	$(MAKE) --no-print-directory --directory=auto-data
+	$(SUBMAKE) auto-data
 	$(call copyif-changed,auto-data/toplevel.v,rtl/toplevel.v)
 	$(call copyif-changed,auto-data/main.v,rtl/main.v)
 	$(call copyif-changed,auto-data/iscachable.v,rtl/cpu/iscachable.cpp)
@@ -125,6 +125,7 @@ autodata: check-autofpga
 	$(call copyif-changed,auto-data/regdefs.cpp,sw/host/regdefs.cpp)
 	$(call copyif-changed,auto-data/board.h,sw/zlib/board.h)
 	$(call copyif-changed,auto-data/board.ld,sw/board/board.ld)
+	$(call copyif-changed,auto-data/bkram.ld,sw/board/bkram.ld)
 	$(call copyif-changed,auto-data/rtl.make.inc,rtl/make.inc)
 	$(call copyif-changed,auto-data/testb.h,sim/verilated/testb.h)
 	$(call copyif-changed,auto-data/main_tb.cpp,sim/verilated/main_tb.cpp)

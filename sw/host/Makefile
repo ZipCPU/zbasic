@@ -12,7 +12,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2015-2017, Gisselquist Technology, LLC
+## Copyright (C) 2015-2018, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -42,7 +42,7 @@ SCOPES :=
 all: $(PROGRAMS) $(SCOPES)
 CXX := g++
 OBJDIR := obj-pc
-FLASHDRVR := nflashdrvr
+FLASHDRVR := flashdrvr
 BUSSRCS := ttybus.cpp llcomms.cpp regdefs.cpp byteswap.cpp
 SOURCES := wbregs.cpp netuart.cpp $(FLASHDRVR).cpp		\
 	 $(BUSSRCS) zipload.cpp zipstate.cpp zipdbg.cpp

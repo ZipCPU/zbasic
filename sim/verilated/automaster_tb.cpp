@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -72,6 +72,11 @@ void	usage(void) {
 }
 
 int	main(int argc, char **argv) {
+#ifdef	OLED_ACCESS
+	Gtk::Main	main_instance(argc, argv);
+#endif
+	Verilated::commandArgs(argc, argv);
+
 	const	char *elfload = NULL,
 #ifdef	SDSPI_ACCESS
 			*sdimage_file = NULL,
@@ -81,10 +86,6 @@ int	main(int argc, char **argv) {
 	bool	debug_flag = false, willexit = false;
 	FILE	*profile_fp;
 
-#ifdef	OLEDSIM_H
-	Gtk::Main	main_instance(argc, argv);
-#endif
-	Verilated::commandArgs(argc, argv);
 	MAINTB	*tb = new MAINTB;
 
 	for(int argn=1; argn < argc; argn++) {
@@ -109,8 +110,10 @@ int	main(int argc, char **argv) {
 			}
 		} else if (iself(argv[argn])) {
 			elfload = argv[argn];
+#ifdef	SDSPI_ACCESS
 		} else if (0 == access(argv[argn], R_OK)) {
 			sdimage_file = argv[argn];
+#endif
 		} else {
 			fprintf(stderr, "ERR: Cannot read %s\n", argv[argn]);
 			perror("O/S Err:");
@@ -124,12 +127,6 @@ int	main(int argc, char **argv) {
 		printf("Opening design with\n");
 		printf("\tDebug Access port = %d\n", FPGAPORT); // fpga_port);
 		printf("\tSerial Console    = %d\n", FPGAPORT+1);
-		/*
-		printf("\tDebug comms will%s be copied to the standard output%s.",
-			(copy_comms_to_stdout)?"":" not",
-			((copy_comms_to_stdout)&&(serial_port == 0))
-			? " as well":"");
-		*/
 		printf("\tVCD File         = %s\n", trace_file);
 		if (elfload)
 			printf("\tELF File         = %s\n", elfload);
@@ -137,6 +134,10 @@ int	main(int argc, char **argv) {
 		tb->opentrace(trace_file);
 
 	if (profile_file) {
+#ifndef	INCLUDE_ZIPCPU
+		fprintf(stderr, "ERR: Design has no ZipCPU\n");
+		exit(EXIT_FAILURE);
+#endif
 		profile_fp = fopen(profile_file, "w");
 		if (profile_fp == NULL) {
 			fprintf(stderr, "ERR: Cannot open profile output "
@@ -153,14 +154,38 @@ int	main(int argc, char **argv) {
 #endif
 
 	if (elfload) {
-		fprintf(stderr, "WARNING: Elf loading currently only "
-			"works for programs starting at the reset address\n");
+#ifndef	INCLUDE_ZIPCPU
+		fprintf(stderr, "ERR: Design has no ZipCPU\n");
+		exit(EXIT_FAILURE);
+#endif
 		tb->loadelf(elfload);
 
+		ELFSECTION	**secpp;
+		uint32_t	entry;
+
+		elfread(elfload, entry, secpp);
+		free(secpp);
+
+		printf("Attempting to start from 0x%08x\n", entry);
+		tb->m_core->cpu_ipc = entry;
+
+		tb->m_core->cpu_cmd_halt = 0;
+		tb->m_core->cpu_reset    = 0;
+		tb->tick();
+
+		tb->m_core->cpu_ipc = entry;
+		tb->m_core->cpu_new_pc   = 1;
+		tb->m_core->cpu_pf_pc    = entry;
+		tb->m_core->cpu_cmd_halt = 0;
+		tb->m_core->cpu_reset    = 0;
+		tb->tick();
 		tb->m_core->cpu_cmd_halt = 0;
 		tb->m_core->VVAR(_swic__DOT__cmd_reset) = 0;
 	}
 
+#ifdef	OLED_ACCESS
+	Gtk::Main::run(tb->m_oled);
+#else
 	if (profile_fp) {
 		unsigned long	last_instruction_tick = 0, now = 0;
 		while((!willexit)||(!tb->done())) {
@@ -188,10 +213,10 @@ int	main(int argc, char **argv) {
 	} else
 		while(true)
 			tb->tick();
+#endif
 
 	tb->close();
 	delete tb;
 
 	return	EXIT_SUCCESS;
 }
-

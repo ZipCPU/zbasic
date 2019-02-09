@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	rtclight.v
-//		
+//
 // Project:	A Wishbone Controlled Real--time Clock Core
 //
 // Purpose:	Implement a real time clock, including alarm, count--down
@@ -18,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015,2017, Gisselquist Technology, LLC
+// Copyright (C) 2015,2017-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -44,37 +44,76 @@
 //
 `default_nettype	none
 //
-module	rtclight(i_clk, 
+module	rtclight(i_clk, i_reset,
 		// Wishbone interface
-		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
-		//	o_wb_ack, o_wb_stb, o_wb_data, // no reads here
-		// // Button inputs
-		// i_btn,
-		// Output registers
-		o_data, // multiplexed based upon i_wb_addr
+		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel,
+			o_wb_stall, o_wb_ack, o_wb_data,
 		// Output controls
 		o_interrupt,
 		// A once-per-day strobe on the last clock of the day
 		o_ppd);
 	parameter	DEFAULT_SPEED = 32'd2814750;	// 100 Mhz
-	input	wire		i_clk;
+	parameter	[0:0]	OPT_TIMER       = 1'b1;
+	parameter	[0:0]	OPT_STOPWATCH   = 1'b1;
+	parameter	[0:0]	OPT_ALARM       = 1'b1;
+	parameter	[0:0]	OPT_FIXED_SPEED = 1'b1;
+
+	input	wire		i_clk, i_reset;
+	//
 	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
 	input	wire	[2:0]	i_wb_addr;
 	input	wire	[31:0]	i_wb_data;
+	input	wire	[3:0]	i_wb_sel;
 	// input		i_btn;
-	output	reg	[31:0]	o_data;
+	output	wire		o_wb_stall;
+	output	reg		o_wb_ack;
+	output	reg	[31:0]	o_wb_data;
 	output	wire		o_interrupt, o_ppd;
 
-	reg	[21:0]	clock;
-	reg	[31:0]	stopwatch, ckspeed;
-	reg	[25:0]	timer;
-	
-	wire	ck_sel, tm_sel, sw_sel, sp_sel, al_sel;
-	assign	ck_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b000));
-	assign	tm_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b001));
-	assign	sw_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b010));
-	assign	al_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b011));
-	assign	sp_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
+	reg	[31:0]	ckspeed;
+
+	wire	[21:0]	clock_data;
+	wire	[31:0]	timer_data, alarm_data;
+	wire	[30:0]	stopwatch_data;
+	wire		sw_running;
+
+	reg	ck_wr, tm_wr, sw_wr, al_wr, wr_zero;
+	reg	[31:0]	wr_data;
+	reg	[3:3]	wr_sel;
+	reg	[2:0]	wr_valid;
+
+	initial	ck_wr = 1'b0;
+	initial	tm_wr = 1'b0;
+	initial	sw_wr = 1'b0;
+	initial	al_wr = 1'b0;
+	always @(posedge i_clk)
+	if (i_reset)
+	begin
+		ck_wr <= 1'b0;
+		tm_wr <= 1'b0;
+		sw_wr <= 1'b0;
+		al_wr <= 1'b0;
+	end else begin
+		ck_wr <= ((i_wb_stb)&&(i_wb_addr==3'b000)&&(i_wb_we));
+		tm_wr <= ((i_wb_stb)&&(i_wb_addr==3'b001)&&(i_wb_we));
+		sw_wr <= ((i_wb_stb)&&(i_wb_addr==3'b010)&&(i_wb_we));
+		al_wr <= ((i_wb_stb)&&(i_wb_addr==3'b011)&&(i_wb_we));
+	end
+
+	always @(posedge i_clk)
+	begin
+		wr_data <= i_wb_data;
+		wr_sel[3]   <= i_wb_sel[3];
+		wr_valid[0] <= (i_wb_sel[0])&&(i_wb_data[3:0] <= 4'h9)
+				&&(i_wb_data[7:4] <= 4'h5);
+		wr_valid[1] <= (i_wb_sel[1])&&(i_wb_data[11:8] <= 4'h9)
+				&&(i_wb_data[15:12] <= 4'h5);
+		wr_valid[2] <= (i_wb_sel[2])&&(i_wb_data[19:16] <= 4'h9)
+				&&(i_wb_data[21:16] <= 6'h23);
+		wr_zero     <= (i_wb_data[23:0]==0);
+	end
+
+	wire	tm_int, al_int;
 
 	reg		ck_carry;
 	reg	[39:0]	ck_counter;
@@ -83,307 +122,67 @@ module	rtclight(i_clk,
 	always @(posedge i_clk)
 		{ ck_carry, ck_counter } <= ck_counter + { 8'h00, ckspeed };
 
-	wire		ck_pps;
-	reg		ck_prepps, ck_ppm, ck_pph, ck_ppd;
+	wire		ck_pps, ck_ppd;
+	reg		ck_prepps;
 	reg	[7:0]	ck_sub;
-	initial	clock = 22'h00000;
 	assign	ck_pps = (ck_carry)&&(ck_prepps);
 	always @(posedge i_clk)
 	begin
 		if (ck_carry)
 			ck_sub <= ck_sub + 8'h1;
 		ck_prepps <= (ck_sub == 8'hff);
-
-		if (ck_pps)
-		begin // advance the seconds
-			if (clock[3:0] >= 4'h9)
-				clock[3:0] <= 4'h0;
-			else
-				clock[3:0] <= clock[3:0] + 4'h1;
-			if (clock[7:0] >= 8'h59)
-				clock[7:4] <= 4'h0;
-			else if (clock[3:0] >= 4'h9)
-				clock[7:4] <= clock[7:4] + 4'h1;
-		end
-		ck_ppm <= (clock[7:0] == 8'h59);
-
-		if ((ck_pps)&&(ck_ppm))
-		begin // advance the minutes
-			if (clock[11:8] >= 4'h9)
-				clock[11:8] <= 4'h0;
-			else
-				clock[11:8] <= clock[11:8] + 4'h1;
-			if (clock[15:8] >= 8'h59)
-				clock[15:12] <= 4'h0;
-			else if (clock[11:8] >= 4'h9)
-				clock[15:12] <= clock[15:12] + 4'h1;
-		end
-		ck_pph <= (clock[15:0] == 16'h5959);
-
-		if ((ck_pps)&&(ck_pph))
-		begin // advance the hours
-			if (clock[21:16] >= 6'h23)
-			begin
-				clock[19:16] <= 4'h0;
-				clock[21:20] <= 2'h0;
-			end else if (clock[19:16] >= 4'h9)
-			begin
-				clock[19:16] <= 4'h0;
-				clock[21:20] <= clock[21:20] + 2'h1;
-			end else begin
-				clock[19:16] <= clock[19:16] + 4'h1;
-			end
-		end
-		ck_ppd <= (clock[21:0] == 22'h235959);
-
-
-		if ((ck_sel)&&(i_wb_we))
-		begin
-			if (8'hff != i_wb_data[7:0])
-			begin
-				clock[7:0] <= i_wb_data[7:0];
-				ck_ppm <= (i_wb_data[7:0] == 8'h59);
-			end
-			if (8'hff != i_wb_data[15:8])
-			begin
-				clock[15:8] <= i_wb_data[15:8];
-				ck_pph <= (i_wb_data[15:8] == 8'h59);
-			end
-			if (6'h3f != i_wb_data[21:16])
-				clock[21:16] <= i_wb_data[21:16];
-			if (8'h00 == i_wb_data[7:0])
-				ck_sub <= 8'h00;
-		end
 	end
 
-	// Clock updates take several clocks, so let's make sure we
-	// are only looking at a valid clock value before testing it.
-	reg	[21:0]		ck_last_clock;
-	always @(posedge i_clk)
-		ck_last_clock <= clock[21:0];
-		
+	rtcbare	clock(i_clk, i_reset, ck_pps,
+			ck_wr, wr_data[21:0], wr_valid, clock_data, ck_ppd);
 
-	reg	tm_pps, tm_int;
-	wire	tm_stopped, tm_running, tm_alarm;
-	assign	tm_stopped = ~timer[24];
-	assign	tm_running =  timer[24];
-	assign	tm_alarm   =  timer[25];
-	reg	[23:0]		tm_start;
-	reg	[7:0]		tm_sub;
-	initial	tm_start = 24'h00;
-	initial	timer    = 26'h00;
-	initial	tm_int   = 1'b0;
-	initial	tm_pps   = 1'b0;
-	always @(posedge i_clk)
+	generate if (OPT_TIMER)
 	begin
-		if (ck_carry)
-		begin
-			tm_sub <= tm_sub + 8'h1;
-			tm_pps <= (tm_sub == 8'hff);
-		end else
-			tm_pps <= 1'b0;
-		
-		if ((~tm_alarm)&&(tm_running)&&(tm_pps))
-		begin // If we are running ...
-			timer[25] <= 1'b0;
-			if (timer[23:0] == 24'h00)
-				timer[25] <= 1'b1;
-			else if (timer[3:0] != 4'h0)
-				timer[3:0] <= timer[3:0]-4'h1;
-			else begin // last digit is a zero
-				timer[3:0] <= 4'h9;
-				if (timer[7:4] != 4'h0)
-					timer[7:4] <= timer[7:4]-4'h1;
-				else begin // last two digits are zero
-					timer[7:4] <= 4'h5;
-					if (timer[11:8] != 4'h0)
-						timer[11:8] <= timer[11:8]-4'h1;
-					else begin // last three digits are zero
-						timer[11:8] <= 4'h9;
-						if (timer[15:12] != 4'h0)
-							timer[15:12] <= timer[15:12]-4'h1;
-						else begin
-							timer[15:12] <= 4'h5;
-							if (timer[19:16] != 4'h0)
-								timer[19:16] <= timer[19:16]-4'h1;
-							else begin
-							//
-								timer[19:16] <= 4'h9;
-								timer[23:20] <= timer[23:20]-4'h1;
-							end
-						end
-					end
-				end
-			end
-		end
+		rtctimer #(.LGSUBCK(8))
+			timer(i_clk, i_reset, ck_carry,
+				tm_wr, wr_data[24:0],
+				wr_valid, wr_zero, timer_data, tm_int);
+	end else begin
+		assign	tm_int = 0;
+		assign	timer_data = 0;
+	end endgenerate
 
-		if((~tm_alarm)&&(tm_running))
-		begin
-			timer[25] <= (timer[23:0] == 24'h00);
-			tm_int <= (timer[23:0] == 24'h00);
-		end else tm_int <= 1'b0;
-		if (tm_alarm)
-			timer[24] <= 1'b0;
-
-		if ((tm_sel)&&(i_wb_we)&&(tm_running)) // Writes while running
-			// Only allowed to stop the timer, nothing more
-			timer[24] <= i_wb_data[24];
-		else if ((tm_sel)&&(i_wb_we)&&(tm_stopped)) // Writes while off
-		begin
-			timer[24] <= i_wb_data[24];
-			if ((timer[24])||(i_wb_data[24]))
-				timer[25] <= 1'b0;
-			if (i_wb_data[23:0] != 24'h0000)
-			begin
-				timer[23:0] <= i_wb_data[23:0];
-				tm_start <= i_wb_data[23:0];
-				tm_sub <= 8'h00;
-			end else if (timer[23:0] == 24'h00)
-			begin // Resetting timer to last valid timer start val
-				timer[23:0] <= tm_start;
-				tm_sub <= 8'h00;
-			end
-			// Any write clears the alarm
-			timer[25] <= 1'b0;
-		end
-	end
-
-	//
-	// Stopwatch functionality
-	//
-	// Setting bit '0' starts the stop watch, clearing it stops it.
-	// Writing to the register with bit '1' high will clear the stopwatch,
-	// and return it to zero provided that the stopwatch is stopped either
-	// before or after the write.  Hence, writing a '2' to the device
-	// will always stop and clear it, whereas writing a '3' to the device
-	// will only clear it if it was already stopped.
-	reg		sw_pps, sw_ppm, sw_pph;
-	reg	[7:0]	sw_sub;
-	wire	sw_running;
-	assign	sw_running = stopwatch[0];
-	initial	stopwatch = 32'h00000;
-	always @(posedge i_clk)
+	generate if (OPT_STOPWATCH)
 	begin
-		sw_pps <= 1'b0;
-		if (sw_running)
-		begin
-			if (ck_carry)
-			begin
-				sw_sub <= sw_sub + 8'h1;
-				sw_pps <= (sw_sub == 8'hff);
-			end
-		end
 
-		stopwatch[7:1] <= sw_sub[7:1];
+		rtcstopwatch rtcstop(i_clk, i_reset, ckspeed,
+			(sw_wr)&&(wr_sel[3])&&(!sw_running),
+			(sw_wr)&&(wr_sel[3])&&(sw_running),
+			stopwatch_data, sw_running);
 
-		if (sw_pps)
-		begin // Second hand
-			if (stopwatch[11:8] >= 4'h9)
-				stopwatch[11:8] <= 4'h0;
-			else
-				stopwatch[11:8] <= stopwatch[11:8] + 4'h1;
+	end else begin
 
-			if (stopwatch[15:8] >= 8'h59)
-				stopwatch[15:12] <= 4'h0;
-			else if (stopwatch[11:8] >= 4'h9)
-				stopwatch[15:12] <= stopwatch[15:12] + 4'h1;
-			sw_ppm <= (stopwatch[15:8] == 8'h59);
-		end else sw_ppm <= 1'b0;
+		assign stopwatch_data = 0;
+		assign sw_running = 0;
 
-		if (sw_ppm)
-		begin // Minutes
-			if (stopwatch[19:16] >= 4'h9)
-				stopwatch[19:16] <= 4'h0;
-			else
-				stopwatch[19:16] <= stopwatch[19:16]+4'h1;
+	end endgenerate
 
-			if (stopwatch[23:16] >= 8'h59)
-				stopwatch[23:20] <= 4'h0;
-			else if (stopwatch[19:16] >= 4'h9)
-				stopwatch[23:20] <= stopwatch[23:20]+4'h1;
-			sw_pph <= (stopwatch[23:16] == 8'h59);
-		end else sw_pph <= 1'b0;
-
-		if (sw_pph)
-		begin // And hours
-			if (stopwatch[27:24] >= 4'h9)
-				stopwatch[27:24] <= 4'h0;
-			else
-				stopwatch[27:24] <= stopwatch[27:24]+4'h1;
-
-			if((stopwatch[27:24] >= 4'h9)&&(stopwatch[31:28] < 4'hf))
-				stopwatch[31:28] <= stopwatch[27:24]+4'h1;
-		end
-
-		if ((sw_sel)&&(i_wb_we))
-		begin
-			stopwatch[0] <= i_wb_data[0];
-			if((i_wb_data[1])&&((~stopwatch[0])||(~i_wb_data[0])))
-			begin
-				stopwatch[31:1] <= 31'h00;
-				sw_sub <= 8'h00;
-				sw_pps <= 1'b0;
-				sw_ppm <= 1'b0;
-				sw_pph <= 1'b0;
-			end
-		end
-	end
-
-	//
-	// The alarm code
-	//
-	// Set the alarm register to the time you wish the board to "alarm".
-	// The "alarm" will take place once per day at that time.  At that
-	// time, the RTC code will generate a clock interrupt, and the CPU/host
-	// can come and see that the alarm tripped.
-	//
-	// 
-	reg	[21:0]		alarm_time;
-	reg			al_int,		// The alarm interrupt line
-				al_enabled,	// Whether the alarm is enabled
-				al_tripped;	// Whether the alarm has tripped
-	initial	al_enabled= 1'b0;
-	initial	al_tripped= 1'b0;
-	always @(posedge i_clk)
+	generate if (OPT_ALARM)
 	begin
-		if ((al_sel)&&(i_wb_we))
-		begin
-			// Only adjust the alarm hours if the requested hours
-			// are valid.  This allows writes to the register,
-			// without a prior read, to leave these configuration
-			// bits alone.
-			if (i_wb_data[21:16] != 6'h3f)
-				alarm_time[21:16] <= i_wb_data[21:16];
-			// Here's the same thing for the minutes: only adjust
-			// the alarm minutes if the new bits are not all 1's. 
-			if (i_wb_data[15:8] != 8'hff)
-				alarm_time[15:8] <= i_wb_data[15:8];
-			// Here's the same thing for the seconds: only adjust
-			// the alarm minutes if the new bits are not all 1's. 
-			if (i_wb_data[7:0] != 8'hff)
-				alarm_time[7:0] <= i_wb_data[7:0];
-			al_enabled <= i_wb_data[24];
-			// Reset the alarm if a '1' is written to the tripped
-			// register, or if the alarm is disabled.
-			if ((i_wb_data[25])||(~i_wb_data[24]))
-				al_tripped <= 1'b0;
-		end
 
-		al_int <= 1'b0;
-		if ((ck_last_clock != alarm_time)&&(clock[21:0] == alarm_time)
-			&&(al_enabled))
-		begin
-			al_tripped <= 1'b1;
-			al_int <= 1'b1;
-		end
-	end
+		rtcalarm alarm(i_clk, i_reset, clock_data[21:0],
+			al_wr, wr_data[25], wr_data[24], wr_data[21:0],
+				wr_valid[2:0],
+			alarm_data, al_int);
+
+	end else begin
+
+		assign	alarm_data = 0;
+		assign	al_int = 0;
+
+	end endgenerate
 
 	//
 	// The ckspeed register is equal to 2^48 divded by the number of
 	// clock ticks you expect per second.  Adjust high for a slower
 	// clock, lower for a faster clock.  In this fashion, a single
 	// real time clock RTL file can handle tracking the clock in any
-	// device.  Further, because this is only the lower 32 bits of a 
+	// device.  Further, because this is only the lower 32 bits of a
 	// 48 bit counter per seconds, the clock jitter is kept below
 	// 1 part in 65 thousand.
 	//
@@ -393,31 +192,63 @@ module	rtclight(i_clk,
 	// meaning that my verilator simulation is running about 300x slower
 	// than board time.
 	// initial	ckspeed = 32'd786432000;
-	always @(posedge i_clk)
-		if ((sp_sel)&&(i_wb_we))
-			ckspeed <= i_wb_data;
+	generate if (!OPT_FIXED_SPEED)
+	begin
+
+		wire		sp_sel;
+		assign	sp_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
+
+		always @(posedge i_clk)
+			if ((sp_sel)&&(i_wb_we))
+				ckspeed <= i_wb_data;
+
+	end endgenerate
 
 	assign	o_interrupt = tm_int || al_int;
 
 	// A once-per day strobe, on the last second of the day so that the
 	// the next clock is the first clock of the day.  This is useful for
 	// connecting this module to a year/month/date date/calendar module.
-	assign	o_ppd = (ck_ppd)&&(ck_pps);
+	assign	o_ppd = (ck_ppd);
+
+	assign	o_wb_stall = 1'b0;
+
+	initial	o_wb_ack = 0;
+	always @(posedge i_clk)
+	if (i_reset)
+		o_wb_ack <= 1'b0;
+	else
+		o_wb_ack <= i_wb_stb;
 
 	always @(posedge i_clk)
 		case(i_wb_addr[2:0])
-		3'b000: o_data <= { 10'h0, ck_last_clock };
-		3'b001: o_data <= { 6'h00, timer };
-		3'b010: o_data <= stopwatch;
-		3'b011: o_data <= { 6'h00, al_tripped, al_enabled, 2'b00, alarm_time };
-		3'b100: o_data <= ckspeed;
-		default: o_data <= 32'h000;
+		3'b000: o_wb_data <= { 10'h0, clock_data };
+		3'b001: o_wb_data <= timer_data;
+		3'b010: o_wb_data <= { sw_running, stopwatch_data };
+		3'b011: o_wb_data <= alarm_data;
+		3'b100: o_wb_data <= ckspeed;
+		default: o_wb_data <= 32'h000;
 		endcase
 
 	// Make verilator hapy
 	// verilator lint_off UNUSED
-	wire	unused;
-	assign	unused = i_wb_cyc;
+	wire	[6:0]	unused;
+	assign	unused = { i_wb_cyc, wr_data[31:26] };
 	// verilator lint_on UNUSED
 
+`ifdef	FORMAL
+//
+`ifdef	RTCLIGHT
+	`define	ASSUME	assume
+	`define	ASSERT	assert
+`else
+	`define ASSUME	assert
+	`define	ASSERT	assume
+`endif
+
+	always @(*)
+	if ((sp_sel)&&(i_wb_we))
+		`ASSUME(i_wb_data > 0);
+
+`endif
 endmodule

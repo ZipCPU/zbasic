@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -38,4 +38,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
-`define DATESTAMP 32'h20181212
+`ifndef	DATESTAMP
+`define DATESTAMP 32'h20190208
+`define BUILDTIME 32'h00112833
+`endif
+//

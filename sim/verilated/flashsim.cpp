@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015,2017-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015,2017-2019, Gisselquist Technology, LLC
 //
 // This file is part of the set of Wishbone controlled SPI flash controllers
 // project
@@ -76,7 +76,7 @@ static	const unsigned
 	// tSE    = 1500 * MILLISECONDS;
 
 FLASHSIM::FLASHSIM(const int lglen, bool debug) : m_debug(debug),
-			CKDELAY(1), RDDELAY(1) {
+			CKDELAY(0), RDDELAY(0) {
 	m_membytes = (1<<lglen);
 	m_memmask = (m_membytes - 1);
 	m_mem = new char[m_membytes];

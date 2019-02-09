@@ -28,7 +28,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -231,9 +231,6 @@
 //
 `define	OPT_DCACHE
 //
-//	DMIPS/MHZ w/ No cache/pipelined	0.211
-//	DMIPS/MHZ w/ Cache		0.195
-//	DMIPS/MHZ w/ Pipelined Bus	0.211
 //
 //
 // OPT_PIPELINED_BUS_ACCESS controls whether or not LOD/STO instructions
@@ -248,7 +245,7 @@
 // I recommend setting this flag, for performance reasons, especially if your
 // wishbone bus can handle pipelined bus accesses.
 //
-`define	OPT_PIPELINED_BUS_ACCESS
+// `define	OPT_PIPELINED_BUS_ACCESS
 //
 //
 //

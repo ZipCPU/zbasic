@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015, Gisselquist Technology, LLC
+// Copyright (C) 2015-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -42,6 +42,7 @@
 #define	TWOC_H
 
 extern	long	sbits(const long val, const int bits);
+extern	bool	sfits(const long val, const int bits);
 extern	unsigned long	ubits(const long val, const int bits);
 
 #endif

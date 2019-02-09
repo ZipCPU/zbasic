@@ -47,11 +47,20 @@ all:	data
 # of parts and pieces of our project that autofpga will copy/paste into our
 # main project files.
 #
-DATA := global.txt bkram.txt buserr.txt clock.txt			\
-	dlyarbiter.txt nflash.txt rtclight.txt	rtcdate.txt		\
-	pic.txt pwrcount.txt						\
-	version.txt busconsole.txt zipmaster.txt sdspi.txt
-	# hdmi.txt profile.txt
+BASE    := global.txt dlyarbiter.txt
+AUX     := version.txt buserr.txt pic.txt pwrcount.txt
+IO      := gpio.txt # spio.txt
+RTC     := rtclight.txt rtcdate.txt
+DBGBUS  := busconsole.txt
+MEMORY  := bkram.txt flash.txt # nflash.txt
+CPU     := zipmaster.txt
+NETWORK := # mdio.txt enet.txt
+SDCARD  := sdspi.txt
+SCOPES  := # flashscope.txt cpuscope.txt
+LDSCRIPT:= mem_flash_bkram.txt mem_bkram_only.txt
+DATA := clock.txt $(BASE) $(AUX) $(IO) $(RTC)			\
+	$(DBGBUS) $(MEMORY) $(CPU) $(NETWORK) $(SDCARD)			\
+	$(SCOPES) $(LDSCRIPT)
 
 AUTOFPGA := autofpga
 $(AUTOFPGA):
@@ -59,10 +68,6 @@ $(AUTOFPGA):
 .PHONY: data
 data: $(AUTOFPGA) $(DATA)
 	$(AUTOFPGA) -o . $(DATA)
-
-define	notify-on-change
-	@bash -c 'cmp $(1) $(2)/$(1); if [[ $$? != 0 ]]; then echo "Files $(1) and $(2)/$(1) differ"; fi'
-endef
 
 clean:
 	rm -f toplevel.v main.v regdefs.h regdefs.cpp board.h board.ld

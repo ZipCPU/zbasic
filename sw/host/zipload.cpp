@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -53,11 +53,11 @@
 #include "port.h"
 #include "llcomms.h"
 #include "ttybus.h"
+#include <design.h>
 #include "regdefs.h"
 #include "nflashdrvr.h"
 #include "zipelf.h"
 #include "byteswap.h"
-#include <design.h>
 
 FPGA	*m_fpga;
 
@@ -75,10 +75,16 @@ void	usage(void) {
 }
 
 int main(int argc, char **argv) {
+#ifndef	R_ZIPCTRL
+	fprintf(stderr, "This design doesn\'t seem to contain a ZipCPU\n");
+	return	EXIT_FAILURE;
+#else
 	int		skp=0;
 	bool		start_when_finished = false, verbose = false;
 	unsigned	entry = 0;
+#ifdef	FLASH_ACCESS
 	FLASHDRVR	*flash = NULL;
+#endif
 	const char	*bitfile = NULL, *altbitfile = NULL, *execfile = NULL;
 
 	if (argc < 2) {
@@ -160,11 +166,15 @@ int main(int argc, char **argv) {
 	}
 
 	const char *codef = (argc>0)?argv[0]:NULL;
+#ifdef	FLASH_ACCESS
 	char	*fbuf = new char[FLASHLEN];
 
 	// Set the flash buffer to all ones
 	memset(fbuf, -1, FLASHLEN);
+#endif
 
+	if (verbose)
+		fprintf(stderr, "ZipLoad: Verbose mode on\n");
 	FPGAOPEN(m_fpga);
 
 	// Make certain we can talk to the FPGA
@@ -196,6 +206,11 @@ int main(int argc, char **argv) {
 
 	if (codef) try {
 		ELFSECTION	**secpp = NULL, *secp;
+#ifdef	FLASH_ACCESS
+		unsigned	startaddr = RESET_ADDRESS;
+		unsigned	codelen = 0;
+#endif
+
 
 		if(iself(codef)) {
 			// zip-readelf will help with both of these ...
@@ -212,10 +227,10 @@ int main(int argc, char **argv) {
 			secp=  secpp[i];
 
 			// Make sure our section is either within block RAM
-#ifdef	BLKRAM_ACCESS
-			if ((secp->m_start >= BKMEMBASE)
+#ifdef	BKRAM_ACCESS
+			if ((secp->m_start >= BKRAMBASE)
 				&&(secp->m_start+secp->m_len
-						<= BKMEMBASE+BKMEMLEN))
+						<= BKRAMBASE+BKRAMLEN))
 				valid = true;
 #endif
 
@@ -241,7 +256,6 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		unsigned	startaddr = RESET_ADDRESS, codelen = 0;
 		for(int i=0; secpp[i]->m_len; i++) {
 			secp = secpp[i];
 
@@ -265,10 +279,10 @@ int main(int argc, char **argv) {
 			}
 #endif
 
-#ifdef	BLKRAM_ACCESS
-			if ((secp->m_start >= BKMEMBASE)
+#ifdef	BKRAM_ACCESS
+			if ((secp->m_start >= BKRAMBASE)
 				  &&(secp->m_start+secp->m_len
-						<= BKMEMBASE+BKMEMLEN)) {
+						<= BKRAMBASE+BKRAMLEN)) {
 				if (verbose)
 					printf("Writing to MEM: %08x-%08x\n",
 						secp->m_start,
@@ -353,5 +367,6 @@ int main(int argc, char **argv) {
 	if (m_fpga) delete	m_fpga;
 
 	return EXIT_SUCCESS;
+#endif
 }
 
