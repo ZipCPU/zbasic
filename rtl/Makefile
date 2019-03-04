@@ -54,6 +54,8 @@ VFLAGS = -Wall --MMD -O3 --trace -Mdir $(VDIRFB) $(AUTOVDIRS) -cc
 
 -include make.inc
 
+.DELETE_ON_ERROR:
+
 .PHONY: test auto-test
 test:	auto-test
 
