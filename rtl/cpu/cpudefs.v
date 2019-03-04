@@ -245,7 +245,7 @@
 // I recommend setting this flag, for performance reasons, especially if your
 // wishbone bus can handle pipelined bus accesses.
 //
-// `define	OPT_PIPELINED_BUS_ACCESS
+`define	OPT_PIPELINED_BUS_ACCESS
 //
 //
 //
