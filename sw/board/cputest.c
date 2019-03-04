@@ -1089,7 +1089,12 @@ asm("\n\t.text\nidle_task:\n\tWAIT\n\tBRA\tidle_task\n");
 __attribute__((noinline))
 void	txchr(char v) {
 #ifdef	_ZIP_HAS_WBUART
-	while(_uart->u_fifo & 0x010000)
+	while((_uart->u_fifo & 0x010000)==0)
+		;
+	uint8_t c = v;
+	_uart->u_tx = (unsigned)c;
+#elif defined(TXUART)
+	while((UARTTX & 0x0100)==0)
 		;
 	uint8_t c = v;
 	_uart->u_tx = (unsigned)c;

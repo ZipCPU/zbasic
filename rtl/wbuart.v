@@ -382,7 +382,7 @@ module	wbuart(i_clk, i_rst,
 	assign	wb_tx_data = { 16'h00, 
 				i_cts_n, txf_status[1:0], txf_err,
 				ck_uart, o_uart_tx, tx_break, (tx_busy|txf_status[0]),
-				(tx_busy|txf_status[0])?txf_wb_data:8'b00};
+				(tx_busy|tx_empty_n)?txf_wb_data:8'b00};
 
 	// Each of the FIFO's returns a 16 bit status value.  This value tells
 	// us both how big the FIFO is, as well as how much of the FIFO is in 

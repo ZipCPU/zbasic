@@ -121,11 +121,11 @@ _flash=ORIGIN(flash);
 @SIM.DEFNS+=
 #ifdef	@$(ACCESS)
 	FLASHSIM	*m_@$(MEM.NAME);
-#endif
+#endif // @$(ACCESS)
 @SIM.INIT+=
 #ifdef	@$(ACCESS)
 		m_@$(MEM.NAME) = new FLASHSIM(FLASHLGLEN);
-#endif
+#endif // @$(ACCESS)
 @SIM.TICK +=
 #ifdef	@$(ACCESS)
 		m_core->i_qspi_dat = m_@$(MEM.NAME)->simtick(m_core->o_qspi_cs_n,
@@ -133,13 +133,14 @@ _flash=ORIGIN(flash);
 			m_core->o_qspi_mod);
 #endif
 @SIM.LOAD +=
+#ifdef	@$(ACCESS)
 			m_@$(MEM.NAME)->load(start, &buf[offset], wlen);
-#
-#
-#
-#
-#
-# Now, the control interface
+#endif // @$(ACCESS)
+##
+##
+##
+##
+## Now the control interface
 @PREFIX= flctl
 @DEVID=FLASHCFG
 @NADDR= 1
@@ -151,15 +152,15 @@ _flash=ORIGIN(flash);
 @MAIN.INSERT=
 	// The Flash control interface result comes back together with the
 	// flash interface itself.  Hence, we always return zero here.
-	assign	flctl_ack   = 1'b0;
-	assign	flctl_stall = 1'b0;
-	assign	flctl_data  = 0;
+	assign	@$(PREFIX)_ack   = 1'b0;
+	assign	@$(PREFIX)_stall = 1'b0;
+	assign	@$(PREFIX)_data  = 0;
 @REGS.NOTE= // FLASH erase/program configuration registers
 @REGS.N= 1
 @REGS.0= 0 R_@$(DEVID) @$(DEVID) QSPIC
-@BDEF.DEFN=
 @REGDEFS.H.INSERT=
 // Flash control constants
+#define	QSPI_FLASH	// This core and hardware support a Quad SPI flash
 #define	SZPAGEB		256
 #define	PGLENB		256
 #define	SZPAGEW		64
@@ -174,6 +175,7 @@ _flash=ORIGIN(flash);
 
 @BDEF.IONAME= io_flctl
 @BDEF.OSDEF= _BOARD_HAS_@$(DEVID)
-@BDEF.OSVAL= static unsigned const *_flashctrl = ((unsigned *)@$(.REGBASE));
-@RTL.MAKE.GROUP= NFLASH
+@BDEF.IOTYPE=unsigned
+@BDEF.OSVAL=static volatile @$(BDEF.IOTYPE) * const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)(@$[0x%08x](REGBASE)));
+@RTL.MAKE.GROUP= FLASH
 @RTL.MAKE.FILES= qflexpress.v

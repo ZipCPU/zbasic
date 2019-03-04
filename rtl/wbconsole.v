@@ -243,7 +243,7 @@ module	wbconsole(i_clk, i_rst,
 	assign	wb_tx_data = { 16'h00, 
 				1'b0, txf_status[1:0], txf_err,
 				1'b0, o_uart_stb, 1'b0,
-				(i_uart_busy|tx_empty_n),
+				(i_uart_busy|tx_empty_n|i_uart_busy),
 				1'b0,(i_uart_busy|tx_empty_n)?txf_wb_data:7'h0};
 
 	// Each of the FIFO's returns a 16 bit status value.  This value tells

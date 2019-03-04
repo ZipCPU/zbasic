@@ -94,7 +94,7 @@ $(OBJDIR)/cputestcis.o: cputest.c
 $(OBJDIR)/cputest.s: cputest.c
 	$(CC) $(CFLAGS) -S -Wa,-cis -fno-builtin $< -o $@
 
-cputest: $(OBJDIR)/cputest.o board.ld
+cputest: $(OBJDIR)/cputest.o board.ld $(LIB)
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
 
 
@@ -105,13 +105,13 @@ $(OBJDIR)/gettysburg.o: gettysburg.c
 $(OBJDIR)/gpiotoggle.o: gpiotoggle.c
 #	$(CC) -O3 -c $< -o $@
 
-hello: $(OBJDIR)/hello.o board.ld
+hello: $(OBJDIR)/hello.o board.ld $(LIB)
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
 
-sdtest: $(OBJDIR)/sdtest.o board.ld
+sdtest: $(OBJDIR)/sdtest.o board.ld $(LIB)
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
 
-gpiotoggle: $(OBJDIR)/gpiotoggle.o bkram.ld
+gpiotoggle: $(OBJDIR)/gpiotoggle.o bkram.ld $(LIB)
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
 
 .PHONY: iftttt

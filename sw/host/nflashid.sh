@@ -3,7 +3,7 @@
 ./wbregs flashcfg 0x0001100	# Activate config mode
 ./wbregs flashcfg 0x00010ff	# Send 16(*4) bits of ones, break the mode
 ./wbregs flashcfg 0x00010ff
-./wbregs flashcfg 0x0001100
+./wbregs flashcfg 0x0001100	# Inactivate the port
 
 # echo READ-ID
 ./wbregs flashcfg 0x000109f	# Issue the read ID command
