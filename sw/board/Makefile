@@ -88,6 +88,7 @@ $(OBJDIR)/%.txt: $(OBJDIR)/%.o
 # RAM instead.
 #
 $(OBJDIR)/cputest.o: cputest.c
+	$(mk-objdir)
 	$(CC) $(CFLAGS) -c -Wa,-nocis -fno-builtin $< -o $@
 $(OBJDIR)/cputestcis.o: cputest.c
 	$(CC) $(CFLAGS) -c -Wa,-cis -fno-builtin $< -o $@

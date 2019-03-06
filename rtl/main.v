@@ -181,7 +181,7 @@ module	main(i_clk, i_reset,
 	input	wire		i_cpu_reset;
 	// Make Verilator happy ... defining bus wires for lots of components
 	// often ends up with unused wires lying around.  We'll turn off
-	// Verilator's lint warning here that checks for unused wires.
+	// Ver1lator's lint warning here that checks for unused wires.
 	// verilator lint_off UNUSED
 
 
@@ -494,17 +494,17 @@ module	main(i_clk, i_reset,
 			default: wb_many_ack <= (wb_cyc);
 		endcase
 
+	reg		r_wb_sio_ack;
+	reg	[31:0]	r_wb_sio_data;
+
 	assign	wb_sio_stall = 1'b0;
+
 	initial r_wb_sio_ack = 1'b0;
 	always	@(posedge i_clk)
 		r_wb_sio_ack <= (wb_stb)&&(wb_sio_sel);
 	assign	wb_sio_ack = r_wb_sio_ack;
-	reg	r_wb_sio_ack;
-	reg	[31:0]	r_wb_sio_data;
+
 	always	@(posedge i_clk)
-		// mask        = 00000007
-		// lgdw        = 2
-		// unused_lsbs = 0
 		casez( wb_addr[2:0] )
 			3'h0: r_wb_sio_data <= buildtime_data;
 			3'h1: r_wb_sio_data <= buserr_data;
@@ -516,6 +516,9 @@ module	main(i_clk, i_reset,
 		endcase
 	assign	wb_sio_data = r_wb_sio_data;
 
+	//
+	// No class DOUBLE peripherals on the "wb" bus
+	//
 	//
 	// Finally, determine what the response is from the wb bus
 	// bus
@@ -553,28 +556,48 @@ module	main(i_clk, i_reset,
 	// true.  Although we might choose to return zeros in that case, by
 	// returning something we can skimp a touch on the logic.
 	//
-	// Any peripheral component with a @SLAVE.TYPE value will be listed
-	// here.
+	// Any peripheral component with a @SLAVE.TYPE value of either OTHER
+	// or MEMORY will automatically be listed here.  In addition, the
+	// bus responses from @SLAVE.TYPE SINGLE (_sio_) and/or DOUBLE
+	// (_dio_) may also be listed here, depending upon components are
+	// connected to them.
 	//
-	always @(posedge i_clk)
-	begin
-		casez({		scope_sdcard_ack,
-				flctl_ack,
-				sdcard_ack,
-				uart_ack,
-				rtc_ack,
-				wb_sio_ack,
-				bkram_ack	})
-			7'b1??????: wb_idata <= scope_sdcard_data;
-			7'b01?????: wb_idata <= flctl_data;
-			7'b001????: wb_idata <= sdcard_data;
-			7'b0001???: wb_idata <= uart_data;
-			7'b00001??: wb_idata <= rtc_data;
-			7'b000001?: wb_idata <= wb_sio_data;
-			7'b0000001: wb_idata <= bkram_data;
-			default: wb_idata <= flash_data;
+	reg [2:0]	r_wb_bus_select;
+	always	@(posedge i_clk)
+	if (wb_stb && ! wb_stall)
+		casez(wb_addr[22:19])
+			// 01e00000 & 00200000, scope_sdcard
+			4'b0_001: r_wb_bus_select <= 3'd0;
+			// 01e00000 & 00400000, flctl
+			4'b0_010: r_wb_bus_select <= 3'd1;
+			// 01e00000 & 00600000, sdcard
+			4'b0_011: r_wb_bus_select <= 3'd2;
+			// 01e00000 & 00800000, uart
+			4'b0_100: r_wb_bus_select <= 3'd3;
+			// 01e00000 & 00a00000, rtc
+			4'b0_101: r_wb_bus_select <= 3'd4;
+			// 01e00000 & 00c00000, wb_sio
+			4'b0_110: r_wb_bus_select <= 3'd5;
+			// 01e00000 & 00e00000, bkram
+			4'b0_111: r_wb_bus_select <= 3'd6;
+			// 01000000 & 01000000, flash
+			4'b1_???: r_wb_bus_select <= 3'd7;
+			default: begin end
 		endcase
-	end
+
+	always @(posedge i_clk)
+	casez(r_wb_bus_select)
+		3'd0: wb_idata <= scope_sdcard_data;
+		3'd1: wb_idata <= flctl_data;
+		3'd2: wb_idata <= sdcard_data;
+		3'd3: wb_idata <= uart_data;
+		3'd4: wb_idata <= rtc_data;
+		3'd5: wb_idata <= wb_sio_data;
+		3'd6: wb_idata <= bkram_data;
+		3'd7: wb_idata <= flash_data;
+		default: wb_idata <= flash_data;
+	endcase
+
 	assign	wb_stall =	((scope_sdcard_sel)&&(scope_sdcard_stall))
 				||((flctl_sel)&&(flctl_stall))
 				||((sdcard_sel)&&(sdcard_stall))
@@ -629,6 +652,9 @@ module	main(i_clk, i_reset,
 		endcase
 
 	//
+	// No class DOUBLE peripherals on the "wbu" bus
+	//
+	//
 	// Finally, determine what the response is from the wbu bus
 	// bus
 	//
@@ -659,8 +685,11 @@ module	main(i_clk, i_reset,
 	// true.  Although we might choose to return zeros in that case, by
 	// returning something we can skimp a touch on the logic.
 	//
-	// Any peripheral component with a @SLAVE.TYPE value will be listed
-	// here.
+	// Any peripheral component with a @SLAVE.TYPE value of either OTHER
+	// or MEMORY will automatically be listed here.  In addition, the
+	// bus responses from @SLAVE.TYPE SINGLE (_sio_) and/or DOUBLE
+	// (_dio_) may also be listed here, depending upon components are
+	// connected to them.
 	//
 	always @(posedge i_clk)
 		if (wbu_dwb_ack)

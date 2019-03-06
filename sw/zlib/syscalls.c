@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2016, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -84,7 +84,7 @@ _outbyte(char v) {
 
 int
 _inbyte(void) {
-#ifdef	_ZIP_HAS_WBUARTRX
+#ifdef	UARTRX
 	const	int	echo = 1, cr_into_nl = 1;
 	static	int	last_was_cr = 0;
 	int	rv;
@@ -95,36 +95,7 @@ _inbyte(void) {
 	// 3. \r\n's should quietly be turned into \n's
 	// 4. \n's should be passed as is
 	// Insist on at least one character
-	rv = _uartrx;
-	if (rv & 0x0100)
-		rv = -1;
-	else if ((cr_into_nl)&&(rv == '\r')) {
-		rv = '\n';
-		last_was_cr = 1;
-	} else if ((cr_into_nl)&&(rv == '\n')) {
-		if (last_was_cr) {
-			rv = -1;
-			last_was_cr = 0;
-		}
-	} else
-		last_was_cr = 0;
-
-	if ((rv != -1)&&(echo))
-		_outbyte(rv);
-	return rv;
-#else
-#ifdef	_BOARD_HAS_BUSCONSOLE
-	const	int	echo = 1, cr_into_nl = 1;
-	static	int	last_was_cr = 0;
-	int	rv;
-
-	// Character translations:
-	// 1. All characters should be echoed
-	// 2. \r's should quietly be turned into \n's
-	// 3. \r\n's should quietly be turned into \n's
-	// 4. \n's should be passed as is
-	// Insist on at least one character
-	rv = _uart->u_rx;
+	rv = UARTRX;
 	if (rv & 0x0100)
 		rv = -1;
 	else if ((cr_into_nl)&&(rv == '\r')) {
@@ -143,7 +114,6 @@ _inbyte(void) {
 	return rv;
 #else
 	return -1;
-#endif
 #endif
 }
 
@@ -327,12 +297,12 @@ _open_r(struct _reent *reent, const char *file, int flags, int mode)
 int
 _read_r(struct _reent *reent, int file, void *ptr, size_t len)
 {
+#ifdef	UARTRX
 	if (STDIN_FILENO == file)
 	{
 		int	nr = 0, rv;
 		char	*chp = ptr;
 
-#ifdef	_ZIP_HAS_WBUARTRX
 		while((rv=_inbyte()) &0x0100)
 			;
 		*chp++ = (char)rv;
@@ -346,26 +316,6 @@ _read_r(struct _reent *reent, int file, void *ptr, size_t len)
 
 		// if (rv & 0x01000) _uartrx = 0x01000;
 		return nr;
-#endif
-#ifdef	_BOARD_HAS_BUSCONSOLE
-		while((rv=_inbyte()) &0x0100)
-			;
-		*chp++ = (char)rv;
-		nr++;
-
-		// Now read out anything left in the FIFO
-		while((nr < len)&&(((rv=_inbyte()) & 0x0100)==0)) {
-			*chp++ = (char)rv;
-			nr++;
-		}
-
-		// if (rv & 0x01000) _uartrx = 0x01000;
-		return nr;
-#endif
-	}
-#ifdef	_ZIP_HAS_SDCARD_NOTYET
-	if (SDCARD_FILENO == file)
-	{
 	}
 #endif
 	errno = ENOSYS;
@@ -434,7 +384,7 @@ _sbrk_r(struct _reent *reent, int sz) {
 
 __attribute__((__noreturn__))
 void	_exit(int rcode) {
-	void	_hw_shutdown(int rcode) _ATTRIBUTE((__noreturn__));
+	extern void	_hw_shutdown(int rcode) _ATTRIBUTE((__noreturn__));
 
 #ifdef	_BOARD_HAS_BUSCONSOLE
 	// Problem: Once u_tx & 0x100 goes low, there may still be a character
