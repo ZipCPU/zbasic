@@ -322,12 +322,12 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 
 		always @(posedge i_clk)
 		if (i_pipe_stb)
-			gie <= i_oreg[NAUX-1];
+			fifo_data[wraddr[DP-1:0]]
+				<= { i_oreg[NAUX-2:0], i_op[2:1], i_addr[1:0] };
 
 		always @(posedge i_clk)
 		if (i_pipe_stb)
-			fifo_data[wraddr[DP-1:0]]
-				<= { i_oreg[NAUX-2:0], i_op[2:1], i_addr[1:0] };
+			gie <= i_oreg[NAUX-1];
 
 `ifdef	NO_BKRAM
 		reg	[NAUX+4-2:0]	r_req_data, r_last_data;
@@ -419,7 +419,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 		wire	unused_no_fifo;
 		assign	unused_no_fifo = gie;
 		// verilator lint_on  UNUSED
-	end endgenerate 
+	end endgenerate
 
 
 	initial	r_wb_cyc_gbl = 0;
