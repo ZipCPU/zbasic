@@ -95,10 +95,10 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	reg	[(TB-1):0]	chg_counter;
 	initial	chg_counter = {(TB){1'b1}};
 	always @(posedge i_clk)
-		if (qq_uart != ck_uart)
-			chg_counter <= 0;
-		else if (chg_counter != { (TB){1'b1} })
-			chg_counter <= chg_counter + 1;
+	if (qq_uart != ck_uart)
+		chg_counter <= 0;
+	else if (chg_counter != { (TB){1'b1} })
+		chg_counter <= chg_counter + 1;
 
 	// Are we in the middle of a baud iterval?  Specifically, are we
 	// in the middle of a start bit?  Set this to high if so.  We'll use
@@ -112,25 +112,23 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 
 	initial	state = `RXUL_IDLE;
 	always @(posedge i_clk)
+	if (state == `RXUL_IDLE)
+	begin // Idle state, independent of baud counter
+		// By default, just stay in the IDLE state
+		state <= `RXUL_IDLE;
+		if ((!ck_uart)&&(half_baud_time))
+			// UNLESS: We are in the center of a valid
+			// start bit
+			state <= `RXUL_BIT_ZERO;
+	end else if ((state >= `RXUL_WAIT)&&(ck_uart))
+		state <= `RXUL_IDLE;
+	else if (zero_baud_counter)
 	begin
-		if (state == `RXUL_IDLE)
-		begin // Idle state, independent of baud counter
-			// By default, just stay in the IDLE state
-			state <= `RXUL_IDLE;
-			if ((!ck_uart)&&(half_baud_time))
-				// UNLESS: We are in the center of a valid
-				// start bit
-				state <= `RXUL_BIT_ZERO;
-		end else if ((state >= `RXUL_WAIT)&&(ck_uart))
-			state <= `RXUL_IDLE;
-		else if (zero_baud_counter)
-		begin
-			if (state <= `RXUL_STOP)
-				// Data arrives least significant bit first.
-				// By the time this is clocked in, it's what
-				// you'll have.
-				state <= state + 1;
-		end
+		if (state <= `RXUL_STOP)
+			// Data arrives least significant bit first.
+			// By the time this is clocked in, it's what
+			// you'll have.
+			state <= state + 1;
 	end
 
 	// Data bit capture logic.
@@ -141,8 +139,8 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	// data in all other cases.  Hence, let's keep it real simple.
 	reg	[7:0]	data_reg;
 	always @(posedge i_clk)
-		if ((zero_baud_counter)&&(state != `RXUL_STOP))
-			data_reg <= { qq_uart, data_reg[7:1] };
+	if ((zero_baud_counter)&&(state != `RXUL_STOP))
+		data_reg <= { qq_uart, data_reg[7:1] };
 
 	// Our data bit logic doesn't need nearly the complexity of all that
 	// work above.  Indeed, we only need to know if we are at the end of
@@ -153,12 +151,12 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	initial	o_wr = 1'b0;
 	initial	o_data = 8'h00;
 	always @(posedge i_clk)
-		if ((zero_baud_counter)&&(state == `RXUL_STOP)&&(ck_uart))
-		begin
-			o_wr   <= 1'b1;
-			o_data <= data_reg;
-		end else
-			o_wr   <= 1'b0;
+	if ((zero_baud_counter)&&(state == `RXUL_STOP)&&(ck_uart))
+	begin
+		o_wr   <= 1'b1;
+		o_data <= data_reg;
+	end else
+		o_wr   <= 1'b0;
 
 	// The baud counter
 	//
@@ -168,14 +166,14 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	// intervals.
 	initial	baud_counter = 0;
 	always @(posedge i_clk)
-		if (((state==`RXUL_IDLE))&&(!ck_uart)&&(half_baud_time))
-			baud_counter <= CLOCKS_PER_BAUD-1'b1;
-		else if (state == `RXUL_WAIT)
-			baud_counter <= 0;
-		else if ((zero_baud_counter)&&(state < `RXUL_STOP))
-			baud_counter <= CLOCKS_PER_BAUD-1'b1;
-		else if (!zero_baud_counter)
-			baud_counter <= baud_counter-1'b1;
+	if (((state==`RXUL_IDLE))&&(!ck_uart)&&(half_baud_time))
+		baud_counter <= CLOCKS_PER_BAUD-1'b1;
+	else if (state == `RXUL_WAIT)
+		baud_counter <= 0;
+	else if ((zero_baud_counter)&&(state < `RXUL_STOP))
+		baud_counter <= CLOCKS_PER_BAUD-1'b1;
+	else if (!zero_baud_counter)
+		baud_counter <= baud_counter-1'b1;
 
 	// zero_baud_counter
 	//
@@ -185,14 +183,14 @@ module rxuartlite(i_clk, i_uart_rx, o_wr, o_data);
 	// before--cleaning up some otherwise difficult timing dependencies.
 	initial	zero_baud_counter = 1'b1;
 	always @(posedge i_clk)
-		if ((state == `RXUL_IDLE)&&(!ck_uart)&&(half_baud_time))
-			zero_baud_counter <= 1'b0;
-		else if (state == `RXUL_WAIT)
-			zero_baud_counter <= 1'b1;
-		else if ((zero_baud_counter)&&(state < `RXUL_STOP))
-			zero_baud_counter <= 1'b0;
-		else if (baud_counter == 1)
-			zero_baud_counter <= 1'b1;
+	if ((state == `RXUL_IDLE)&&(!ck_uart)&&(half_baud_time))
+		zero_baud_counter <= 1'b0;
+	else if (state == `RXUL_WAIT)
+		zero_baud_counter <= 1'b1;
+	else if ((zero_baud_counter)&&(state < `RXUL_STOP))
+		zero_baud_counter <= 1'b0;
+	else if (baud_counter == 1)
+		zero_baud_counter <= 1'b1;
 
 `ifdef	FORMAL
 // Formal properties for this module are maintained elsewhere
