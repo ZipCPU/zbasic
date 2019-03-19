@@ -156,7 +156,7 @@ module	main(i_clk, i_reset,
 // @MAIN.IODECL keys.
 //
 	input	wire		i_clk;
-// verilator lint_off UNUSED
+	// verilator lint_off UNUSED
 	input	wire		i_reset;
 	// verilator lint_on UNUSED
 	// SD-Card declarations
@@ -392,20 +392,13 @@ module	main(i_clk, i_reset,
 	//
 	//
 	
-	assign	   buildtime_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h0));
- // 0x000000
-	assign	      buserr_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h1));
- // 0x000004
-	assign	      buspic_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h2));
- // 0x000008
-	assign	        gpio_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h3));
- // 0x00000c
-	assign	    pwrcount_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h4));
- // 0x000010
-	assign	     rtcdate_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h5));
- // 0x000014
-	assign	     version_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h6));
- // 0x000018
+	assign	   buildtime_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h0));  // 0x000000
+	assign	      buserr_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h1));  // 0x000004
+	assign	      buspic_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h2));  // 0x000008
+	assign	        gpio_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h3));  // 0x00000c
+	assign	    pwrcount_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h4));  // 0x000010
+	assign	     rtcdate_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h5));  // 0x000014
+	assign	     version_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h6));  // 0x000018
 	assign	scope_sdcard_sel = ((wb_addr[22:19] &  4'hf) ==  4'h1); // 0x200000 - 0x200007
 	assign	       flctl_sel = ((wb_addr[22:19] &  4'hf) ==  4'h2); // 0x400000 - 0x40000f
 	assign	      sdcard_sel = ((wb_addr[22:19] &  4'hf) ==  4'h3); // 0x600000 - 0x60000f
