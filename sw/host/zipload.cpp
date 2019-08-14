@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -55,17 +55,14 @@
 #include "ttybus.h"
 #include <design.h>
 #include "regdefs.h"
-#include "nflashdrvr.h"
+
+#ifdef	FLASH_ACCESS
+#include "flashdrvr.h"
+#endif
 #include "zipelf.h"
 #include "byteswap.h"
 
 FPGA	*m_fpga;
-
-#ifndef	FLASH_ACCESS
-#ifdef	NFLASH_ACCESS
-#define	FLASH_ACCESS
-#endif
-#endif
 
 void	usage(void) {
 	printf("USAGE: zipload [-hr] <zip-program-file>\n");
