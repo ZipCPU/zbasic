@@ -44,6 +44,7 @@
 @SYSPIC= syspic
 @PREFIX=zip
 @ACCESS=INCLUDE_ZIPCPU
+@DBGBUS=wbu
 @MASTER.TYPE=CPU
 @MASTER.BUS=zip
 @BUS.NAME=zip
@@ -112,9 +113,9 @@
 					zip_ack, zip_stall, zip_idata, zip_err,
 			zip_int_vector, zip_cpu_int,
 			// Debug wishbone interface
-			(wbu_cyc), ((wbu_stb)&&(zip_dbg_sel)),wbu_we,
-			wbu_addr[0],
-			wbu_data, zip_dbg_ack, zip_dbg_stall, zip_dbg_data,
+			(@$(DBGBUS)_cyc), ((@$(DBGBUS)_stb)&&(zip_dbg_sel)),@$(DBGBUS)_we,
+			@$(DBGBUS)_addr[0],
+			@$(DBGBUS)_data, zip_dbg_ack, zip_dbg_stall, zip_dbg_data,
 			zip_debug);
 	assign	zip_trigger = zip_debug[31];
 @BDEF.INCLUDE=
@@ -240,7 +241,7 @@
 	}
 
 	void dump(const uint32_t *regp) {
-		uint32_t	uccv, iccv;
+		uint32_t	uccv, iccv, ipc, upc;
 		fflush(stderr);
 		fflush(stdout);
 		printf("ZIPM--DUMP: ");
@@ -252,6 +253,8 @@
 
 		iccv = m_core->cpu_iflags;
 		uccv = m_core->cpu_uflags;
+		ipc = m_core->cpu_ipc;
+		upc = m_core->cpu_upc;
 
 		printf("sR0 : %08x ", regp[0]);
 		printf("sR1 : %08x ", regp[1]);
@@ -268,7 +271,7 @@
 		printf("sR12: %08x ", regp[12]);
 		printf("sSP : %08x ", regp[13]);
 		printf("sCC : %08x ", iccv);
-		printf("sPC : %08x\n",regp[15]);
+		printf("sPC : %08x\n",ipc);
 
 		printf("\n");
 
@@ -287,7 +290,7 @@
 		printf("uR12: %08x ", regp[28]);
 		printf("uSP : %08x ", regp[29]);
 		printf("uCC : %08x ", uccv);
-		printf("uPC : %08x\n",regp[31]);
+		printf("uPC : %08x\n",upc);
 		printf("\n");
 		fflush(stderr);
 		fflush(stdout);
@@ -382,7 +385,7 @@
 				m_core->cpu_upc);
 		} fflush(stdout);
 	}
-#endif
+#endif // @$(ACCESS)
 @SIM.TICK=
 #ifdef	@$(ACCESS)
 		// ZipCPU Sim instruction support
