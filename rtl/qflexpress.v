@@ -12,8 +12,7 @@
 //
 //	Three modes/states of operation:
 //	1. Startup/maintenance, places the device in the Quad XIP mode
-//	2. Normal operations, takes 33 clocks to read a value
-//	   - 16 subsequent clocks will read a piped value
+//	2. Normal operations, takes 12+8N clocks to read a value
 //	3. Configuration--useful to allow an external controller issue erase
 //		or program commands (or other) without requiring us to
 //		clutter up the logic with a giant state machine
@@ -21,22 +20,13 @@
 //	STARTUP
 //	 1. Waits for the flash to come on line
 //		Start out idle for 300 uS
-//	 2. Sends a signal to remove the flash from any DSPI read mode.  In our
+//	 2. Sends a signal to remove the flash from any QSPI read mode.  In our
 //		case, we'll send several clocks of an empty command.  In SPI
 //		mode, it'll get ignored.  In QSPI mode, it'll remove us from
-//		DSPI mode.
-//	 3. Explicitly places and leaves the flash into DSPI mode
-//		0xEB 3(0xa0) 0xa0 0xa0 0xa0 4(0x00)
+//		QSPI mode.
+//	 3. Explicitly places and leaves the flash into QSPI mode
+//		0xEB 3(0x00) 0xa0 6(0x00)
 //	 4. All done
-//
-//	NORMAL-OPS
-//	ODATA <- ?, 3xADDR, 0xa0, 0x00, 0x00 | 0x00, 0x00, 0x00, 0x00 ? (22nibs)
-//	STALL <- TRUE until closed at the end
-//	MODE  <- 2'b10 for 4 clks, then 2'b11
-//	CLK   <- 2'b10 before starting, then 2'b01 until the end
-//	CSN   <- 0 any time CLK != 2'b11
-//
-//
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
@@ -76,12 +66,12 @@
 module	qflexpress(i_clk, i_reset,
 		i_wb_cyc, i_wb_stb, i_cfg_stb, i_wb_we, i_wb_addr, i_wb_data,
 			o_wb_ack, o_wb_stall, o_wb_data,
-		o_qspi_sck, o_qspi_cs_n, o_qspi_mod, o_qspi_dat, i_qspi_dat);
+		o_qspi_sck, o_qspi_cs_n, o_qspi_mod, o_qspi_dat, i_qspi_dat,
+		o_dbg_trigger, o_debug);
 	//
 	// LGFLASHSZ is the size of the flash memory.  It defines the number
-	// of bits in the address register and more.  This controller will only
-	// support flashes with 24-bit or less addresses--it doesn't support
-	// the 32-bit address flash chips.
+	// of bits in the address register and more.  This controller will support
+	// flash sizes up to 2^LGFLASHSZ, where LGFLASHSZ goes up to 32.
 	parameter	LGFLASHSZ=24;
 	//
 	// OPT_PIPE makes it possible to string multiple requests together,
@@ -98,7 +88,21 @@ module	qflexpress(i_clk, i_reset,
 	// OPT_STARTUP enables the startup logic
 	parameter [0:0]	OPT_STARTUP = 1'b1;
 	//
-	parameter	OPT_CLKDIV = 1;
+	// OPT_ADDR32 enables 32 bit addressing, rather than 24bit
+	// Control this by controlling the LGFLASHSZ parameter above.  Anything
+	// greater than 24 will use 32-bit addressing, otherwise the regular
+	// 24-bit addressing
+	localparam [0:0]	OPT_ADDR32 = (LGFLASHSZ > 24);
+	//
+	parameter	OPT_CLKDIV = 0;
+	//
+	// Normally, I place the first byte read from the flash, and the lowest
+	// flash address, into bits [7:0], and then shift it up--to where upon
+	// return it is found in bits [31:24].  This is ideal for a big endian
+	// systems, not so much for little endian systems.  The endian swap
+	// allows the bus to swap the return values in order to support little
+	// endian systems.
+	parameter [0:0]	OPT_ENDIANSWAP = 1'b1;
 	//
 	// OPT_ODDR will be true any time the clock has no clock division
 	localparam [0:0]	OPT_ODDR = (OPT_CLKDIV == 0);
@@ -116,10 +120,10 @@ module	qflexpress(i_clk, i_reset,
 				: ((OPT_CLKDIV < 256) ? 8 : 9))))))));
 	//
 	// RDDELAY is the number of clock cycles from when o_qspi_dat is valid
-	// until i_qspi_dat is valid.  Read delays from 0-4 have been verified
+	// until i_qspi_dat is valid.  Read delays from 0-4 have been verified.
 	// DDR Registered I/O on a Xilinx device can be done with a RDDELAY=3
-	//	On Intel/Altera devices, RDDELAY=2 works
-	//	I'm using RDDELAY=0 for my iCE40 devices
+	// On Intel/Altera devices, RDDELAY=2 works
+	// I'm using RDDELAY=0 for my iCE40 devices
 	//
 	parameter	RDDELAY = 0;
 	//
@@ -131,6 +135,10 @@ module	qflexpress(i_clk, i_reset,
 	// 
 	parameter	NDUMMY = 10;
 	//
+	// For dealing with multiple flash devices, the OPT_STARTUP_FILE allows
+	// a hex file to be provided containing the necessary script to place
+	// the design into the proper initial configuration.
+	parameter	OPT_STARTUP_FILE="";
 	//
 	//
 	//
@@ -145,7 +153,7 @@ module	qflexpress(i_clk, i_reset,
 	localparam [1:0]	QUAD_WRITE = 	2'b10;
 	localparam [1:0]	QUAD_READ = 	2'b11;
 	// localparam [7:0] DIO_READ_CMD = 8'hbb;
-	localparam [7:0] QIO_READ_CMD = 8'heb;
+	localparam [7:0] QIO_READ_CMD = OPT_ADDR32 ? 8'hec : 8'heb;
 	//
 	localparam	AW=LGFLASHSZ-2;
 	localparam	DW=32;
@@ -165,8 +173,8 @@ module	qflexpress(i_clk, i_reset,
 	output	wire	[3:0]	o_qspi_dat;
 	input	wire	[3:0]	i_qspi_dat;
 	// Debugging port
-	// output	wire		o_dbg_trigger;
-	// output	wire	[31:0]	o_debug;
+	output	wire		o_dbg_trigger;
+	output	wire	[31:0]	o_debug;
 
 	reg		dly_ack, read_sck, xtra_stall;
 	// clk_ctr must have enough bits for ...
@@ -199,7 +207,13 @@ module	qflexpress(i_clk, i_reset,
 	assign	cfg_ls_write = (cfg_write)&&(!i_wb_data[QSPEED_BIT]);
 
 
-	reg	ckstb, ckpos, ckneg, ckpre;
+	reg		ckstb, ckpos, ckneg, ckpre;
+	reg		maintenance;
+	reg	[1:0]	m_mod;
+	reg		m_cs_n;
+	reg		m_clk;
+	reg	[3:0]	m_dat;
+
 
 	generate if (OPT_ODDR)
 	begin
@@ -276,12 +290,6 @@ module	qflexpress(i_clk, i_reset,
 	// Maintenance / startup portion
 	//
 	//
-	reg		maintenance;
-	reg	[1:0]	m_mod;
-	reg		m_cs_n;
-	reg		m_clk;
-	reg	[3:0]	m_dat;
-
 	generate if (OPT_STARTUP)
 	begin : GEN_STARTUP
 		localparam	M_WAITBIT=10;
@@ -325,7 +333,9 @@ module	qflexpress(i_clk, i_reset,
 		//			mode.  Ignored otherwis
 		//
 		integer k;
-		initial begin
+		initial if (OPT_STARTUP_FILE != 0)
+			$readmemh(OPT_STARTUP_FILE, m_cmd_word);
+		else begin
 		for(k=0; k<(1<<M_LGADDR); k=k+1)
 			m_cmd_word[k] = -1;
 		// cmd_word= m_ctr_flag, m_mod[1:0],
@@ -410,7 +420,7 @@ module	qflexpress(i_clk, i_reset,
 
 		//
 		initial	maintenance = 1'b1;
-		initial	m_cmd_index = 0;
+		initial	m_cmd_index = M_FIRSTIDX;
 		always @(posedge i_clk)
 		if (i_reset)
 		begin
@@ -419,7 +429,8 @@ module	qflexpress(i_clk, i_reset,
 		end else if (new_word)
 		begin
 			maintenance <= (maintenance)&&(!m_final);
-			m_cmd_index <= m_cmd_index + 1'b1;
+			if (!(&m_cmd_index))
+				m_cmd_index <= m_cmd_index + 1'b1;
 		end
 
 		initial	m_this_word = -1;
@@ -432,7 +443,7 @@ module	qflexpress(i_clk, i_reset,
 		if (i_reset)
 			m_final <= 1'b0;
 		else if (new_word)
-			m_final <= (&m_cmd_index);
+			m_final <= (m_final || (&m_cmd_index));
 
 		//
 		// m_midcount .. are we in the middle of a counter/pause?
@@ -483,9 +494,9 @@ module	qflexpress(i_clk, i_reset,
 			end else begin
 				m_cs_n <= 1'b0;
 				m_mod  <= m_this_word[M_WAITBIT-1:M_WAITBIT-2];
-				m_bitcount <= (m_cs_n) ? 4'h2 : 4'h1;
+				m_bitcount <= (!OPT_ODDR && m_cs_n) ? 4'h2 : 4'h1;
 				if (!m_this_word[M_WAITBIT-1])
-					m_bitcount <= (m_cs_n) ? 4'h8 : 4'h7;//i.e.7
+					m_bitcount <= (!OPT_ODDR && m_cs_n) ? 4'h8 : 4'h7;//i.e.7
 			end
 		end
 
@@ -494,9 +505,9 @@ module	qflexpress(i_clk, i_reset,
 		begin
 			if (m_bitcount == 0)
 			begin
-				if (m_cs_n)
+				if (!OPT_ODDR && m_cs_n)
 				begin
-					m_dat <= {(3){m_this_word[7]}};
+					m_dat <= {(4){m_this_word[7]}};
 					m_byte <= m_this_word[7:0];
 				end else begin
 					m_dat <= m_this_word[7:4];
@@ -537,8 +548,7 @@ module	qflexpress(i_clk, i_reset,
 				m_clk <= 1'b1;
 			else if (m_midcount)
 				m_clk <= 1'b1;
-			else if (m_ce && m_bitcount == 0
-					&& m_this_word[M_WAITBIT])
+			else if (new_word && m_this_word[M_WAITBIT])
 				m_clk <= 1'b1;
 			else if (ckneg)
 				m_clk <= 1'b0;
@@ -563,7 +573,7 @@ module	qflexpress(i_clk, i_reset,
 	end endgenerate
 
 
-	reg	[32+4*(OPT_ODDR ? 0:1)-1:0]	data_pipe;
+	reg	[32+(OPT_ADDR32 ? 8:0)+4*(OPT_ODDR ? 0:1)-1:0]	data_pipe;
 	reg	pre_ack = 1'b0;
 	reg	actual_sck;
 
@@ -583,28 +593,33 @@ module	qflexpress(i_clk, i_reset,
 			data_pipe[8+LGFLASHSZ-1:0] <= {
 					i_wb_addr, 2'b00, 4'ha, 4'h0 };
 
-			if (cfg_write)
-				data_pipe[31:24] <= i_wb_data[7:0];
+			if (i_cfg_stb)
+				// High speed configuration I/O
+				data_pipe[24+(OPT_ADDR32 ? 8:0) +: 8] <= i_wb_data[7:0];
 
-			if ((cfg_write)&&(!i_wb_data[QSPEED_BIT]))
-			begin
-				data_pipe[28] <= i_wb_data[7];
-				data_pipe[24] <= i_wb_data[6];
-				data_pipe[20] <= i_wb_data[5];
-				data_pipe[16] <= i_wb_data[4];
-				data_pipe[12] <= i_wb_data[3];
-				data_pipe[ 8] <= i_wb_data[2];
-				data_pipe[ 4] <= i_wb_data[1];
-				data_pipe[ 0] <= i_wb_data[0];
+			if ((i_cfg_stb)&&(!i_wb_data[QSPEED_BIT]))
+			begin // Low speed configuration I/O
+				data_pipe[28+(OPT_ADDR32 ? 8:0)]<= i_wb_data[7];
+				data_pipe[24+(OPT_ADDR32 ? 8:0)]<= i_wb_data[6];
+			end
+
+			if (i_cfg_stb)
+			begin // These can be set independent of speed
+				data_pipe[20+(OPT_ADDR32 ? 8:0)]<= i_wb_data[5];
+				data_pipe[16+(OPT_ADDR32 ? 8:0)]<= i_wb_data[4];
+				data_pipe[12+(OPT_ADDR32 ? 8:0)]<= i_wb_data[3];
+				data_pipe[ 8+(OPT_ADDR32 ? 8:0)]<= i_wb_data[2];
+				data_pipe[ 4+(OPT_ADDR32 ? 8:0)]<= i_wb_data[1];
+				data_pipe[ 0+(OPT_ADDR32 ? 8:0)]<= i_wb_data[0];
 			end
 		end else if (ckstb)
-			data_pipe <= { data_pipe[(32+4*((OPT_ODDR ? 0:1)-1))-1:0], 4'h0 };
+			data_pipe <= { data_pipe[(32+(OPT_ADDR32 ? 8:0)+4*((OPT_ODDR ? 0:1)-1))-1:0], 4'h0 };
 
 		if (maintenance)
-			data_pipe[28+4*(OPT_ODDR ? 0:1) +: 4] <= m_dat;
+			data_pipe[28+(OPT_ADDR32 ? 8:0)+4*(OPT_ODDR ? 0:1) +: 4] <= m_dat;
 	end
 
-	assign	o_qspi_dat = data_pipe[28+4*(OPT_ODDR ? 0:1) +: 4];
+	assign	o_qspi_dat = data_pipe[28+(OPT_ADDR32 ? 8:0)+4*(OPT_ODDR ? 0:1) +: 4];
 
 	// Since we can't abort any transaction once started, without
 	// risking losing XIP mode or any other mode we might be in, we'll
@@ -651,8 +666,13 @@ module	qflexpress(i_clk, i_reset,
 	if ((i_reset)||(maintenance))
 		clk_ctr <= 0;
 	else if ((bus_request)&&(!pipe_req))
-		clk_ctr <= 5'd14 + NDUMMY + (OPT_ODDR ? 0:1);
+		// Notice that this is only for
+		// regular bus reads, and so the check for
+		// !pipe_req
+		clk_ctr <= 5'd14 + NDUMMY + (OPT_ADDR32 ? 2:0)+(OPT_ODDR ? 0:1);
 	else if (bus_request) // && pipe_req
+		// Otherwise, if this is a piped read, we'll
+		// reset the counter back to eight.
 		clk_ctr <= 5'd8;
 	else if (cfg_ls_write)
 		clk_ctr <= 5'd8 + ((OPT_ODDR) ? 0:1);
@@ -678,8 +698,6 @@ module	qflexpress(i_clk, i_reset,
 			o_qspi_sck <= 1'b0;
 		else if (clk_ctr[4:0] > 5'd1)
 			o_qspi_sck <= 1'b1;
-		else if ((clk_ctr[4:0] == 5'd2)&&(pipe_req))
-			o_qspi_sck <= 1'b1;
 		else
 			o_qspi_sck <= 1'b0;
 	end else if (((ckpos)&&(!o_qspi_sck))||(o_qspi_cs_n))
@@ -691,8 +709,6 @@ module	qflexpress(i_clk, i_reset,
 			// Config mode has no pipe instructions
 			o_qspi_sck <= 1'b1;
 		else if (clk_ctr[4:0] > 5'd1)
-			o_qspi_sck <= 1'b0;
-		else if ((clk_ctr[4:0] == 5'd2)&&(pipe_req))
 			o_qspi_sck <= 1'b0;
 		else
 			o_qspi_sck <= 1'b1;
@@ -815,26 +831,53 @@ module	qflexpress(i_clk, i_reset,
 	begin : RDDELAY_NONZERO
 
 		reg	[RDDELAY-1:0]	sck_pipe, ack_pipe, stall_pipe;
+		reg	not_done;
 
 		initial	sck_pipe = 0;
-		always @(posedge i_clk)
-		if (i_reset)
-			sck_pipe <= 0;
-		else if (RDDELAY > 1)
-			sck_pipe <= { sck_pipe[RDDELAY-2:0], actual_sck };
-		else
-			sck_pipe[0] <= actual_sck;
-
 		initial	ack_pipe = 0;
-		always @(posedge i_clk)
-		if (i_reset || !i_wb_cyc)
-			ack_pipe <= 0;
-		else if (RDDELAY > 1)
-			ack_pipe <= { ack_pipe[RDDELAY-2:0], dly_ack };
-		else
-			ack_pipe[0] <= dly_ack;
+		initial	stall_pipe = -1;
+		if (RDDELAY > 1)
+		begin
+			always @(posedge i_clk)
+			if (i_reset)
+				sck_pipe <= 0;
+			else
+				sck_pipe <= { sck_pipe[RDDELAY-2:0], actual_sck };
 
-		reg	not_done;
+			always @(posedge i_clk)
+			if (i_reset || !i_wb_cyc)
+				ack_pipe <= 0;
+			else
+				ack_pipe <= { ack_pipe[RDDELAY-2:0], dly_ack };
+
+			always @(posedge i_clk)
+			if (i_reset)
+				stall_pipe <= -1;
+			else
+				stall_pipe <= { stall_pipe[RDDELAY-2:0], not_done };
+
+
+		end else // if (RDDELAY > 0)
+		begin
+			always @(posedge i_clk)
+			if (i_reset)
+				sck_pipe <= 0;
+			else
+				sck_pipe <= actual_sck;
+
+			always @(posedge i_clk)
+			if (i_reset || !i_wb_cyc)
+				ack_pipe <= 0;
+			else
+				ack_pipe <= dly_ack;
+
+			always @(posedge i_clk)
+			if (i_reset)
+				stall_pipe <= -1;
+			else
+				stall_pipe <= not_done;
+		end
+
 		always @(*)
 		begin
 			not_done = (i_wb_stb || i_cfg_stb) && !o_wb_stall;
@@ -844,15 +887,6 @@ module	qflexpress(i_clk, i_reset,
 				not_done = 1'b1;
 		end
 
-		initial	stall_pipe = -1;
-		always @(posedge i_clk)
-		if (i_reset)
-			stall_pipe <= -1;
-		else if (RDDELAY > 1)
-			stall_pipe <= { stall_pipe[RDDELAY-2:0], not_done };
-		else
-			stall_pipe[0] <= not_done;
-		
 		always @(*)
 			o_wb_ack = ack_pipe[RDDELAY-1];
 
@@ -868,11 +902,36 @@ module	qflexpress(i_clk, i_reset,
 	begin
 		if (read_sck)
 		begin
-			if (!o_qspi_mod[1])
+			if (OPT_ENDIANSWAP)
+			begin
+				if (!o_qspi_mod[1])
+				begin
+					o_wb_data <= { o_wb_data[30:24], i_qspi_dat[1],
+						o_wb_data[22:16], o_wb_data[31],
+						o_wb_data[14:8], o_wb_data[23],
+						o_wb_data[6:0], o_wb_data[15] };
+				end else begin
+					o_wb_data <= { o_wb_data[27:24], i_qspi_dat,
+						o_wb_data[19:16], o_wb_data[31:28],
+						o_wb_data[11:8], o_wb_data[23:20],
+						o_wb_data[3:0], o_wb_data[15:12]};
+				end
+
+				if (cfg_mode)
+				begin
+					// No endian-swapping in config mode
+					if (!o_qspi_mod[1])
+					o_wb_data[7:0]<= { o_wb_data[6:0], i_qspi_dat[1] };
+					else
+					o_wb_data[7:0]<= { o_wb_data[3:0], i_qspi_dat };
+				end
+
+			end else if (!o_qspi_mod[1])
+				// No endian-swapping
 				o_wb_data <= { o_wb_data[30:0], i_qspi_dat[1] };
 			else
 				o_wb_data <= { o_wb_data[27:0], i_qspi_dat };
-		end
+		end // read_sck
 
 		if ((OPT_CFG)&&(cfg_mode))
 			o_wb_data[16:8] <= { 4'b0, cfg_mode, cfg_speed, 1'b0,
@@ -912,7 +971,6 @@ module	qflexpress(i_clk, i_reset,
 		cfg_dir   <= i_wb_data[DIR_BIT];
 	end
 
-	/*
 	reg	r_last_cfg;
 
 	initial	r_last_cfg = 1'b0;
@@ -928,7 +986,6 @@ module	qflexpress(i_clk, i_reset,
 				&&(i_wb_we)&&(!o_wb_stall)&&(!o_wb_ack))
 				? i_wb_data[7:0] : o_wb_data[7:0]
 			};
-	*/
 
 	// verilator lint_off UNUSED
 	wire	[19:0]	unused;
