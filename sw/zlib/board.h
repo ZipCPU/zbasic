@@ -107,9 +107,7 @@ typedef struct WBSCOPE_S {
 #endif
 
 
-typedef struct FLASHCTL_S {
-	unsigned	f_ereg, f_config, f_status, f_id;
-} FLASHCTL;
+#define BUSPIC(X) (1<<X)
 
 
 typedef	struct	RTCLIGHT_S	{
@@ -143,9 +141,13 @@ static volatile SDSPI *const _sdcard = ((SDSPI *)0x00600000);
 #define	_BOARD_HAS_GPIO
 static volatile unsigned *const _gpio = ((unsigned *)12582924);
 #endif	// GPIO_ACCESS
+#ifdef	FLASHCFG_ACCESS
+#define	_BOARD_HAS_FLASHCFG
+static volatile unsigned * const _flashcfg = ((unsigned *)(0x00200000));
+#endif	// FLASHCFG_ACCESS
 #ifdef	SDSPI_SCOPE
 #define	_BOARD_HAS_SDSPI_SCOPE
-static volatile WBSCOPE *const _scope_sdcard = ((WBSCOPE *)0x00200000);
+static volatile WBSCOPE *const _scope_sdcard = ((WBSCOPE *)0x00400000);
 #endif	// SDSPI_SCOPE
 #ifdef	BUSPIC_ACCESS
 #define	_BOARD_HAS_BUSPIC
@@ -161,7 +163,7 @@ extern char	_bkram[0x00100000];
 #endif	// BKRAM_ACCESS
 #ifdef	FLASH_ACCESS
 #define	_BOARD_HAS_FLASH
-extern char _flash[0x01000000];
+extern int _flash[1];
 #endif	// FLASH_ACCESS
 #define	_BOARD_HAS_BUILDTIME
 #define	_BOARD_HAS_BUSERR
@@ -183,7 +185,6 @@ static volatile unsigned *const _rtcdate = ((unsigned *)12582932);
 // PIC: buspic
 #define	BUSPIC_SDCARD	BUSPIC(0)
 #define	BUSPIC_GPIO	BUSPIC(1)
-#define	BUSPIC_FLASH	BUSPIC(2)
 // PIC: syspic
 #define	SYSPIC_DMAC	SYSPIC(0)
 #define	SYSPIC_JIFFIES	SYSPIC(1)

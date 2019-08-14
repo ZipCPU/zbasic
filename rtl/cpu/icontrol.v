@@ -78,75 +78,105 @@
 //
 `default_nettype	none
 //
-module	icontrol(i_clk, i_reset, i_wr, i_data, o_data,
+module	icontrol(i_clk, i_reset, i_wb_stb, i_wb_we, i_wb_data,
+		o_wb_ack, o_wb_stall, o_wb_data,
 		i_brd_ints, o_interrupt);
-	parameter	IUSED = 15, BW=32;
-	input	wire		i_clk, i_reset;
-	input	wire		i_wr;
-	input	wire	[BW-1:0]	i_data;
-	output	reg	[BW-1:0]	o_data;
+	parameter	IUSED = 12, DW=32;
+	input	wire			i_clk, i_reset;
+	input	wire			i_wb_stb, i_wb_we;
+	input	wire	[DW-1:0]	i_wb_data;
+	output	wire			o_wb_ack, o_wb_stall;
+	output	reg	[DW-1:0]	o_wb_data;
 	input	wire	[(IUSED-1):0]	i_brd_ints;
-	output	wire		o_interrupt;
+	output	reg			o_interrupt;
 
 	reg	[(IUSED-1):0]	r_int_state;
 	reg	[(IUSED-1):0]	r_int_enable;
-	wire	[(IUSED-1):0]	nxt_int_state;
-	reg		r_interrupt, r_gie;
-	wire		w_any;
+	reg			r_mie;
+	wire			w_any;
 
-	assign	nxt_int_state = (r_int_state|i_brd_ints);
+	wire			wb_write, enable_ints, disable_ints;
+	assign	wb_write     = (i_wb_stb)&&(i_wb_we);
+	assign	enable_ints  = (wb_write)&&( i_wb_data[15]);
+	assign	disable_ints = (wb_write)&&(!i_wb_data[15]);
+
+	//
+	// First step: figure out which interrupts have triggered.  An
+	// interrupt "triggers" when the incoming interrupt wire is high, and
+	// stays triggered until cleared by the bus.
 	initial	r_int_state = 0;
 	always @(posedge i_clk)
-		if (i_reset)
-			r_int_state  <= 0;
-		else if (i_wr)
-			r_int_state <= i_brd_ints | (r_int_state & (~i_data[(IUSED-1):0]));
-		else
-			r_int_state <= nxt_int_state;
+	if (i_reset)
+		r_int_state  <= 0;
+	else if (wb_write)
+		r_int_state <= i_brd_ints
+			| (r_int_state & (~i_wb_data[(IUSED-1):0]));
+	else
+		r_int_state <= (r_int_state | i_brd_ints);
+
+	//
+	// Second step: determine which interrupts are enabled.
+	// Only interrupts that are enabled will be propagated forward on
+	// the global interrupt line.
 	initial	r_int_enable = 0;
 	always @(posedge i_clk)
-		if (i_reset)
-			r_int_enable <= 0;
-		else if ((i_wr)&&(i_data[BW-1]))
-			r_int_enable <= r_int_enable | i_data[(16+IUSED-1):16];
-		else if ((i_wr)&&(!i_data[BW-1]))
-			r_int_enable <= r_int_enable & (~ i_data[(16+IUSED-1):16]);
+	if (i_reset)
+		r_int_enable <= 0;
+	else if (enable_ints)
+		r_int_enable <= r_int_enable | i_wb_data[16 +: IUSED];
+	else if (disable_ints)
+		r_int_enable <= r_int_enable & (~ i_wb_data[16 +: IUSED]);
 
-	initial	r_gie = 1'b0;
-	always @(posedge i_clk)
-		if (i_reset)
-			r_gie <= 1'b0;
-		else if (i_wr)
-			r_gie <= i_data[BW-1];
-
-	assign	w_any = ((r_int_state & r_int_enable) != 0);
-
-	initial	r_interrupt = 1'b0;
+	//
+	// Third step: The global interrupt enable bit.
+	initial	r_mie = 1'b0;
 	always @(posedge i_clk)
 	if (i_reset)
-		r_interrupt <= 1'b0;
+		r_mie <= 1'b0;
+	else if (enable_ints && i_wb_data[DW-1])
+		r_mie <= 1'b1;
+	else if (disable_ints && i_wb_data[DW-1])
+		r_mie <= 1'b0;
+
+	//
+	// Have "any" enabled interrupts triggered?
+	assign	w_any = ((r_int_state & r_int_enable) != 0);
+
+	// How then shall the interrupt wire be set?
+	initial	o_interrupt = 1'b0;
+	always @(posedge i_clk)
+	if (i_reset)
+		o_interrupt <= 1'b0;
 	else
-		r_interrupt <= (r_gie)&&(w_any);
+		o_interrupt <= (r_mie)&&(w_any);
 
-	generate
-	if (IUSED < 15)
+	//
+	// Create the output data.  Place this into the next clock, to keep
+	// it synchronous with w_any.
+	initial	o_wb_data = 0;
+	always @(posedge i_clk)
 	begin
-		always @(posedge i_clk)
-			o_data <= {
-				r_gie, { {(15-IUSED){1'b0}}, r_int_enable }, 
-				w_any, { {(15-IUSED){1'b0}}, r_int_state  } };
-	end else begin
-		always @(posedge i_clk)
-			o_data <= { r_gie, r_int_enable, w_any, r_int_state };
-	end endgenerate
+		o_wb_data <= 0;
+		o_wb_data[31] <= r_mie;
+		o_wb_data[15] <= w_any;
 
-	assign	o_interrupt = r_interrupt;
+		o_wb_data[16 +: IUSED] <= r_int_enable;
+		o_wb_data[ 0 +: IUSED] <= r_int_state;
+	end
 
 	// Make verilator happy
-	// verilator lint_off UNUSED
-	wire	[30:0]	unused;
-	assign	unused = i_data[30:0];
-	// verilator lint_on  UNUSED
+	generate if (IUSED < 15)
+	begin
+		// verilator lint_off UNUSED
+		wire	[2*(15-IUSED)-1:0]	unused;
+		assign	unused = { i_wb_data[32-2:(16+IUSED)],
+				i_wb_data[16-2:IUSED] };
+		// verilator lint_on  UNUSED
+
+	end endgenerate
+
+	assign	o_wb_ack = i_wb_stb;
+	assign	o_wb_stall = 1'b0;
 
 `ifdef	FORMAL
 // Formal properties for this module are maintained elsewhere
