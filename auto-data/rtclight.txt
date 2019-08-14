@@ -11,7 +11,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017, Gisselquist Technology, LLC
+## Copyright (C) 2017-2019, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -44,26 +44,26 @@
 @CLOCK.NAME=clk
 @CLKFREQHZ=@$(CLOCK.FREQUENCY)
 @$CLKSTEP=((1<<48)/@$(CLOCK.FREQUENCY))
-@CLKSTEP.FORMAT=32'h%08x
 @INT.RTC.WIRE=rtc_int
 @INT.RTC.PIC=altpic
 @MAIN.DEFNS=
 	// Definitions in support of the GPS driven RTC
-	localparam	[31:0]	RTC_CLKSTEP = @$[32'h%08x](CLKSTEP);
 	wire	@$(PREFIX)_ppd;
-	reg	r_@$(PREFIX)_ack;
 @MAIN.INSERT=
 	rtclight #(@$[32'h%x](CLKSTEP)) the@$(PREFIX)(i_clk, i_reset,
 		wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_addr[2:0],
 			wb_data, wb_sel,
 		@$(PREFIX)_stall, @$(PREFIX)_ack, @$(PREFIX)_data,
 		@$(PREFIX)_int, @$(PREFIX)_ppd);
+@MAIN.ALT=
+	assign	@$(PREFIX)_ppd = 1'b0;
 @REGS.NOTE= // RTC clock registers
-@REGS.N=4
+@REGS.N=5
 @REGS.0= 0 R_CLOCK	CLOCK
 @REGS.1= 1 R_TIMER	TIMER
 @REGS.2= 2 R_STOPWATCH	STOPWATCH
 @REGS.3= 3 R_CKALARM	ALARM CKALARM
+@REGS.4= 4 R_CKSPEED	CKSPEED
 @BDEF.DEFN=
 typedef	struct	RTCLIGHT_S	{
 	unsigned	r_clock, r_stopwatch, r_timer, r_alarm;
@@ -74,5 +74,5 @@ typedef	struct	RTCLIGHT_S	{
 @BDEF.OSVAL=static volatile @$BDEF.IOTYPE *const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)@$[0x%08x](REGBASE));
 #
 #
-@RTL.MAKE.GROUP=RTCLIGHT
-@RTL.MAKE.FILES=rtclight.v rtcbare.v rtctimer.v rtcstopwatch.v rtcalarm.v rtclight.v
+@RTL.MAKE.GROUP=@$(DEVID)
+@RTL.MAKE.FILES=rtclight.v rtcbare.v rtcalarm.v rtcstopwatch.v rtctimer.v

@@ -18,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015,2017-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -64,7 +64,7 @@ module	rtclight(i_clk, i_reset,
 	input	wire	[2:0]	i_wb_addr;
 	input	wire	[31:0]	i_wb_data;
 	input	wire	[3:0]	i_wb_sel;
-	// input		i_btn;
+	//
 	output	wire		o_wb_stall;
 	output	reg		o_wb_ack;
 	output	reg	[31:0]	o_wb_data;
@@ -77,33 +77,29 @@ module	rtclight(i_clk, i_reset,
 	wire	[30:0]	stopwatch_data;
 	wire		sw_running;
 
-	reg	ck_wr, tm_wr, sw_wr, al_wr, wr_zero;
+	reg	ck_wr, tm_wr, al_wr, wr_zero;
 	reg	[31:0]	wr_data;
-	reg	[3:3]	wr_sel;
 	reg	[2:0]	wr_valid;
 
 	initial	ck_wr = 1'b0;
 	initial	tm_wr = 1'b0;
-	initial	sw_wr = 1'b0;
 	initial	al_wr = 1'b0;
 	always @(posedge i_clk)
 	if (i_reset)
 	begin
 		ck_wr <= 1'b0;
 		tm_wr <= 1'b0;
-		sw_wr <= 1'b0;
 		al_wr <= 1'b0;
 	end else begin
 		ck_wr <= ((i_wb_stb)&&(i_wb_addr==3'b000)&&(i_wb_we));
 		tm_wr <= ((i_wb_stb)&&(i_wb_addr==3'b001)&&(i_wb_we));
-		sw_wr <= ((i_wb_stb)&&(i_wb_addr==3'b010)&&(i_wb_we));
+		//sw_wr<=((i_wb_stb)&&(i_wb_addr==3'b010)&&(i_wb_we));
 		al_wr <= ((i_wb_stb)&&(i_wb_addr==3'b011)&&(i_wb_we));
 	end
 
 	always @(posedge i_clk)
 	begin
 		wr_data <= i_wb_data;
-		wr_sel[3]   <= i_wb_sel[3];
 		wr_valid[0] <= (i_wb_sel[0])&&(i_wb_data[3:0] <= 4'h9)
 				&&(i_wb_data[7:4] <= 4'h5);
 		wr_valid[1] <= (i_wb_sel[1])&&(i_wb_data[11:8] <= 4'h9)
@@ -149,10 +145,19 @@ module	rtclight(i_clk, i_reset,
 
 	generate if (OPT_STOPWATCH)
 	begin
+		reg	[2:0]	sw_ctrl;
+
+		initial	sw_ctrl = 0;
+		always @(posedge i_clk)
+		if (i_reset)
+			sw_ctrl <= 0;
+		else if (i_wb_stb && i_wb_we && i_wb_sel[0] && i_wb_addr == 3'b010)
+			sw_ctrl <= { i_wb_data[1:0], !i_wb_data[0] };
+		else
+			sw_ctrl <= 0;
 
 		rtcstopwatch rtcstop(i_clk, i_reset, ckspeed,
-			(sw_wr)&&(wr_sel[3])&&(!sw_running),
-			(sw_wr)&&(wr_sel[3])&&(sw_running),
+			sw_ctrl[2], sw_ctrl[1], sw_ctrl[0],
 			stopwatch_data, sw_running);
 
 	end else begin
@@ -167,9 +172,7 @@ module	rtclight(i_clk, i_reset,
 
 		rtcalarm alarm(i_clk, i_reset, clock_data[21:0],
 			al_wr, wr_data[25], wr_data[24], wr_data[21:0],
-				wr_valid[2:0],
-			alarm_data, al_int);
-
+				wr_valid, alarm_data, al_int);
 	end else begin
 
 		assign	alarm_data = 0;
@@ -185,22 +188,22 @@ module	rtclight(i_clk, i_reset,
 	// device.  Further, because this is only the lower 32 bits of a
 	// 48 bit counter per seconds, the clock jitter is kept below
 	// 1 part in 65 thousand.
-	//
-	initial	ckspeed = DEFAULT_SPEED; // 2af31e = 2^48 / 100e6 MHz
-	// In the case of verilator, comment the above and uncomment the line
-	// below.  The clock constant below is "close" to simulation time,
-	// meaning that my verilator simulation is running about 300x slower
-	// than board time.
-	// initial	ckspeed = 32'd786432000;
+	wire	sp_sel;
 	generate if (!OPT_FIXED_SPEED)
-	begin
+	begin : ADJUSTABLE_CLOCK_RATE
 
-		wire		sp_sel;
 		assign	sp_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
 
+		initial	ckspeed = DEFAULT_SPEED; // 2af31e = 2^48 / 100e6 MHz
 		always @(posedge i_clk)
-			if ((sp_sel)&&(i_wb_we))
-				ckspeed <= i_wb_data;
+		if ((sp_sel)&&(i_wb_we))
+			ckspeed <= i_wb_data;
+
+	end else begin : FIXED_CLOCK_DIVIDER
+
+		assign	sp_sel = 0;
+		always @(*)
+			ckspeed = DEFAULT_SPEED;
 
 	end endgenerate
 
@@ -232,8 +235,8 @@ module	rtclight(i_clk, i_reset,
 
 	// Make verilator hapy
 	// verilator lint_off UNUSED
-	wire	[6:0]	unused;
-	assign	unused = { i_wb_cyc, wr_data[31:26] };
+	wire	unused;
+	assign	unused = &{ 1'b0, sp_sel, i_wb_cyc, wr_data[31:26], i_wb_sel[3] };
 	// verilator lint_on UNUSED
 
 `ifdef	FORMAL
