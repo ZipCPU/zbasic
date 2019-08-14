@@ -44,6 +44,17 @@
 #ifndef	FLASHSIM_H
 #define	FLASHSIM_H
 
+#include "regdefs.h"
+
+#ifndef	FLASH_NDUMMY
+#define	FLASH_NDUMMY	6
+#endif
+
+#ifndef	FLASH_RDDELAY
+#error read-delay-undefined
+#define	FLASH_RDDELAY	1
+#endif
+
 #define	QSPIF_WIP_FLAG			0x0001
 #define	QSPIF_WEL_FLAG			0x0002
 #define	QSPIF_DEEP_POWER_DOWN_FLAG	0x0200
@@ -88,12 +99,14 @@ class	FLASHSIM {
 	bool		m_debug, m_idle_throttle;
 	FLASH_MODE	m_mode;
 
-	const	unsigned	CKDELAY, RDDELAY;
+	const	unsigned	CKDELAY, RDDELAY, NDUMMY;
 
 	int		*m_ckdelay, *m_rddelay;
 
 public:
-	FLASHSIM(const int lglen = 24, bool debug = false);
+	FLASHSIM(const int lglen = 24, bool debug = false,
+		const int rddelay = FLASH_RDDELAY,
+		const int ndummy = FLASH_NDUMMY);
 	void	load(const char *fname) { load(0, fname); }
 	void	load(const unsigned addr, const char *fname);
 	void	load(const uint32_t offset, const char *data, const uint32_t len);

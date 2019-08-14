@@ -75,8 +75,10 @@ static	const unsigned
 	// tPP    = 1200 * MICROSECONDS,
 	// tSE    = 1500 * MILLISECONDS;
 
-FLASHSIM::FLASHSIM(const int lglen, bool debug) : m_debug(debug),
-			CKDELAY(0), RDDELAY(0) {
+FLASHSIM::FLASHSIM(const int lglen, bool debug,
+		const int rddelay, const int ndummy)
+			: m_debug(debug), CKDELAY(0),
+			RDDELAY(rddelay), NDUMMY(ndummy) {
 	m_membytes = (1<<lglen);
 	m_memmask = (m_membytes - 1);
 	m_mem = new char[m_membytes];
@@ -117,8 +119,15 @@ void	FLASHSIM::load(const unsigned addr, const char *fname) {
 		perror("O/S Err:");
 	}
 
-	for(unsigned i=nr; i<m_membytes; i++)
+	for(unsigned i=nr+addr; i<m_membytes; i++)
 		m_mem[i] = 0x0ff;
+
+	if (m_debug && addr == 0 && nr > 16) {
+		fprintf(stderr, "FLASH LOAD: ");
+		for(unsigned i=0; i<16; i++)
+			fprintf(stderr, "%02x ", m_mem[i]);
+		fprintf(stderr, "\n");
+	}
 }
 
 void	FLASHSIM::load(const uint32_t offset, const char *data,
@@ -161,7 +170,7 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 
 		if ((QSPIF_PP == m_state)||(QSPIF_QPP == m_state)) {
 			// Start a page program
-			if (m_debug) printf("FLASHSIM: Page Program write cycle begins\n");
+			if (m_debug) printf("FLASHSIM: Page Program write cycle begins (Addr = %08x)\n", (m_addr&(~0x0ff)));
 			if (m_debug) printf("CK = %d & 7 = %d\n", m_count, m_count & 0x07);
 			if (m_debug) printf("FLASHSIM: pmem = %08lx\n", (unsigned long)m_pmem);
 			m_write_count = tPP;
@@ -366,9 +375,18 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 			// This is a NOOP command
 			QOREG(0);
 			break;
+		case 0x61: // Write enhanced volatile configuration register
+			m_state = QSPIF_IDLE;
+			if (m_debug) printf("FLASHSIM: WRITING ENHANCED VOLATILE-CONFIGURATION-REG");
+			// We'll treat this as a NOOP command--for now
+			QOREG(0);
+			break;
 		case 0x70: // Read flag status register register
 			m_state = QSPIF_IDLE;
 			if (m_debug) printf("FLASHSIM: READING FLAG-STATUS REGISTER\n");
+			QOREG(0);
+			break;
+		case 0x81: // Write enhanced configuration register
 			QOREG(0);
 			break;
 		case 0x9f: // Read ID
@@ -535,10 +553,12 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 				// printf("FAST READ, ADDR = %08x\n", m_addr);
 				// printf("QSPI: QUAD READ, ADDR = %06x\n", m_addr);
 				assert((m_addr & (~(m_memmask)))==0);
-			} else if (m_count == 32+24) {
-				m_mode_byte = (m_ireg>>16) & 0x0ff;
+			} else if (m_count == 32+8) {
+				m_mode_byte = (m_ireg) & 0x0ff;
 				if (m_debug) printf("QSPI: MODE BYTE = %02x\n", m_mode_byte);
-			} else if ((m_count > 32+24)&&(0 == (m_sreg&0x01))) {
+				if (NDUMMY == 2)
+					QOREG(m_mem[m_addr++]);
+			} else if ((m_count > 32+4*NDUMMY)&&(0 == (m_sreg&0x01))) {
 				QOREG(m_mem[m_addr++]);
 				// printf("QSPIF[%08x]/QR = %02x\n",
 					// m_addr-1, m_oreg);
@@ -553,12 +573,16 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 			if (m_debug) printf("DSPIF[%08x]/DR = %02x\n", m_addr-1, m_oreg & 0x0ff);
 			break;
 		case QSPIF_QUAD_READ:
-			if (m_count == 32) {
+			if (m_count == 24+4*2) {
 				m_mode_byte = (m_ireg & 0x0ff);
-				// printf("QSPI/QR: MODE BYTE = %02x\n", m_mode_byte);
-			} else if ((m_count >= 32+16)&&(0 == (m_sreg&0x01))) {
+				if (m_debug) printf("QSPI/QR: MODE BYTE = %02x\n", m_mode_byte);
+				if (NDUMMY == 2) {
+					QOREG(m_mem[m_addr++]);
+					if (m_debug) printf("QSPIF[%08x]/QR = %02x\n", m_addr-1, m_oreg & 0x0ff);
+				}
+			} else if ((m_count >= 24+4*NDUMMY)&&(0 == (m_sreg&0x01))) {
 				QOREG(m_mem[m_addr++]);
-				// printf("QSPIF[%08x]/QR = %02x\n", m_addr-1, m_oreg & 0x0ff);
+				if (m_debug) printf("QSPIF[%08x]/QR = %02x\n", m_addr-1, m_oreg & 0x0ff);
 			} else m_oreg = 0;
 			break;
 		case QSPIF_PP:
@@ -620,7 +644,8 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 // aligned with the clock tick upon which it is sent.
 //
 int	FLASHSIM::simtick(const int csn, const int sck, const int dat,
-		const int mod){
+		const int mod) {
+	const bool	ODDR_IO = false;
 	int	lclsck;
 
 	if ((CKDELAY > 0)&&(m_ckdelay == NULL)) {
@@ -642,8 +667,11 @@ int	FLASHSIM::simtick(const int csn, const int sck, const int dat,
 
 	// Simulate an ODDR for the clock
 	int	r;
-	r = (*this)(csn, (lclsck != 0)?0:1, dat);
-	r = (*this)(csn, 1, dat);
+	if (ODDR_IO) {
+		r = (*this)(csn, (lclsck != 0)?0:1, dat);
+		r = (*this)(csn, 1, dat);
+	} else
+		r = (*this)(csn, lclsck, dat);
 
 	if (false) {
 		// Debug the transaction
@@ -657,10 +685,10 @@ int	FLASHSIM::simtick(const int csn, const int sck, const int dat,
 			case 3:		printf(" (QDO)");	break;
 			case 4:		printf(" (DDI)");	break;
 			case 5:		printf(" (DDO)");	break;
-			}
+			} printf(",%d",mod);
 
-			printf(" -- %d %d",
-				CKDELAY, (m_ckdelay != NULL) ? m_ckdelay[0] : -2);
+			if (m_ckdelay != NULL)
+				printf(" -- %d %d", CKDELAY, m_ckdelay[0]);
 			printf("\n");
 		}
 	}

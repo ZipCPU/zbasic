@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -46,17 +46,31 @@ class	FLASHDRVR {
 private:
 	DEVBUS	*m_fpga;
 	bool	m_debug;
+	unsigned	m_id; // ID of the flash device
 
+	//
+	void	take_offline(void);
+	void	place_online(void);
+	void	restore_dualio(void);
+	void	restore_quadio(void);
+	static void restore_dualio(DEVBUS *fpga);
+	static void restore_quadio(DEVBUS *fpga);
+	//
 	bool	verify_config(void);
 	void	set_config(void);
 	void	flwait(void);
 public:
-	FLASHDRVR(DEVBUS *fpga) : m_fpga(fpga), m_debug(false) {}
+	FLASHDRVR(DEVBUS *fpga);
 	bool	erase_sector(const unsigned sector, const bool verify_erase=true);
 	bool	page_program(const unsigned addr, const unsigned len,
 			const char *data, const bool verify_write=true);
 	bool	write(const unsigned addr, const unsigned len,
 			const char *data, const bool verify=false);
+
+	unsigned	flashid(void);
+
+	static void take_offline(DEVBUS *fpga);
+	static void place_online(DEVBUS *fpga);
 };
 
 #endif
