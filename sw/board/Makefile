@@ -129,9 +129,9 @@ tttt:
 	CROSS=zip- ARCH=zip $(SUBMAKE) tttt/src ARCH=zip CROSS=zip- zip-tttt
 
 
-#hellosim: hellosim.s
-#	$(AS) $< -o $(OBJDIR)/hellosim.o
-#	$(LD) -T boardram.ld $(OBJDIR)/hellosim.o -o $@
+hellosim: hellosim.s
+	$(AS) $< -o $(OBJDIR)/hellosim.o
+	$(LD) -T bkram.ld $(OBJDIR)/hellosim.o -o $@
 
 
 define	mk-objdir
