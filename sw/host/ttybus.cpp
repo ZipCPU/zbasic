@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -85,8 +85,12 @@ void	filedump(const char *fmt, ...) {
 	static	FILE *dbgfp = NULL;
 	va_list	args;
 
-	if (!dbgfp)
+	if (!dbgfp) {
 		dbgfp = fopen("debug.txt", "w");
+		// fprintf(dbgfp, "\n\n\n-----------------------------\n");
+		// fprintf(dbgfp, "     NEW TRANSACTION \n");
+		// fprintf(dbgfp, "-----------------------------\n");
+	}
 	va_start(args, fmt);
 	vfprintf(dbgfp, fmt, args);
 	va_end(args);
@@ -414,7 +418,7 @@ char	*TTYBUS::encode_address(const TTYBUS::BUSW a) {
 			*ptr++ = charenc((diffaddr>> 6) & 0x03f);
 			*ptr++ = charenc( diffaddr      & 0x03f);
 		} else if ((diffaddr >= -(1<<23))&&(diffaddr < (1<<23))) {
-			*ptr++ = charenc(0x0d);
+			*ptr++ = charenc(0x0f);
 			*ptr++ = charenc((diffaddr>>18) & 0x03f);
 			*ptr++ = charenc((diffaddr>>12) & 0x03f);
 			*ptr++ = charenc((diffaddr>> 6) & 0x03f);

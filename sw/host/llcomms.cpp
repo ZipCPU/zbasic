@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -71,6 +71,9 @@ void	LLCOMMSI::write(char *buf, int len) {
 	nw = ::write(m_fdw, buf, len);
 	if (nw <= 0) {
 		throw "Write-Failure";
+	} else if (nw != len) {
+		fprintf(stderr, "LLCOMMSI::ERR: %d byte write request, only %d written\n", len, nw);
+		assert(nw == len);
 	}
 	m_total_nwrit += nw;
 	assert(nw == len);
