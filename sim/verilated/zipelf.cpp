@@ -15,7 +15,7 @@
 // Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -245,8 +245,13 @@ assert(n != 0);
 		*/
 
 /*
+		// Only turn this on if you need to, otherwise it creates
+		// way too much debugging output--one line per char in the
+		// design
 		if (dbg) for(unsigned j=0; j<r[i]->m_len; j++)
-			fprintf(stderr, "ADR[%04x] = %02x\n", r[i]->m_start+j,
+			fprintf(stderr, "ADR[%04x -> %04x] = %02x\n",
+				r[i]->m_start+j,
+				(unsigned)(phdr.p_vaddr+j),
 				r[i]->m_data[j] & 0x0ff);
 */
 	}

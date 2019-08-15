@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
 	if (m_fpga->poll())
 		printf("FPGA was interrupted\n");
 	delete	m_fpga;
-#else
+#else // FLASH_ACCESS
 	printf(
 "This design requires some kind of flash be available within your design.\n"
 "\n"
@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
 "directory, and then add that component to the AutoFPGA makefile to\n"
 "include it.  This file should then build properly, and be able to dump\n"
 "the given flash device.\n");
-#endif
+#endif // FLASH_ACCESS
 }
 
 

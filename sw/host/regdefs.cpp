@@ -46,13 +46,11 @@
 #include "regdefs.h"
 
 const	REGNAME	raw_bregs[] = {
+	{ R_FLASHCFG      ,	"FLASHCFG" 	},
+	{ R_FLASHCFG      ,	"QSPIC"    	},
 	{ R_SDSPI_SCOPC   ,	"SDSCOPC"  	},
 	{ R_SDSPI_SCOPC   ,	"SDSCOPE"  	},
 	{ R_SDSPI_SCOPD   ,	"SDSCOPD"  	},
-	{ R_QSPI_EREG     ,	"QSPIE"    	},
-	{ R_QSPI_CREG     ,	"QSPIC"    	},
-	{ R_QSPI_SREG     ,	"QSPIS"    	},
-	{ R_QSPI_IDREG    ,	"QSPII"    	},
 	{ R_SDSPI_CTRL    ,	"SDCARD"   	},
 	{ R_SDSPI_DATA    ,	"SDDATA"   	},
 	{ R_SDSPI_FIFOA   ,	"SDFIFOA"  	},

@@ -41,6 +41,8 @@
 ##
 GPIO := wbgpio.v
 
+FLASH := qflexpress.v
+
 SDSPI := sdspi.v llsdspi.v wbscope.v
 
 WBUBUS := wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v wbudecompress.v wbudeword.v wbuexec.v wbuidleint.v wbuinput.v wbuoutput.v wbureadcw.v wbusixchar.v wbutohex.v wbconsole.v
@@ -49,8 +51,6 @@ BUSDLYD := cpu
 BUSDLY  := $(addprefix $(BUSDLYD)/,busdelay.v wbpriarbiter.v)
 BUSPICD := cpu
 BUSPIC  := $(addprefix $(BUSPICD)/,icontrol.v)
-FLASH := wbqspiflash.v llqspi.v flashconfig.v
-
 RTCLIGHT := rtclight.v rtcbare.v rtctimer.v rtcstopwatch.v rtcalarm.v rtclight.v
 
 BKRAM := memdev.v
@@ -61,5 +61,5 @@ CONSOLE := wbconsole.v txuartlite.v rxuartlite.v ufifo.v
 
 RTCDATE := rtcdate.v
 
-VFLIST := main.v  $(GPIO) $(SDSPI) $(WBUBUS) $(BUSDLY) $(BUSPIC) $(FLASH) $(RTCLIGHT) $(BKRAM) $(ZIPCPU) $(CONSOLE) $(RTCDATE)
+VFLIST := main.v  $(GPIO) $(FLASH) $(SDSPI) $(WBUBUS) $(BUSDLY) $(BUSPIC) $(RTCLIGHT) $(BKRAM) $(ZIPCPU) $(CONSOLE) $(RTCDATE)
 AUTOVDIRS :=  -y cpu

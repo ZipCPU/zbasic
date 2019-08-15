@@ -55,7 +55,7 @@
 // The only exception is that any clocks with CLOCK.TOP tags will
 // also appear in this list
 //
-module	toplevel(
+module	toplevel(i_clk,
 		// SD Card
 		o_sd_sck, io_sd_cmd, io_sd, i_sd_cs, i_sd_wp,
 		// GPIO ports
@@ -78,6 +78,7 @@ module	toplevel(
 	//
 	// We start with any @CLOCK.TOP keys
 	//
+	input	wire		i_clk;
 	// SD Card
 	output	wire		o_sd_sck;
 	inout	wire		io_sd_cmd;

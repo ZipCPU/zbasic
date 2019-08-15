@@ -14,7 +14,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017-2018, Gisselquist Technology, LLC
+## Copyright (C) 2017-2019, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -52,7 +52,7 @@ AUX     := version.txt buserr.txt pic.txt pwrcount.txt
 IO      := gpio.txt # spio.txt
 RTC     := rtclight.txt rtcdate.txt
 DBGBUS  := busconsole.txt
-MEMORY  := bkram.txt flash.txt # nflash.txt
+MEMORY  := bkram.txt flash.txt
 CPU     := zipmaster.txt
 NETWORK := # mdio.txt enet.txt
 SDCARD  := sdspi.txt

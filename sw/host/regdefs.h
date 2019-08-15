@@ -55,14 +55,11 @@
 //
 // Register address definitions, from @REGS.#d
 //
-// SDSPI Debugging scope
-#define	R_SDSPI_SCOPC   	0x00200000	// 00200000, wbregs names: SDSCOPC, SDSCOPE
-#define	R_SDSPI_SCOPD   	0x00200004	// 00200000, wbregs names: SDSCOPD
 // FLASH erase/program configuration registers
-#define	R_QSPI_EREG     	0x00400000	// 00400000, wbregs names: QSPIE
-#define	R_QSPI_CREG     	0x00400004	// 00400000, wbregs names: QSPIC
-#define	R_QSPI_SREG     	0x00400008	// 00400000, wbregs names: QSPIS
-#define	R_QSPI_IDREG    	0x0040000c	// 00400000, wbregs names: QSPII
+#define	R_FLASHCFG      	0x00200000	// 00200000, wbregs names: FLASHCFG, QSPIC
+// SDSPI Debugging scope
+#define	R_SDSPI_SCOPC   	0x00400000	// 00400000, wbregs names: SDSCOPC, SDSCOPE
+#define	R_SDSPI_SCOPD   	0x00400004	// 00400000, wbregs names: SDSCOPD
 // SD-SPI addresses
 #define	R_SDSPI_CTRL    	0x00600000	// 00600000, wbregs names: SDCARD
 #define	R_SDSPI_DATA    	0x00600004	// 00600000, wbregs names: SDDATA
@@ -109,6 +106,10 @@
 #define	FLASHBASE	0x01000000
 #define	FLASHLEN	0x01000000
 #define	FLASHLGLEN	24
+//
+#define	FLASH_RDDELAY	0
+#define	FLASH_NDUMMY	6
+//
 // @REGDEFS.H.DEFNS at the top level
 // End of definitions from REGDEFS.H.DEFNS
 //
@@ -137,10 +138,7 @@
 
 // @REGDEFS.H.INSERT for peripherals
 // Flash control constants
-#define	ERASEFLAG	0x80000000
-#define	DISABLEWP	0x10000000
-#define	ENABLEWP	0x00000000
-
+#define	QSPI_FLASH	// This core and hardware support a Quad SPI flash
 #define	SZPAGEB		256
 #define	PGLENB		256
 #define	SZPAGEW		64
@@ -153,11 +151,6 @@
 #define	SUBSECTOROF(A)	((A) & (-1<<12))
 #define	PAGEOF(A)	((A) & (-1<<8))
 
-
-#define	R_ICONTROL	R_PIC
-#define	ISPIF_EN	0x80040004
-#define	ISPIF_DIS	0x00040004
-#define	ISPIF_CLR	0x00000004
 // @REGDEFS.H.INSERT from the top level
 typedef	struct {
 	unsigned	m_addr;

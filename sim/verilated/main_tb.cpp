@@ -190,7 +190,7 @@ public:
 		m_wbu->setup(100);
 		// From flash
 #ifdef	FLASH_ACCESS
-		m_flash = new FLASHSIM(FLASHLGLEN);
+		m_flash = new FLASHSIM(FLASHLGLEN, false, 0, 6);
 #endif // FLASH_ACCESS
 		// From zip
 		m_cpu_bombed = 0;
@@ -255,8 +255,11 @@ public:
 		m_core->i_wbu_uart_rx = (*m_wbu)(m_core->o_wbu_uart_tx);
 		// SIM.TICK from flash
 #ifdef	FLASH_ACCESS
-		m_core->i_qspi_dat = (*m_flash)(m_core->o_qspi_cs_n,
-			m_core->o_qspi_sck, m_core->o_qspi_dat);
+		m_core->i_qspi_dat = m_flash->simtick(
+			m_core->o_qspi_cs_n,
+			m_core->o_qspi_sck,
+			m_core->o_qspi_dat,
+			m_core->o_qspi_mod);
 #endif // FLASH_ACCESS
 		// SIM.TICK from zip
 #ifdef	INCLUDE_ZIPCPU
@@ -411,7 +414,9 @@ public:
 				? (adrln - start) : len - offset;
 #ifdef	FLASH_ACCESS
 			// FROM flash.SIM.LOAD
+#ifdef	FLASH_ACCESS
 			m_flash->load(start, &buf[offset], wlen);
+#endif // FLASH_ACCESS
 			// AUTOFPGA::Now clean up anything else
 			// Was there more to write than we wrote?
 			if (addr + len > base + adrln)
@@ -471,7 +476,7 @@ public:
 	}
 
 	void dump(const uint32_t *regp) {
-		uint32_t	uccv, iccv;
+		uint32_t	uccv, iccv, ipc, upc;
 		fflush(stderr);
 		fflush(stdout);
 		printf("ZIPM--DUMP: ");
@@ -483,6 +488,8 @@ public:
 
 		iccv = m_core->cpu_iflags;
 		uccv = m_core->cpu_uflags;
+		ipc = m_core->cpu_ipc;
+		upc = m_core->cpu_upc;
 
 		printf("sR0 : %08x ", regp[0]);
 		printf("sR1 : %08x ", regp[1]);
@@ -499,7 +506,7 @@ public:
 		printf("sR12: %08x ", regp[12]);
 		printf("sSP : %08x ", regp[13]);
 		printf("sCC : %08x ", iccv);
-		printf("sPC : %08x\n",regp[15]);
+		printf("sPC : %08x\n",ipc);
 
 		printf("\n");
 
@@ -518,7 +525,7 @@ public:
 		printf("uR12: %08x ", regp[28]);
 		printf("uSP : %08x ", regp[29]);
 		printf("uCC : %08x ", uccv);
-		printf("uPC : %08x\n",regp[31]);
+		printf("uPC : %08x\n",upc);
 		printf("\n");
 		fflush(stderr);
 		fflush(stdout);
@@ -613,6 +620,6 @@ public:
 				m_core->cpu_upc);
 		} fflush(stdout);
 	}
-#endif
+#endif // INCLUDE_ZIPCPU
 
 };

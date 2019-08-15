@@ -59,7 +59,6 @@
 `define	SDSPI_ACCESS
 `define	GPIO_ACCESS
 `define	BUSPIC_ACCESS
-`define	FLASH_ACCESS
 `define	RTC_ACCESS
 `define	BKRAM_ACCESS
 `define	FLASH_ACCESS
@@ -70,28 +69,20 @@
 // The list of those things that have @DEPENDS tags
 //
 //
-// Dependencies are listed within the @DEPENDS tag
-// Values prefixed by a !, yet with no spaces between the ! and the
-// dependency, are ifndef dependencies.  As an example, an
-// an access and depends tag such as:
 //
-// @ACCESS=  THIS_COMPONENT
-// @DEPENDS= MUST_HAVE_A !MUST_NOT_HAVE_B
-//
-// will turn into:
-//
-// `ifdef MUST_HAVE_A
-// `ifndef MUST_NOT_HAVE_B
-// `define THIS_COMPONENT
-// `endif // MUST_NOT_HAVE_B
-// `endif // MUST_HAVE_A
-//
+// Dependencies
+// Any core with both an @ACCESS and a @DEPENDS tag will show up here.
+// The @DEPENDS tag will turn into a series of ifdef's, with the @ACCESS
+// being defined only if all of the ifdef's are true//
 `ifdef	RTC_ACCESS
 `define	RTCDATE_ACCESS
-`endif
+`endif	// RTC_ACCESS
+`ifdef	FLASH_ACCESS
+`define	FLASHCFG_ACCESS
+`endif	// FLASH_ACCESS
 `ifdef	SDSPI_ACCESS
 `define	SDSPI_SCOPE
-`endif
+`endif	// SDSPI_ACCESS
 //
 // End of dependency list
 //
@@ -111,7 +102,7 @@ module	main(i_clk, i_reset,
 		i_gpio, o_gpio,
 		// UART/host to wishbone interface
 		i_wbu_uart_rx, o_wbu_uart_tx,
-		// The QSPI Flash
+		// The Universal QSPI Flash
 		o_qspi_cs_n, o_qspi_sck, o_qspi_dat, i_qspi_dat, o_qspi_mod,
 		i_cpu_reset);
 //
@@ -173,7 +164,7 @@ module	main(i_clk, i_reset,
 	output	wire	[(NGPO-1):0]	o_gpio;
 	input	wire		i_wbu_uart_rx;
 	output	wire		o_wbu_uart_tx;
-	// The QSPI flash
+	// The Universal QSPI flash
 	output	wire		o_qspi_cs_n, o_qspi_sck;
 	output	wire	[3:0]	o_qspi_dat;
 	input	wire	[3:0]	i_qspi_dat;
@@ -197,7 +188,6 @@ module	main(i_clk, i_reset,
 	wire	scope_sdcard_int;	// scope_sdcard.INT.SDSCOPE.WIRE
 	wire	w_bus_int;	// buspic.INT.BUS.WIRE
 	wire	rtc_int;	// rtc.INT.RTC.WIRE
-	wire	flash_interrupt;	// flash.INT.FLASH.WIRE
 	wire	zip_cpu_int;	// zip.INT.ZIP.WIRE
 	wire	uarttxf_int;	// uart.INT.UARTTXF.WIRE
 	wire	uartrxf_int;	// uart.INT.UARTRXF.WIRE
@@ -244,6 +234,9 @@ module	main(i_clk, i_reset,
 	localparam	[31:0]	RTC_CLKSTEP = 32'h002af31d;
 	wire	rtc_ppd;
 	reg	r_rtc_ack;
+	// Definitions for the flash debug port
+	wire		flash_dbg_trigger;
+	wire	[31:0]	flash_debug;
 // BUILDTIME doesnt need to include builddate.v a second time
 // `include "builddate.v"
 	reg	[23-1:0]	r_buserr_addr;
@@ -312,13 +305,13 @@ module	main(i_clk, i_reset,
 	wire		version_sel, version_ack, version_stall;
 	wire	[31:0]	version_data;
 
+	// Wishbone slave definitions for bus wb, slave flashcfg
+	wire		flashcfg_sel, flashcfg_ack, flashcfg_stall;
+	wire	[31:0]	flashcfg_data;
+
 	// Wishbone slave definitions for bus wb, slave scope_sdcard
 	wire		scope_sdcard_sel, scope_sdcard_ack, scope_sdcard_stall;
 	wire	[31:0]	scope_sdcard_data;
-
-	// Wishbone slave definitions for bus wb, slave flctl
-	wire		flctl_sel, flctl_ack, flctl_stall;
-	wire	[31:0]	flctl_data;
 
 	// Wishbone slave definitions for bus wb, slave sdcard
 	wire		sdcard_sel, sdcard_ack, sdcard_stall;
@@ -399,8 +392,8 @@ module	main(i_clk, i_reset,
 	assign	    pwrcount_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h4));  // 0x000010
 	assign	     rtcdate_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h5));  // 0x000014
 	assign	     version_sel = ((wb_sio_sel)&&(wb_addr[ 2: 0] ==  3'h6));  // 0x000018
-	assign	scope_sdcard_sel = ((wb_addr[22:19] &  4'hf) ==  4'h1); // 0x200000 - 0x200007
-	assign	       flctl_sel = ((wb_addr[22:19] &  4'hf) ==  4'h2); // 0x400000 - 0x40000f
+	assign	    flashcfg_sel = ((wb_addr[22:19] &  4'hf) ==  4'h1); // 0x200000
+	assign	scope_sdcard_sel = ((wb_addr[22:19] &  4'hf) ==  4'h2); // 0x400000 - 0x400007
 	assign	      sdcard_sel = ((wb_addr[22:19] &  4'hf) ==  4'h3); // 0x600000 - 0x60000f
 	assign	        uart_sel = ((wb_addr[22:19] &  4'hf) ==  4'h4); // 0x800000 - 0x80000f
 	assign	         rtc_sel = ((wb_addr[22:19] &  4'hf) ==  4'h5); // 0xa00000 - 0xa0001f
@@ -442,8 +435,8 @@ module	main(i_clk, i_reset,
 	// BUS-LOGIC for wb
 	//
 	assign	wb_none_sel = (wb_stb)&&({
+				flashcfg_sel,
 				scope_sdcard_sel,
-				flctl_sel,
 				sdcard_sel,
 				uart_sel,
 				rtc_sel,
@@ -467,8 +460,8 @@ module	main(i_clk, i_reset,
 	// immediately one after the other.
 	//
 	always @(posedge i_clk)
-		case({		scope_sdcard_ack,
-				flctl_ack,
+		case({		flashcfg_ack,
+				scope_sdcard_ack,
 				sdcard_ack,
 				uart_ack,
 				rtc_ack,
@@ -498,15 +491,15 @@ module	main(i_clk, i_reset,
 	assign	wb_sio_ack = r_wb_sio_ack;
 
 	always	@(posedge i_clk)
-		casez( wb_addr[2:0] )
-			3'h0: r_wb_sio_data <= buildtime_data;
-			3'h1: r_wb_sio_data <= buserr_data;
-			3'h2: r_wb_sio_data <= buspic_data;
-			3'h3: r_wb_sio_data <= gpio_data;
-			3'h4: r_wb_sio_data <= pwrcount_data;
-			3'h5: r_wb_sio_data <= rtcdate_data;
-			default: r_wb_sio_data <= version_data;
-		endcase
+	casez( wb_addr[2:0] )
+		3'h0: r_wb_sio_data <= buildtime_data;
+		3'h1: r_wb_sio_data <= buserr_data;
+		3'h2: r_wb_sio_data <= buspic_data;
+		3'h3: r_wb_sio_data <= gpio_data;
+		3'h4: r_wb_sio_data <= pwrcount_data;
+		3'h5: r_wb_sio_data <= rtcdate_data;
+		default: r_wb_sio_data <= version_data;
+	endcase
 	assign	wb_sio_data = r_wb_sio_data;
 
 	//
@@ -529,8 +522,8 @@ module	main(i_clk, i_reset,
 	// respectively, which will appear ahead of any other device acks.
 	//
 	always @(posedge i_clk)
-		wb_ack <= (wb_cyc)&&(|{ scope_sdcard_ack,
-				flctl_ack,
+		wb_ack <= (wb_cyc)&&(|{ flashcfg_ack,
+				scope_sdcard_ack,
 				sdcard_ack,
 				uart_ack,
 				rtc_ack,
@@ -559,9 +552,9 @@ module	main(i_clk, i_reset,
 	always	@(posedge i_clk)
 	if (wb_stb && ! wb_stall)
 		casez(wb_addr[22:19])
-			// 01e00000 & 00200000, scope_sdcard
+			// 01e00000 & 00200000, flashcfg
 			4'b0_001: r_wb_bus_select <= 3'd0;
-			// 01e00000 & 00400000, flctl
+			// 01e00000 & 00400000, scope_sdcard
 			4'b0_010: r_wb_bus_select <= 3'd1;
 			// 01e00000 & 00600000, sdcard
 			4'b0_011: r_wb_bus_select <= 3'd2;
@@ -580,8 +573,8 @@ module	main(i_clk, i_reset,
 
 	always @(posedge i_clk)
 	casez(r_wb_bus_select)
-		3'd0: wb_idata <= scope_sdcard_data;
-		3'd1: wb_idata <= flctl_data;
+		3'd0: wb_idata <= flashcfg_data;
+		3'd1: wb_idata <= scope_sdcard_data;
 		3'd2: wb_idata <= sdcard_data;
 		3'd3: wb_idata <= uart_data;
 		3'd4: wb_idata <= rtc_data;
@@ -591,8 +584,8 @@ module	main(i_clk, i_reset,
 		default: wb_idata <= flash_data;
 	endcase
 
-	assign	wb_stall =	((scope_sdcard_sel)&&(scope_sdcard_stall))
-				||((flctl_sel)&&(flctl_stall))
+	assign	wb_stall =	((flashcfg_sel)&&(flashcfg_stall))
+				||((scope_sdcard_sel)&&(scope_sdcard_stall))
 				||((sdcard_sel)&&(sdcard_stall))
 				||((uart_sel)&&(uart_stall))
 				||((rtc_sel)&&(rtc_stall))
@@ -604,6 +597,7 @@ module	main(i_clk, i_reset,
 	//
 	// BUS-LOGIC for zip
 	//
+		// Only one peripheral attached
 	assign	zip_none_sel = 1'b0;
 	always @(*)
 		zip_many_ack = 1'b0;
@@ -720,7 +714,7 @@ module	main(i_clk, i_reset,
 		1'b0,
 		1'b0,
 		1'b0,
-		flash_interrupt,
+		1'b0,
 		gpio_int,
 		sdcard_int
 	};
@@ -797,12 +791,9 @@ module	main(i_clk, i_reset,
 	assign	o_sd_data  = 4'hf;
 
 	// In the case that there is no sdcard peripheral responding on the wb bus
-	reg	r_sdcard_ack;
-	initial	r_sdcard_ack = 1'b0;
-	always @(posedge i_clk)	r_sdcard_ack <= (wb_stb)&&(sdcard_sel);
-	assign	sdcard_ack   = r_sdcard_ack;
 	assign	sdcard_stall = 0;
 	assign	sdcard_data  = 0;
+	assign	sdcard_ack   = (wb_stb) && (sdcard_sel);
 
 	assign	sdcard_int = 1'b0;	// sdcard.INT.SDCARD.WIRE
 `endif	// SDSPI_ACCESS
@@ -826,15 +817,27 @@ module	main(i_clk, i_reset,
 `else	// GPIO_ACCESS
 
 	// In the case that there is no gpio peripheral responding on the wb bus
-	reg	r_gpio_ack;
-	initial	r_gpio_ack = 1'b0;
-	always @(posedge i_clk)	r_gpio_ack <= (wb_stb)&&(gpio_sel);
-	assign	gpio_ack   = r_gpio_ack;
 	assign	gpio_stall = 0;
 	assign	gpio_data  = 0;
+	assign	gpio_ack   = (wb_stb) && (gpio_sel);
 
 	assign	gpio_int = 1'b0;	// gpio.INT.GPIO.WIRE
 `endif	// GPIO_ACCESS
+
+`ifdef	FLASHCFG_ACCESS
+	// The Flash control interface result comes back together with the
+	// flash interface itself.  Hence, we always return zero here.
+	assign	flashcfg_ack   = 1'b0;
+	assign	flashcfg_stall = 1'b0;
+	assign	flashcfg_data  = flash_data;
+`else	// FLASHCFG_ACCESS
+
+	// In the case that there is no flashcfg peripheral responding on the wb bus
+	assign	flashcfg_stall = 0;
+	assign	flashcfg_data  = 0;
+	assign	flashcfg_ack   = (wb_stb) && (flashcfg_sel);
+
+`endif	// FLASHCFG_ACCESS
 
 `ifdef	SDSPI_SCOPE
 	assign	scope_sdcard_trigger = (wb_stb)
@@ -856,12 +859,9 @@ module	main(i_clk, i_reset,
 `else	// SDSPI_SCOPE
 
 	// In the case that there is no scope_sdcard peripheral responding on the wb bus
-	reg	r_scope_sdcard_ack;
-	initial	r_scope_sdcard_ack = 1'b0;
-	always @(posedge i_clk)	r_scope_sdcard_ack <= (wb_stb)&&(scope_sdcard_sel);
-	assign	scope_sdcard_ack   = r_scope_sdcard_ack;
 	assign	scope_sdcard_stall = 0;
 	assign	scope_sdcard_data  = 0;
+	assign	scope_sdcard_ack   = (wb_stb) && (scope_sdcard_sel);
 
 	assign	scope_sdcard_int = 1'b0;	// scope_sdcard.INT.SDSCOPE.WIRE
 `endif	// SDSPI_SCOPE
@@ -909,8 +909,8 @@ module	main(i_clk, i_reset,
 	assign	wbu_addr= 0;
 	assign	wbu_data= 0;
 	// verilator lint_off UNUSED
-	wire	[35:0]	unused_bus_wbu;
-	assign	unused_bus_wbu = { wbu_ack, wbu_stall, wbu_err, wbu_data };
+	wire	unused_bus_wbu;
+	assign	unused_bus_wbu = &{ 1'b0, wbu_ack, wbu_stall, wbu_err, wbu_data };
 	// verilator lint_on  UNUSED
 
 `endif	// WBUBUS_MASTER
@@ -989,37 +989,18 @@ module	main(i_clk, i_reset,
 	// The BUS Interrupt controller
 	//
 	icontrol #(15)	buspici(i_clk, 1'b0, (wb_stb)&&(buspic_sel),
-			wb_data, buspic_data, bus_int_vector, w_bus_int);
+			wb_we, wb_data,
+			buspic_ack, buspic_stall, buspic_data,
+			bus_int_vector, w_bus_int);
 `else	// BUSPIC_ACCESS
 
 	// In the case that there is no buspic peripheral responding on the wb bus
-	reg	r_buspic_ack;
-	initial	r_buspic_ack = 1'b0;
-	always @(posedge i_clk)	r_buspic_ack <= (wb_stb)&&(buspic_sel);
-	assign	buspic_ack   = r_buspic_ack;
 	assign	buspic_stall = 0;
 	assign	buspic_data  = 0;
+	assign	buspic_ack   = (wb_stb) && (buspic_sel);
 
 	assign	w_bus_int = 1'b0;	// buspic.INT.BUS.WIRE
 `endif	// BUSPIC_ACCESS
-
-`ifdef	FLASH_ACCESS
-	// The Flash control interface result comes back together with the
-	// flash interface itself.  Hence, we always return zero here.
-	assign	flctl_ack   = 1'b0;
-	assign	flctl_stall = 1'b0;
-	assign	flctl_data  = 0;
-`else	// FLASH_ACCESS
-
-	// In the case that there is no flctl peripheral responding on the wb bus
-	reg	r_flctl_ack;
-	initial	r_flctl_ack = 1'b0;
-	always @(posedge i_clk)	r_flctl_ack <= (wb_stb)&&(flctl_sel);
-	assign	flctl_ack   = r_flctl_ack;
-	assign	flctl_stall = 0;
-	assign	flctl_data  = 0;
-
-`endif	// FLASH_ACCESS
 
 `ifdef	RTC_ACCESS
 	rtclight #(32'h2af31d) thertc(i_clk, i_reset,
@@ -1030,12 +1011,9 @@ module	main(i_clk, i_reset,
 `else	// RTC_ACCESS
 
 	// In the case that there is no rtc peripheral responding on the wb bus
-	reg	r_rtc_ack;
-	initial	r_rtc_ack = 1'b0;
-	always @(posedge i_clk)	r_rtc_ack <= (wb_stb)&&(rtc_sel);
-	assign	rtc_ack   = r_rtc_ack;
 	assign	rtc_stall = 0;
 	assign	rtc_data  = 0;
+	assign	rtc_ack   = (wb_stb) && (rtc_sel);
 
 	assign	rtc_int = 1'b0;	// rtc.INT.RTC.WIRE
 `endif	// RTC_ACCESS
@@ -1049,23 +1027,30 @@ module	main(i_clk, i_reset,
 `else	// BKRAM_ACCESS
 
 	// In the case that there is no bkram peripheral responding on the wb bus
-	reg	r_bkram_ack;
-	initial	r_bkram_ack = 1'b0;
-	always @(posedge i_clk)	r_bkram_ack <= (wb_stb)&&(bkram_sel);
-	assign	bkram_ack   = r_bkram_ack;
 	assign	bkram_stall = 0;
 	assign	bkram_data  = 0;
+	assign	bkram_ack   = (wb_stb) && (bkram_sel);
 
 `endif	// BKRAM_ACCESS
 
 `ifdef	FLASH_ACCESS
-	wbqspiflash #(24)
-		flashmem(i_clk,
-			(wb_cyc), (wb_stb)&&(flash_sel), (wb_stb)&&(flctl_sel),wb_we,
+	qflexpress #(.LGFLASHSZ(24), .OPT_CLKDIV(1),
+		.OPT_ENDIANSWAP(0),
+		.NDUMMY(6), .RDDELAY(0),
+		.OPT_STARTUP_FILE("spansion.hex"),
+`ifdef	FLASHCFG_ACCESS
+		.OPT_CFG(1'b1)
+`else
+		.OPT_CFG(1'b0)
+`endif
+		)
+		flashi(i_clk, i_reset,
+			(wb_cyc), (wb_stb)&&(flash_sel),
+			(wb_stb)&&(flashcfg_sel), wb_we,
 			wb_addr[(24-3):0], wb_data,
 			flash_ack, flash_stall, flash_data,
 			o_qspi_sck, o_qspi_cs_n, o_qspi_mod, o_qspi_dat, i_qspi_dat,
-			flash_interrupt);
+			flash_dbg_trigger, flash_debug);
 `else	// FLASH_ACCESS
 	assign	o_qspi_sck  = 1'b1;
 	assign	o_qspi_cs_n = 1'b1;
@@ -1073,14 +1058,10 @@ module	main(i_clk, i_reset,
 	assign	o_qspi_dat  = 4'b1111;
 
 	// In the case that there is no flash peripheral responding on the wb bus
-	reg	r_flash_ack;
-	initial	r_flash_ack = 1'b0;
-	always @(posedge i_clk)	r_flash_ack <= (wb_stb)&&(flash_sel);
-	assign	flash_ack   = r_flash_ack;
 	assign	flash_stall = 0;
 	assign	flash_data  = 0;
+	assign	flash_ack   = (wb_stb) && (flash_sel);
 
-	assign	flash_interrupt = 1'b0;	// flash.INT.FLASH.WIRE
 `endif	// FLASH_ACCESS
 
 	assign	buildtime_data = `BUILDTIME;
@@ -1121,8 +1102,8 @@ module	main(i_clk, i_reset,
 	assign	zip_addr= 0;
 	assign	zip_data= 0;
 	// verilator lint_off UNUSED
-	wire	[35:0]	unused_bus_zip;
-	assign	unused_bus_zip = { zip_ack, zip_stall, zip_err, zip_data };
+	wire	unused_bus_zip;
+	assign	unused_bus_zip = &{ 1'b0, zip_ack, zip_stall, zip_err, zip_data };
 	// verilator lint_on  UNUSED
 
 	assign	zip_cpu_int = 1'b0;	// zip.INT.ZIP.WIRE
@@ -1139,12 +1120,9 @@ module	main(i_clk, i_reset,
 `else	// BUSCONSOLE_ACCESS
 
 	// In the case that there is no uart peripheral responding on the wb bus
-	reg	r_uart_ack;
-	initial	r_uart_ack = 1'b0;
-	always @(posedge i_clk)	r_uart_ack <= (wb_stb)&&(uart_sel);
-	assign	uart_ack   = r_uart_ack;
 	assign	uart_stall = 0;
 	assign	uart_data  = 0;
+	assign	uart_ack   = (wb_stb) && (uart_sel);
 
 	assign	uarttxf_int = 1'b0;	// uart.INT.UARTTXF.WIRE
 	assign	uartrxf_int = 1'b0;	// uart.INT.UARTRXF.WIRE
@@ -1163,12 +1141,9 @@ module	main(i_clk, i_reset,
 `else	// PWRCOUNT_ACCESS
 
 	// In the case that there is no pwrcount peripheral responding on the wb bus
-	reg	r_pwrcount_ack;
-	initial	r_pwrcount_ack = 1'b0;
-	always @(posedge i_clk)	r_pwrcount_ack <= (wb_stb)&&(pwrcount_sel);
-	assign	pwrcount_ack   = r_pwrcount_ack;
 	assign	pwrcount_stall = 0;
 	assign	pwrcount_data  = 0;
+	assign	pwrcount_ack   = (wb_stb) && (pwrcount_sel);
 
 `endif	// PWRCOUNT_ACCESS
 
@@ -1182,12 +1157,9 @@ module	main(i_clk, i_reset,
 `else	// RTCDATE_ACCESS
 
 	// In the case that there is no rtcdate peripheral responding on the wb bus
-	reg	r_rtcdate_ack;
-	initial	r_rtcdate_ack = 1'b0;
-	always @(posedge i_clk)	r_rtcdate_ack <= (wb_stb)&&(rtcdate_sel);
-	assign	rtcdate_ack   = r_rtcdate_ack;
 	assign	rtcdate_stall = 0;
 	assign	rtcdate_data  = 0;
+	assign	rtcdate_ack   = (wb_stb) && (rtcdate_sel);
 
 `endif	// RTCDATE_ACCESS
 

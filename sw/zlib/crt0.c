@@ -208,13 +208,19 @@ extern	void	_bootloader(void) __attribute__ ((section (".boot")));
 //
 #ifndef	SKIP_BOOTLOADER
 void	_bootloader(void) {
-	if (_rom == NULL)
+	if (_rom == NULL) {
+		int	*wrp = _ram_image_end;
+		while(wrp < _ram_image_end)
+			*wrp++ = 0;
 		return;
+	}
 
 	int *ramend = _ram_image_end, *bsend = _bss_image_end,
 	    *kramdev = (_kram) ? _kram : _ram;
 
 #ifdef	USE_DMA
+	// Disable and clear all interrupts
+	_zip->z_pic = CLEARPIC;
 	// asm("\tNSTR "DMA\n"\n");
 	_zip->z_dma.d_ctrl= DMACLEAR;
 	_zip->z_dma.d_rd = _kram_start; // Flash memory
@@ -264,6 +270,9 @@ void	_bootloader(void) {
 		while((_zip->z_pic & SYSINT_DMAC)==0)
 			;
 	}
+
+	// Disable and clear all interrupts
+	_zip->z_pic = CLEARPIC;
 #else
 	int	*rdp = _kram_start, *wrp = (_kram) ? _kram : _ram;
 

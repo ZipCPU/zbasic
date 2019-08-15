@@ -11,7 +11,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -37,13 +37,13 @@
 //
 `default_nettype	none
 //
-module	rtcstopwatch(i_clk, i_reset, i_ckstep, i_start, i_stop, o_value,
-			o_running);
+module	rtcstopwatch(i_clk, i_reset, i_ckstep,
+		i_clear, i_start, i_stop, o_value, o_running);
 	//
 	input	wire		i_clk, i_reset;
 	//
 	input	wire	[31:0]	i_ckstep;
-	input	wire		i_start, i_stop;
+	input	wire		i_clear, i_start, i_stop;
 	output	wire	[30:0]	o_value;
 	output	wire		o_running;
 
@@ -98,7 +98,7 @@ module	rtcstopwatch(i_clk, i_reset, i_ckstep, i_start, i_stop, o_value,
 	reg	[30:0]	next_sw;
 	initial	next_sw = 0;
 	always @(posedge i_clk)
-	if (i_reset)
+	if (i_reset || i_clear)
 	begin
 		sw_carry <= 0;
 		next_sw  <= 0;
@@ -171,16 +171,14 @@ module	rtcstopwatch(i_clk, i_reset, i_ckstep, i_start, i_stop, o_value,
 
 	initial	counter = 31'h00000;
 	always @(posedge i_clk)
-	if (i_reset)
+	if (i_reset || i_clear)
 		counter <= 0;
 	else if ((sw_ppms)&&(sw_running))
 		counter <= next_sw;
 
 	initial	sw_running = 0;
 	always @(posedge i_clk)
-	if (i_reset)
-		sw_running <= 1'b0;
-	else if (i_stop)
+	if (i_reset || i_stop)
 		sw_running <= 1'b0;
 	else if (i_start)
 		sw_running <= 1'b1;
@@ -209,6 +207,8 @@ module	rtcstopwatch(i_clk, i_reset, i_ckstep, i_start, i_stop, o_value,
 
 	always @(*)
 		`ASSUME(i_ckstep > 0);
+
+	initial	`ASSUME(!i_clear);
 	initial	`ASSUME(!i_start);
 	initial	`ASSUME(!i_stop);
 
@@ -217,7 +217,10 @@ module	rtcstopwatch(i_clk, i_reset, i_ckstep, i_start, i_stop, o_value,
 	begin
 		`ASSERT(counter == 0);
 		`ASSERT(!sw_running);
-	end
+	end else if ($past(i_clear))
+		`ASSERT(counter == 0);
+	else if (!$past(sw_running))
+		`ASSERT($stable(counter));
 
 	always @(*)
 	begin
@@ -233,10 +236,6 @@ module	rtcstopwatch(i_clk, i_reset, i_ckstep, i_start, i_stop, o_value,
 		// Hours
 		`ASSERT(counter[27:24] <= 4'h9);
 	end
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(sw_running))&&(!$past(i_reset)))
-		`ASSERT($stable(counter));
 
 	always @(*)
 	if (sw_subticks[45:37] != 0)
