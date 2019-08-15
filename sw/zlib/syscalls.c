@@ -43,42 +43,37 @@
 #include "bootloader.h"
 #include "zipcpu.h"
 
+#ifdef	_BOARD_HAS_BUSCONSOLE
+#define	_ZIP_HAS_WBUART
+#define	_ZIP_HAS_UARTTX
+#define	_ZIP_HAS_UARTRX
+#define	UARTRX	_uart->u_rx
+#define	UARTTX	_uart->u_tx
+#endif
+
 void
 _outbyte(char v) {
-#if	defined(_BOARD_HAS_WBUART)
+#ifdef	_ZIP_HAS_WBUART
 	if (v == '\n') {
 		// Depend upon the WBUART, not the PIC
 		while((_uart->u_fifo & 0x010000)==0)
 			;
-		_uarttx = (unsigned)'\r';
+		UARTTX = (unsigned)'\r';
 	}
 
 	// Depend upon the WBUART, not the PIC
 	while((_uart->u_fifo & 0x010000)==0)
 		;
 	uint8_t c = v;
-	_uarttx = (unsigned)c;
-#elif	defined(_BOARD_HAS_BUSCONSOLE)
-	if (v == '\n') {
-		// Depend upon the WBUART, not the PIC
-		while((_uart->u_fifo & 0x010000)==0)
-			;
-		_uart->u_tx = (unsigned)'\r';
-	}
-
-	// Depend upon the WBUART, not the PIC
-	while((_uart->u_fifo & 0x010000)==0)
-		;
-	uint8_t c = v;
-	_uart->u_tx = (unsigned)c;
-#elif	defined(_ZIP_HAS_UARTTX)
+	UARTTX = (unsigned)c;
+#else
+#ifdef	_ZIP_HAS_UARTTX
 	// Depend upon the WBUART, not the PIC
 	while(UARTTX & 0x100)
 		;
 	uint8_t c = v;
 	UARTTX = (unsigned)c;
-#else
-#error	"No console"
+#endif
 #endif
 }
 
@@ -167,18 +162,18 @@ _getpid_r(struct _reent *reent)
 int
 _gettimeofday_r(struct _reent *reent, struct timeval *ptimeval, void *ptimezone)
 {
-#ifdef	_ZIP_HAS_RTC
+#ifdef	_BOARD_HAS_RTC
 	if (ptimeval) {
 		uint32_t	now, date;
 		unsigned	s, m, h, tod;
 
-		now = _rtcdev->r_clock;
+		now = _rtc->r_clock;
 
-#ifdef	_ZIP_HAS_RTDATE
+#ifdef	_BOARD_HAS_RTCDATE
 		unsigned	d, y, c, yy, days_since_epoch;
 		int		ly;
 
-		date= *_rtdate;
+		date= *_rtcdate;
 
 		d = ( date     &0x0f)+((date>> 4)&0x0f)*10;
 		m = ((date>> 8)&0x0f)+((date>>12)&0x0f)*10;
@@ -316,6 +311,11 @@ _read_r(struct _reent *reent, int file, void *ptr, size_t len)
 
 		// if (rv & 0x01000) _uartrx = 0x01000;
 		return nr;
+	}
+#endif
+#ifdef	_ZIP_HAS_SDCARD_NOTYET
+	if (SDCARD_FILENO == file)
+	{
 	}
 #endif
 	errno = ENOSYS;
