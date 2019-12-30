@@ -40,14 +40,10 @@
 //
 `default_nettype	none
 //
-`define	UART_SETUP	2'b00
-`define	UART_FIFO	2'b01
-`define	UART_RXREG	2'b10
-`define	UART_TXREG	2'b11
 module	wbconsole(i_clk, i_rst,
 		//
-		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
-			o_wb_ack, o_wb_stall, o_wb_data,
+		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel,
+			o_wb_stall, o_wb_ack, o_wb_data,
 		//
 		o_uart_stb, o_uart_data, i_uart_busy,
 		i_uart_stb, i_uart_data,
@@ -62,13 +58,20 @@ module	wbconsole(i_clk, i_rst,
 	localparam [3:0]	LCLLGFLEN = (LGFLEN > 4'ha)? 4'ha
 					: ((LGFLEN < 4'h2) ? 4'h2 : LGFLEN);
 	//
+	//
+	localparam	[1:0]	UART_SETUP = 2'b00,
+				UART_FIFO  = 2'b01,
+				UART_RXREG = 2'b10,
+				UART_TXREG = 2'b11;
+	//
 	input	wire		i_clk, i_rst;
 	// Wishbone inputs
 	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
 	input	wire	[1:0]	i_wb_addr;
 	input	wire	[31:0]	i_wb_data;
-	output	reg		o_wb_ack;
+	input	wire	[3:0]	i_wb_sel;
 	output	wire		o_wb_stall;
+	output	reg		o_wb_ack;
 	output	reg	[31:0]	o_wb_data;
 	//
 	output	wire		o_uart_stb;
@@ -130,21 +133,21 @@ module	wbconsole(i_clk, i_rst,
 	// delayed by an extra clock.
 	initial	rxf_wb_read = 1'b0;
 	always @(posedge i_clk)
-		rxf_wb_read <= (i_wb_stb)&&(i_wb_addr[1:0]==`UART_RXREG)
+		rxf_wb_read <= (i_wb_stb)&&(i_wb_addr[1:0]==UART_RXREG)
 				&&(!i_wb_we);
 
 	initial	rx_uart_reset = 1'b1;
 	always @(posedge i_clk)
-		if ((i_rst)||((i_wb_stb)&&(i_wb_addr[1:0]==`UART_SETUP)&&(i_wb_we)))
-			// The receiver reset, always set on a master reset
-			// request.
-			rx_uart_reset <= 1'b1;
-		else if ((i_wb_stb)&&(i_wb_addr[1:0]==`UART_RXREG)&&(i_wb_we))
-			// Writes to the receive register will command a receive
-			// reset anytime bit[12] is set.
-			rx_uart_reset <= i_wb_data[12];
-		else
-			rx_uart_reset <= 1'b0;
+	if ((i_rst)||((i_wb_stb)&&(i_wb_addr[1:0]==UART_SETUP)&&(i_wb_we)))
+		// The receiver reset, always set on a master reset
+		// request.
+		rx_uart_reset <= 1'b1;
+	else if ((i_wb_stb)&&(i_wb_addr[1:0]==UART_RXREG)&&(i_wb_we))
+		// Writes to the receive register will command a receive
+		// reset anytime bit[12] is set.
+		rx_uart_reset <= i_wb_data[12];
+	else
+		rx_uart_reset <= 1'b0;
 
 	// Finally, we'll construct a 32-bit value from these various wires,
 	// to be returned over the bus on any read.  These include the data
@@ -180,7 +183,7 @@ module	wbconsole(i_clk, i_rst,
 	initial	txf_wb_write = 1'b0;
 	always @(posedge i_clk)
 	begin
-		txf_wb_write <= (i_wb_stb)&&(i_wb_addr == `UART_TXREG)
+		txf_wb_write <= (i_wb_stb)&&(i_wb_addr == UART_TXREG)
 					&&(i_wb_we);
 		txf_wb_data  <= i_wb_data[6:0];
 	end
@@ -220,12 +223,12 @@ module	wbconsole(i_clk, i_rst,
 	// normal.
 	initial	tx_uart_reset = 1'b1;
 	always @(posedge i_clk)
-		if((i_rst)||((i_wb_stb)&&(i_wb_addr == `UART_SETUP)&&(i_wb_we)))
-			tx_uart_reset <= 1'b1;
-		else if ((i_wb_stb)&&(i_wb_addr[1:0]==`UART_TXREG)&&(i_wb_we))
-			tx_uart_reset <= i_wb_data[12];
-		else
-			tx_uart_reset <= 1'b0;
+	if((i_rst)||((i_wb_stb)&&(i_wb_addr == UART_SETUP)&&(i_wb_we)))
+		tx_uart_reset <= 1'b1;
+	else if ((i_wb_stb)&&(i_wb_addr[1:0]==UART_TXREG)&&(i_wb_we))
+		tx_uart_reset <= i_wb_data[12];
+	else
+		tx_uart_reset <= 1'b0;
 
 	// Now that we are done with the chain, pick some wires for the user
 	// to read on any read of the transmit port.
@@ -243,7 +246,7 @@ module	wbconsole(i_clk, i_rst,
 	assign	wb_tx_data = { 16'h00, 
 				1'b0, txf_status[1:0], txf_err,
 				1'b0, o_uart_stb, 1'b0,
-				(i_uart_busy|tx_empty_n|i_uart_busy),
+				(i_uart_busy|tx_empty_n),
 				1'b0,(i_uart_busy|tx_empty_n)?txf_wb_data:7'h0};
 
 	// Each of the FIFO's returns a 16 bit status value.  This value tells
@@ -272,12 +275,12 @@ module	wbconsole(i_clk, i_rst,
 	// no one cares, no one is reading it, it gets lost in the mux in the
 	// interconnect, etc.  For this reason, we can just simplify our logic.
 	always @(posedge i_clk)
-		casez(r_wb_addr)
-		`UART_SETUP: o_wb_data <= 32'h0;
-		`UART_FIFO:  o_wb_data <= wb_fifo_data;
-		`UART_RXREG: o_wb_data <= wb_rx_data;
-		`UART_TXREG: o_wb_data <= wb_tx_data;
-		endcase
+	casez(r_wb_addr)
+	UART_SETUP: o_wb_data <= 32'h0;
+	UART_FIFO:  o_wb_data <= wb_fifo_data;
+	UART_RXREG: o_wb_data <= wb_rx_data;
+	UART_TXREG: o_wb_data <= wb_tx_data;
+	endcase
 
 	// This device never stalls.  Sure, it takes two clocks, but they are
 	// pipelined, and nothing stalls that pipeline.  (Creates FIFO errors,
@@ -287,7 +290,8 @@ module	wbconsole(i_clk, i_rst,
 
 	// Make verilator happy
 	// verilator lint_off UNUSED
-	wire	[1+19+5-1:0] unused;
-	assign	unused = { i_wb_cyc, i_wb_data[31:13], i_wb_data[11:7] };
+	wire	unused;
+	assign	unused = &{ 1'b0, i_wb_cyc, i_wb_data[31:13], i_wb_data[11:7],
+			i_wb_sel };
 	// verilator lint_on  UNUSED
 endmodule

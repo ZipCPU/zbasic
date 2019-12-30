@@ -36,7 +36,7 @@
 ##
 ##
 .PHONY: all
-PROGRAMS := hello sdtest cputest gpiotoggle
+PROGRAMS := hello sdtest cputest gpiotoggle contest
 all:	$(PROGRAMS)
 #
 #
@@ -51,7 +51,7 @@ SUBMAKE:= $(MAKE) --no-print-directory -C
 #
 #
 TTTT    := tttt
-SOURCES := hello.c sdtest.c cputest.c gpiotoggle.c
+SOURCES := hello.c sdtest.c cputest.c gpiotoggle.c contest.c
 HEADERS :=
 DUMPRTL := -fdump-rtl-all
 DUMPTREE:= -fdump-tree-all
@@ -95,9 +95,16 @@ $(OBJDIR)/cputestcis.o: cputest.c
 $(OBJDIR)/cputest.s: cputest.c
 	$(CC) $(CFLAGS) -S -Wa,-cis -fno-builtin $< -o $@
 
-cputest: $(OBJDIR)/cputest.o board.ld $(LIB)
+cputest: $(OBJDIR)/cputestcis.o board.ld $(LIB)
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
 
+
+$(OBJDIR)/contest.o: contest.c
+	$(mk-objdir)
+	$(CC) $(CFLAGS) -c -fno-builtin $< -o $@
+
+contest: $(OBJDIR)/contest.o $(OBJDIR)/txfns.o board.ld $(LIB)
+	$(CC) $(CFLAGS) $(LFLAGS) $< $(OBJDIR)/txfns.o $(LIBS) -o $@
 
 $(OBJDIR)/hello.o: hello.c
 	$(CC) -O3 -c $< -o $@

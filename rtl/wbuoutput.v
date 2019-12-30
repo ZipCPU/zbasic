@@ -39,6 +39,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
+`default_nettype none
+//
 module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 		i_wb_cyc, i_int, i_bus_busy,
 		o_stb, o_char, i_tx_busy, o_fifo_err);
@@ -65,15 +67,15 @@ module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 
 	generate
 	if (LGOUTPUT_FIFO < 2)
-	begin
+	begin : NO_OUTBOUND_FIFO
 
 		assign	fifo_rd = i_stb;
 		assign	fifo_codword = i_codword;
 		assign	fifo_err = 1'b0;
 
-	end else begin
+	end else begin : OUTBOUND_FIFO
 
-		assign	fifo_rd = (fifo_empty_n)&&(~cw_busy);
+		assign	fifo_rd = (fifo_empty_n)&&(!cw_busy);
 		wbufifo #(36,LGOUTPUT_FIFO)
 			busoutfifo(i_clk, i_rst, i_stb, i_codword,
 				fifo_rd, fifo_codword, fifo_empty_n,
@@ -85,7 +87,7 @@ module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 
 	wbuidleint	buildcw(i_clk, fifo_rd, fifo_codword,
 				i_wb_cyc, i_bus_busy, i_int,
-				cw_stb, cw_codword, cw_busy, cp_busy);
+				cw_stb, cw_codword, cw_busy, cp_stb && cp_busy);
 	// assign	o_dbg = dw_busy; // Always asserted ... ???
 	// assign	o_dbg = { dw_busy, ln_busy, fifo_rd };
 	// Stuck: dw_busy and ln_busy get stuck high after read attempt,
@@ -103,9 +105,8 @@ module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 	assign	cp_word = cw_codword;
 	assign	cp_busy = dw_busy;
 `else
-	assign	cp_busy = cp_stb;
-	wbucompress	packit(i_clk, cw_stb, cw_codword,
-				cp_stb, cp_word, dw_busy);
+	wbucompress	packit(i_clk, 1'b0, cw_stb, cw_codword, dw_busy,
+				cp_stb, cp_word, cp_busy);
 `endif
 
 	wbudeword	deword(i_clk, cp_stb, cp_word, ln_busy,

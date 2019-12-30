@@ -2,7 +2,7 @@
 ##
 ## Filename: 	mem_flash_bkram.txt
 ##
-## Project:	OpenArty, an entirely open SoC based upon the Arty platform
+## Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 ##
 ## Purpose:	Describes a memory model containing nothing more than flash
 ##		and block RAM.  This will be used to create a board.ld linker
@@ -40,8 +40,8 @@
 ##
 ##
 @PREFIX=mem_flash_bkram
-@MASTER.TYPE=CPU
-@MASTER.BUS=zip
+@MASTER.TYPE=SCRIPT
+@MASTER.BUS=wb
 @LD.FILE=board.ld
 @LD.DEFNS=
 /* LD.DEFNS from zipmaster.txt */

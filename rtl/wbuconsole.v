@@ -54,7 +54,7 @@
 //
 module	wbuconsole(i_clk, i_rx_stb, i_rx_data, 
 		o_wb_cyc, o_wb_stb, o_wb_we, o_wb_addr, o_wb_data,
-		i_wb_ack, i_wb_stall, i_wb_err, i_wb_data,
+		i_wb_stall, i_wb_ack, i_wb_err, i_wb_data,
 		i_interrupt,
 		o_tx_stb, o_tx_data, i_tx_busy,
 		i_console_stb, i_console_data, o_console_busy,
@@ -63,12 +63,13 @@ module	wbuconsole(i_clk, i_rx_stb, i_rx_data,
 	parameter	LGWATCHDOG=19,
 			LGINPUT_FIFO=6,
 			LGOUTPUT_FIFO=10;
+	parameter [0:0] CMD_PORT_OFF_UNTIL_ACCESSED = 1'b1;
 	input	wire		i_clk;
 	input	wire		i_rx_stb;
 	input	wire	[7:0]	i_rx_data;
 	output	wire		o_wb_cyc, o_wb_stb, o_wb_we;
 	output	wire	[31:0]	o_wb_addr, o_wb_data;
-	input	wire		i_wb_ack, i_wb_stall, i_wb_err;
+	input	wire		i_wb_stall, i_wb_ack, i_wb_err;
 	input	wire	[31:0]	i_wb_data;
 	input	wire		i_interrupt;
 	output	wire		o_tx_stb;
@@ -94,7 +95,22 @@ module	wbuconsole(i_clk, i_rx_stb, i_rx_data,
 
 
 
-	reg		r_wdt_reset;
+	reg		r_wdt_reset, cmd_port_active;
+
+	generate if (CMD_PORT_OFF_UNTIL_ACCESSED)
+	begin
+
+		initial	cmd_port_active = 1'b0;
+		always @(posedge i_clk)
+		if (i_rx_stb && i_rx_data[7])
+			cmd_port_active <= 1'b1;
+		
+	end else begin
+
+		always @(*)
+			cmd_port_active = 1'b1;
+		
+	end endgenerate
 
 	// Decode ASCII input requests into WB bus cycle requests
 	wire		in_stb;
@@ -132,7 +148,7 @@ module	wbuconsole(i_clk, i_rx_stb, i_rx_data,
 	// are pending.
 	wbuexec	runwb(i_clk, r_wdt_reset, fifo_in_stb, fifo_in_word, w_bus_busy,
 		o_wb_cyc, o_wb_stb, o_wb_we, o_wb_addr, o_wb_data,
-		i_wb_ack, i_wb_stall, i_wb_err, i_wb_data,
+		i_wb_stall, i_wb_ack, i_wb_err, i_wb_data,
 		exec_stb, exec_word);
 
 	reg		ps_full;
@@ -146,28 +162,29 @@ module	wbuconsole(i_clk, i_rx_stb, i_rx_data,
 		wroutput(i_clk, w_bus_reset,
 			exec_stb, exec_word,
 			o_wb_cyc, i_interrupt, exec_stb,
-			wbu_tx_stb, wbu_tx_data, ps_full, ofifo_err);
+			wbu_tx_stb, wbu_tx_data,
+				ps_full && cmd_port_active, ofifo_err);
 
 	// Let's now arbitrate between the two outputs
 	initial	ps_full = 1'b0;
 	always @(posedge i_clk)
-		if (!ps_full)
+	if (!ps_full)
+	begin
+		if (cmd_port_active && wbu_tx_stb)
 		begin
-			if (wbu_tx_stb)
-			begin
-				ps_full <= 1'b1;
-				ps_data <= { 1'b1, wbu_tx_data[6:0] };
-			end else if (i_console_stb)
-			begin
-				ps_full <= 1'b1;
-				ps_data <= { 1'b0, i_console_data[6:0] };
-			end
-		end else if (!i_tx_busy)
-			ps_full <= 1'b0;
+			ps_full <= 1'b1;
+			ps_data <= { 1'b1, wbu_tx_data[6:0] };
+		end else if (i_console_stb)
+		begin
+			ps_full <= 1'b1;
+			ps_data <= { 1'b0, i_console_data[6:0] };
+		end
+	end else if (!i_tx_busy)
+		ps_full <= 1'b0;
 
 	assign	o_tx_stb = ps_full;
 	assign	o_tx_data = ps_data;
-	assign	o_console_busy = (wbu_tx_stb)||(ps_full);
+	assign	o_console_busy = (wbu_tx_stb && cmd_port_active)||(ps_full);
 
 	// Add in a watchdog timer to the bus
 	reg	[(LGWATCHDOG-1):0]	r_wdt_timer;

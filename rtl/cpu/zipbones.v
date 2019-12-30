@@ -49,14 +49,14 @@
 module	zipbones(i_clk, i_reset,
 		// Wishbone master interface from the CPU
 		o_wb_cyc, o_wb_stb, o_wb_we, o_wb_addr, o_wb_data, o_wb_sel,
-			i_wb_ack, i_wb_stall, i_wb_data, i_wb_err,
+			i_wb_stall, i_wb_ack, i_wb_data, i_wb_err,
 		// Incoming interrupts
 		i_ext_int,
 		// Our one outgoing interrupt
 		o_ext_int,
 		// Wishbone slave interface for debugging purposes
 		i_dbg_cyc, i_dbg_stb, i_dbg_we, i_dbg_addr, i_dbg_data,
-			o_dbg_ack, o_dbg_stall, o_dbg_data
+			o_dbg_stall, o_dbg_ack, o_dbg_data
 `ifdef	DEBUG_SCOPE
 		, o_cpu_debug
 `endif

@@ -53,9 +53,12 @@
 // length exceeds 72, we do nothing, but record the
 // last word.  If the last word was a  <incomplete-thought>
 //
+`default_nettype none
 //
 module	wbucompactlines(i_clk, i_stb, i_nl_hexbits, o_stb, o_nl_hexbits,
 		i_bus_busy, i_tx_busy, o_busy);
+	localparam	[6:0]	MAX_LINE_LENGTH = 79;
+	localparam	[6:0]	TRIGGER_LENGTH = (MAX_LINE_LENGTH-6);
 	input	wire		i_clk, i_stb;
 	input	wire [6:0]	i_nl_hexbits;
 	output	reg		o_stb;
@@ -64,32 +67,40 @@ module	wbucompactlines(i_clk, i_stb, i_nl_hexbits, o_stb, o_nl_hexbits,
 	input	wire		i_tx_busy;
 	output	wire		o_busy;
 
-	reg	last_out_nl, last_in_nl;
+	reg		last_out_nl, last_in_nl, full_line, r_busy;
+	reg	[6:0]	linelen;
+
 	initial	last_out_nl = 1'b1;
+	always @(posedge i_clk)
+	if ((!i_tx_busy)&&(o_stb))
+		last_out_nl <= (o_nl_hexbits[6]);
+
 	initial	last_in_nl = 1'b1;
 	always @(posedge i_clk)
-		if ((~i_tx_busy)&&(o_stb))
-			last_out_nl <= (o_nl_hexbits[6]);
-	always @(posedge i_clk)
-		if ((i_stb)&&(~o_busy))
-			last_in_nl <= (i_nl_hexbits[6]);
+	if ((i_stb)&&(!o_busy))
+		last_in_nl <= (i_nl_hexbits[6]);
 
 	// Now, let's count how long our lines are
-	reg	[6:0]	linelen;
 	initial	linelen = 7'h00;
 	always @(posedge i_clk)
-		if ((~i_tx_busy)&&(o_stb))
-		begin
-			if (o_nl_hexbits[6])
-				linelen <= 0;
-			else
-				linelen <= linelen + 7'h1;
-		end
+	if ((!i_tx_busy)&&(o_stb))
+	begin
+		if (o_nl_hexbits[6])
+			linelen <= 0;
+		else
+			linelen <= linelen + 7'h1;
+	end
 
-	reg	full_line;
 	initial	full_line = 1'b0;
 	always @(posedge i_clk)
-		full_line <= (linelen > 7'd72);
+	if ((!i_tx_busy)&&(o_stb))
+	begin
+		if (o_nl_hexbits[6])
+			full_line <= 0;
+		else
+			full_line <= (linelen >= TRIGGER_LENGTH);
+	end
+
 
 
 	// Now that we know whether or not the last character was a newline,
@@ -97,21 +108,29 @@ module	wbucompactlines(i_clk, i_stb, i_nl_hexbits, o_stb, o_nl_hexbits,
 	// selectively remove newlines from our output stream.
 	initial	o_stb = 1'b0;
 	always @(posedge i_clk)
-		if ((i_stb)&&(~o_busy))
-		begin
-			o_stb <= (full_line)||(~i_nl_hexbits[6]);
-			o_nl_hexbits <= i_nl_hexbits;
-		end else if (~o_busy)
-		begin // Send an EOL if we are idle
-			o_stb <= (~i_tx_busy)&&(~i_bus_busy)&&(~last_out_nl)&&(last_in_nl);
-			o_nl_hexbits <= 7'h40;
-		end else if (~i_tx_busy)
-			o_stb <= 1'b0;
+	if ((i_stb)&&(!o_busy))
+	begin
+		// Only accept incoming newline requests if our line is already
+		// full, otherwise quietly suppress them
+		o_stb <= (full_line)||(!i_nl_hexbits[6]);
+		o_nl_hexbits <= i_nl_hexbits;
+	end else if (!o_busy)
+	begin // Send an EOL if we are idle
 
-	reg	r_busy;
+		// Without a request, we'll add a newline, but only if
+		//	1. There's nothing coming down the channel (!bus_busy)
+		//	2. What we last sent wasn't a new-line
+		//	3. The last thing that came in was a newline
+		// In otherwords, we can resurrect one of the newlines we
+		// squashed above
+		o_stb <= (!i_tx_busy)&&(!i_bus_busy)&&(!last_out_nl)&&(last_in_nl);
+		o_nl_hexbits <= 7'h40;
+	end else if (!i_tx_busy)
+		o_stb <= 1'b0;
+
 	initial	r_busy = 1'b0;
 	always @(posedge i_clk)
-		r_busy <= (o_stb);
+		r_busy <= (o_stb)&&(i_tx_busy);
 	assign	o_busy = (r_busy)||(o_stb);
 
 	/*

@@ -50,6 +50,8 @@ module	rtclight(i_clk, i_reset,
 			o_wb_stall, o_wb_ack, o_wb_data,
 		// Output controls
 		o_interrupt,
+		// A once-per-second strobe
+		o_pps,
 		// A once-per-day strobe on the last clock of the day
 		o_ppd);
 	parameter	DEFAULT_SPEED = 32'd2814750;	// 100 Mhz
@@ -65,10 +67,10 @@ module	rtclight(i_clk, i_reset,
 	input	wire	[31:0]	i_wb_data;
 	input	wire	[3:0]	i_wb_sel;
 	//
-	output	wire		o_wb_stall;
 	output	reg		o_wb_ack;
+	output	wire		o_wb_stall;
 	output	reg	[31:0]	o_wb_data;
-	output	wire		o_interrupt, o_ppd;
+	output	wire		o_interrupt, o_pps, o_ppd;
 
 	reg	[31:0]	ckspeed;
 
@@ -77,7 +79,7 @@ module	rtclight(i_clk, i_reset,
 	wire	[30:0]	stopwatch_data;
 	wire		sw_running;
 
-	reg	ck_wr, tm_wr, al_wr, wr_zero;
+	reg		ck_wr, tm_wr, al_wr, wr_zero;
 	reg	[31:0]	wr_data;
 	reg	[2:0]	wr_valid;
 
@@ -122,6 +124,7 @@ module	rtclight(i_clk, i_reset,
 	reg		ck_prepps;
 	reg	[7:0]	ck_sub;
 	assign	ck_pps = (ck_carry)&&(ck_prepps);
+	assign	o_pps  = ck_pps;
 	always @(posedge i_clk)
 	begin
 		if (ck_carry)
@@ -141,6 +144,11 @@ module	rtclight(i_clk, i_reset,
 	end else begin
 		assign	tm_int = 0;
 		assign	timer_data = 0;
+
+		// Verilator lint_off UNUSED
+		wire	unused_timer;
+		assign	unused_timer = tm_wr;
+		// Verilator lint_on  UNUSED
 	end endgenerate
 
 	generate if (OPT_STOPWATCH)
@@ -178,6 +186,10 @@ module	rtclight(i_clk, i_reset,
 		assign	alarm_data = 0;
 		assign	al_int = 0;
 
+		// Verilator lint_off UNUSED
+		wire	unused_alarm;
+		assign	unused_alarm = al_wr;
+		// Verilator lint_on  UNUSED
 	end endgenerate
 
 	//
@@ -236,7 +248,7 @@ module	rtclight(i_clk, i_reset,
 	// Make verilator hapy
 	// verilator lint_off UNUSED
 	wire	unused;
-	assign	unused = &{ 1'b0, sp_sel, i_wb_cyc, wr_data[31:26], i_wb_sel[3] };
+	assign	unused = &{ 1'b0, sp_sel, i_wb_cyc, wr_data[31:25], i_wb_sel[3] };
 	// verilator lint_on UNUSED
 
 `ifdef	FORMAL

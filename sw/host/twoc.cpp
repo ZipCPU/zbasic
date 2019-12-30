@@ -6,8 +6,8 @@
 //
 // Purpose:	Some various two's complement related C++ helper routines.
 //		Specifically, these help extract signed numbers from
-//		packed bitfields, while guaranteeing that the upper bits
-//		are properly sign extended (or not) as desired.
+//	packed bitfields, while guaranteeing that the upper bits are properly
+//	extended (or not) as desired.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC

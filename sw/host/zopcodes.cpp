@@ -257,7 +257,7 @@ static const ZOPCODE	zip_oplist_raw[] = {
 	//
 	//	16-bit instructions, high side
 	//
-	// 
+	//
 	//	1.1111.00010.xcc.0iiii.xxxx.xxxxx.xxxxx
 	//	1111.1000.10xc.c0ii.iixx.xxxx.xxxx.xxxx
 	// Mask, val, result, Ra, Rb, I, condition (no conditions for OP_UNDER_TEST)
@@ -297,7 +297,7 @@ static const ZOPCODE	zip_oplist_raw[] = {
 	{ "LW", 0x87800000, 0x84000000,  ZIP_REGFIELD(27), ZIP_OPUNUSED,     ZIP_SP,            ZIP_IMMFIELD(7,16), ZIP_OPUNUSED },
 	{ "LW", 0x87800000, 0x84800000,  ZIP_REGFIELD(27), ZIP_OPUNUSED,     ZIP_REGFIELD(19),  ZIP_IMMFIELD(3,16), ZIP_OPUNUSED },
 	// 1.rrrr.101.ssssssss
-	{ "SW", 0x87800000, 0x85000000,  ZIP_OPUNUSED,     ZIP_REGFIELD(27), ZIP_SP,            ZIP_IMMFIELD(7,16), ZIP_OPUNUSED },
+	{ "SW", 0x87000000, 0x85000000,  ZIP_OPUNUSED,     ZIP_REGFIELD(27), ZIP_SP,            ZIP_IMMFIELD(7,16), ZIP_OPUNUSED },
 	// 1.rrrr.110.0.sssssss
 	{ "SW", 0x87800000, 0x85800000,  ZIP_OPUNUSED,     ZIP_REGFIELD(27), ZIP_REGFIELD(19),  ZIP_IMMFIELD(3,16), ZIP_OPUNUSED },
 	// 1.rrrr.110.iiiiiiii
@@ -473,7 +473,7 @@ POSSIBLE_TWOWORD_BEGINNING(uint32_t iword) {
 	// Any BREV command could be the beginning of a twoword instruction
 	//
 	// Of course, the point here is to determine whether we should (or need
-	// to) read a second word from our read-memory function.  Reading a 
+	// to) read a second word from our read-memory function.  Reading a
 	// second word, given that the first is a BREV, isn't a problem since a
 	// program can't end on/with a BREV instruction.
 	//
@@ -595,7 +595,7 @@ zipi_to_halfstring(const uint32_t addr, const ZIPI ins, char *line, const ZOPCOD
 				||(strncasecmp("SB",listp[i].s_opstr, 2)==0)) {
 				strcat(line, zip_regstr[ra]);
 				strcat(line, ",");
-					
+
 				if (listp[i].s_i != ZIP_OPUNUSED) {
 					if (listp[i].s_rb == ZIP_OPUNUSED)
 						sprintf(&line[strlen(line)],
@@ -616,7 +616,7 @@ zipi_to_halfstring(const uint32_t addr, const ZIPI ins, char *line, const ZOPCOD
 				&&(strcasecmp(listp[i].s_opstr,"BRK")!=0)
 				&&(addr != 0)) {
 				// Branch instruction: starts with B and isn't
-				// BREV (bit reverse), BRK (break), or 
+				// BREV (bit reverse), BRK (break), or
 				// BUSY
 				uint32_t target = addr;
 

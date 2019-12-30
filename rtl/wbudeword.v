@@ -40,6 +40,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
+`default_nettype none
+//
 module	wbudeword(i_clk, i_stb, i_word, i_tx_busy, o_stb, o_nl_hexbits, o_busy);
 	input	wire		i_clk, i_stb;
 	input	wire	[35:0]	i_word;
@@ -57,45 +59,49 @@ module	wbudeword(i_clk, i_stb, i_word, i_tx_busy, o_stb, o_nl_hexbits, o_busy);
 			: (i_word[35:34]==2'b10)? 3'b001
 			:  3'b110;
 
-	reg		r_dly;
 	reg	[2:0]	r_len;
 	reg	[29:0]	r_word;
 	initial o_stb  = 1'b0;
 	initial o_busy = 1'b0;
-	initial	r_dly  = 1'b0;
+	initial	o_nl_hexbits = 7'h40;
+	initial	r_len = 0;
 	always @(posedge i_clk)
-		if ((i_stb)&&(~o_busy)) // Only accept when not busy
+	if ((i_stb)&&(!o_busy)) // Only accept when not busy
+	begin
+		r_word <= i_word[29:0];
+		o_nl_hexbits <= { 1'b0, i_word[35:30] }; // No newline ... yet
+	end else if (!i_tx_busy)
+	begin
+		if (r_len > 1)
 		begin
-			r_len <= w_len-3'b001;
-			r_word <= i_word[29:0];
-			o_stb <= 1'b1;
-			o_nl_hexbits <= { 1'b0, i_word[35:30] }; // No newline ... yet
-			o_busy <= 1'b1;
-			r_dly <= 1'b1;
-		end else if ((o_stb)&&(i_tx_busy))
-		begin
-			o_busy <= 1'b1; // wait and do nothing
-			r_dly <= 1'b1;
-		end else if (o_stb) // and (~i_tx_busy) means ours was accepted
-			o_stb <= 1'b0; // Delay one clock
-		else if (r_len > 0)
-		begin
-			o_stb <= 1'b1;
 			o_nl_hexbits <= { 1'b0, r_word[29:24] };
 			r_word[29:6] <= r_word[23:0];
-			r_len <= r_len - 3'b001;
-			o_busy <= 1'b1; // wait and do nothing
-			r_dly <= 1'b1;
-		end else if (~o_nl_hexbits[6])
+		end else if (!o_nl_hexbits[6])
 		begin
-			o_stb <= 1'b1;
+			// Place a 7'h40 between every pair of words
 			o_nl_hexbits <= 7'h40;
-			o_busy <= 1'b1; // wait and do nothing
-			r_dly <= 1'b1;
-		end else begin
-			r_dly <= 1'b0;
-			o_busy <= (r_dly);
 		end
+	end
 
+	initial	o_stb = 1'b0;
+	always @(posedge i_clk)
+	if (i_stb && !o_busy)
+		o_stb <= 1'b1;
+	else if (r_len == 0 && !i_tx_busy)
+		o_stb <= 1'b0;
+
+	initial	r_len = 0;
+	always @(posedge i_clk)
+	if (i_stb && !o_busy)
+		r_len <= w_len;
+	else if (!i_tx_busy && (r_len > 0))
+		r_len <= r_len - 1;
+
+	always @(*)
+		o_busy = o_stb;
+
+`ifdef	FORMAL
+// Formal properties for this module are maintained elsewhere
+`endif
 endmodule
 

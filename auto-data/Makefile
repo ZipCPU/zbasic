@@ -47,7 +47,7 @@ all:	data
 # of parts and pieces of our project that autofpga will copy/paste into our
 # main project files.
 #
-BASE    := global.txt dlyarbiter.txt
+BASE    := global.txt # dlyarbiter.txt
 AUX     := version.txt buserr.txt pic.txt pwrcount.txt
 IO      := gpio.txt # spio.txt
 RTC     := rtclight.txt rtcdate.txt
@@ -67,7 +67,7 @@ $(AUTOFPGA):
 
 .PHONY: data
 data: $(AUTOFPGA) $(DATA)
-	$(AUTOFPGA) -o . $(DATA)
+	$(AUTOFPGA) -d -o . $(DATA)
 
 clean:
 	rm -f toplevel.v main.v regdefs.h regdefs.cpp board.h board.ld

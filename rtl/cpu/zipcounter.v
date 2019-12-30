@@ -55,7 +55,7 @@
 //
 module	zipcounter(i_clk, i_reset, i_event,
 		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data,
-			o_wb_ack, o_wb_stall, o_wb_data,
+			o_wb_stall, o_wb_ack, o_wb_data,
 		o_int);
 	parameter	BW = 32;
 	input	wire			i_clk, i_reset, i_event;
@@ -63,8 +63,8 @@ module	zipcounter(i_clk, i_reset, i_event,
 	input	wire			i_wb_cyc, i_wb_stb, i_wb_we;
 	input	wire	[(BW-1):0]	i_wb_data;
 	// Wishbone outputs
-	output	reg			o_wb_ack;
 	output	wire			o_wb_stall;
+	output	reg			o_wb_ack;
 	output	reg	[(BW-1):0]	o_wb_data;
 	// Interrupt line
 	output	reg			o_int;

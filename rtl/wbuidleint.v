@@ -40,9 +40,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
+`default_nettype none
+//
 module	wbuidleint(i_clk, i_stb, i_codword, i_cyc, i_busy, i_int,
 		o_stb, o_codword, o_busy,
 		i_tx_busy);
+	localparam	CW_INTERRUPT = { 6'h4, 30'h0000 }; // interrupt codeword
+	localparam	CW_BUSBUSY   = { 6'h1, 30'h0000 }; // bus busy, ow idle
+	localparam	CW_IDLE      = { 6'h0, 30'h0000 }; // idle codeword
+
 	input	wire		i_clk;
 	// From the FIFO following the bus executor
 	input	wire		i_stb;
@@ -57,12 +63,16 @@ module	wbuidleint(i_clk, i_stb, i_codword, i_cyc, i_busy, i_int,
 	input	wire		i_tx_busy;
 
 	reg	int_request, int_sent;
+	wire		idle_expired;
+	reg		idle_state;
+	reg	[IDLEBITS-1:0]	idle_counter;
+
 	initial	int_request = 1'b0;
 	always @(posedge i_clk)
-		if((o_stb)&&(~i_tx_busy)&&(o_codword[35:30]==6'h4))
-			int_request <= i_int;
-		else
-			int_request <= (int_request)||(i_int);
+	if((o_stb)&&(!i_tx_busy)&&(o_codword[35:30]==6'h4))
+		int_request <= i_int;
+	else
+		int_request <= (int_request)||(i_int);
 
 `ifdef	VERILATOR
 	localparam	IDLEBITS = 22;
@@ -70,65 +80,59 @@ module	wbuidleint(i_clk, i_stb, i_codword, i_cyc, i_busy, i_int,
 	localparam	IDLEBITS = 31;
 `endif
 	// Now, for the idle counter
-	wire		idle_expired;
-	reg		idle_state;
-	reg	[IDLEBITS-1:0]	idle_counter;
 	initial	idle_counter = 0;
 	always @(posedge i_clk)
-		if ((i_stb)||(o_stb)||(i_busy))
-			idle_counter <= 0;
-		else if (!idle_counter[IDLEBITS-1])
-			idle_counter <= idle_counter + 1;
+	if ((i_stb)||(o_stb)||(i_busy))
+		idle_counter <= 0;
+	else if (!idle_counter[IDLEBITS-1])
+		idle_counter <= idle_counter + 1;
 
 	initial	idle_state = 1'b0;
 	always @(posedge i_clk)
-		if ((o_stb)&&(!i_tx_busy)&&(o_codword[IDLEBITS-1:IDLEBITS-5]==5'h0))
-			idle_state <= 1'b1;
-		else if (!idle_counter[IDLEBITS-1])
-			idle_state <= 1'b0;
+	if ((o_stb)&&(!i_tx_busy)&&(o_codword[35:30]==CW_IDLE[35:30]))
+		// We are now idle, and can rest
+		idle_state <= 1'b1;
+	else if (!idle_counter[IDLEBITS-1])
+		// We became active, and can rest no longer
+		idle_state <= 1'b0;
 
 	assign	idle_expired = (!idle_state)&&(idle_counter[IDLEBITS-1]);
 
 	initial	o_stb  = 1'b0;
-	initial	o_busy = 1'b0;
 	always @(posedge i_clk)
-		if ((o_stb)&&(i_tx_busy))
-		begin
-			o_busy <= 1'b1;
-		end else if (o_stb) // and not i_tx_busy
-		begin
-			// Idle one clock before becoming not busy
-			o_stb <= 1'b0;
-			o_busy <= 1'b1;
-		end else if (o_busy)
-			o_busy <= 1'b0;
-		else if (i_stb) // and (~o_busy)&&(~o_stb)
+	if(!o_stb || !i_tx_busy)
+	begin
+		if (i_stb)
 		begin // On a valid output, just send it out
 			// We'll open this strobe, even if the transmitter
 			// is busy, just 'cause we might otherwise lose it
+			o_stb <= 1'b1;
 			o_codword <= i_codword;
-			o_stb <= 1'b1;
-			o_busy <= 1'b1;
-		end else if ((int_request)&&(~int_sent))
-		begin
-			o_stb <= 1'b1;
-			o_codword <= { 6'h4, 30'h0000 }; // interrupt codeword
-			o_busy <= 1'b1;
-		end else if (idle_expired)
-		begin // Strobe, if we're not writing or our
-			// last command wasn't an idle
-			o_stb  <= 1'b1;
-			o_busy <= 1'b1;
-			if (i_cyc)
-				o_codword <= { 6'h1, 30'h0000 }; // idle codeword, bus busy
-			else
-				o_codword <= { 6'h0, 30'h0000 };
+		end else begin
+			// Our indicators take a clock to reset, hence
+			// we'll idle for one clock before sending either an
+			// interrupt or an idle indicator.  The bus busy
+			// indicator is really only ever used to let us know
+			// that something's broken.
+			o_stb <= (!o_stb)&&(int_request || idle_expired);
+
+			if (int_request && !int_sent)
+				o_codword[35:30] <= CW_INTERRUPT[35:30];
+			else begin
+				o_codword[35:30] <= CW_IDLE[35:30];
+				if (i_cyc)
+					o_codword[35:30] <= CW_BUSBUSY[35:30];
+			end
 		end
+	end
+
+	always @(*)
+		o_busy = o_stb;
 
 	initial	int_sent = 1'b0;
 	always @(posedge i_clk)
-		if ((int_request)&&((~o_stb)&&(~o_busy)&&(~i_stb)))
-			int_sent <= 1'b1;
-		else if (~i_int)
-			int_sent <= 1'b0;
+	if ((int_request)&&((!o_stb)&&(!o_busy)&&(!i_stb)))
+		int_sent <= 1'b1;
+	else if (~i_int)
+		int_sent <= 1'b0;
 endmodule

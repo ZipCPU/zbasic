@@ -86,8 +86,8 @@
 `default_nettype	none
 //
 module wbscope(i_data_clk, i_ce, i_trigger, i_data,
-	i_wb_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
-	o_wb_ack, o_wb_stall, o_wb_data,
+	i_wb_clk, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel,
+	o_wb_stall, o_wb_ack, o_wb_data,
 	o_interrupt);
 	parameter [4:0]			LGMEM = 5'd10;
 	parameter			BUSW = 32;
@@ -101,7 +101,8 @@ module wbscope(i_data_clk, i_ce, i_trigger, i_data,
 	input	wire			i_wb_clk, i_wb_cyc, i_wb_stb, i_wb_we;
 	input	wire			i_wb_addr; // One address line only
 	input	wire	[(BUSW-1):0]	i_wb_data;
-	output	wire			o_wb_ack, o_wb_stall;
+	input	wire	[(BUSW/8-1):0]	i_wb_sel;
+	output	wire			o_wb_stall, o_wb_ack;
 	output	wire	[(BUSW-1):0]	o_wb_data;
 	// And, finally, for a final flair --- offer to interrupt the CPU after
 	// our trigger has gone off.  This line is equivalent to the scope
@@ -406,7 +407,7 @@ module wbscope(i_data_clk, i_ce, i_trigger, i_data,
 
 	// verilator lint_off UNUSED
 	// Make verilator happy
-	wire	[28:0]	unused;
-	assign unused = { i_wb_data[30:28], i_wb_data[25:0] };
+	wire	unused;
+	assign	unused = &{ 1'b0, i_wb_data[30:28], i_wb_data[25:0], i_wb_sel };
 	// verilator lint_on UNUSED
 endmodule

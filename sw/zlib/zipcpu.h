@@ -57,11 +57,17 @@
 #define	CC_FAULT	(CC_ILL|CC_BUSERR|CC_DIVERR|CC_FPUERR)
 #define	CC_EXCEPTION	(CC_BREAK|CC_FAULT|CC_MMUERR)
 
+#define	CLEAR_ICACHE	asm("OR 16384,CC")
+#define	CLEAR_DCACHE	asm("OR 32768,CC")
+#define	CLEAR_CACHE	asm("OR 49152,CC")
+
 // extern void	zip_break(void);
 #define	zip_break()		asm("BREAK\n")
 // #define	BREAK(ID)	asm("BREAK " ##ID "\n")
 #define	GETUREG(A,ID)	asm("MOV " ID ",%0" : "=r"(A))
 #define	SETUREG(A,ID)	asm("MOV %0," ID : : "r"(A))
+#define	NSTR(A)		asm("NSTR \"" A "\\n\"")
+#define	NVAL(V)		do { unsigned tmp = (unsigned)(V); asm volatile("NDUMP %0":"=r"(tmp):"0"(tmp)); } while(0)
 extern void	zip_rtu(void);
 extern void	zip_halt(void);
 extern void	zip_idle(void);

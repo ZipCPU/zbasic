@@ -39,7 +39,7 @@
 //
 //
 `ifndef	DATESTAMP
-`define DATESTAMP 32'h20190814
-`define BUILDTIME 32'h00140900
+`define DATESTAMP 32'h20191230
+`define BUILDTIME 32'h00060604
 `endif
 //

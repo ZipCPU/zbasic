@@ -5,7 +5,9 @@
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	Defines the communication parameters necessary for communicating
-//		with the device.
+//		both with our actual hardware device, as well as with our Verilator
+//	simulation.  The result is that whatever communicates with the other may
+//	not know the difference (as desired).
 //
 //
 // Creator:	Dan Gisselquist, Ph.D.
