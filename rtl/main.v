@@ -1140,7 +1140,7 @@ module	main(i_clk, i_reset,
 	assign	zip_int_vector = { alt_int_vector[14:8], sys_int_vector[14:6] };
 	zipsystem #(.RESET_ADDRESS(RESET_ADDRESS),
 			.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH),
-			.LGICACHE(10),.LGDCACHE(10),
+			.LGICACHE(12),.LGDCACHE(12),
 			.START_HALTED(ZIP_START_HALTED),
 			.RESET_DURATION(20),
 			.EXTERNAL_INTERRUPTS(ZIP_INTS))

@@ -58,8 +58,8 @@
 @INT.ZIP.WIRE=zip_cpu_int
 @INT.ZIP.BUS=buspic
 @CACHABLE.FILE=iscachable.v
-@LGICACHE=10
-@LGDCACHE=10
+@LGICACHE=12
+@LGDCACHE=12
 @TOP.PORTLIST=
 		// A reset wire for the ZipCPU
 		i_cpu_resetn
