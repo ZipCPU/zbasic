@@ -2,7 +2,7 @@
 //
 // Filename:	wbgpio.v
 //
-// Project:	ICO Zip, iCE40 ZipCPU demonsrtation project
+// Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	This extremely simple GPIO controller, although minimally
 //		featured, is designed to control up to sixteen general purpose

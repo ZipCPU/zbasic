@@ -1,13 +1,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename: 	twoc.cpp
+// Filename:	txfns.h
 //
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
-// Purpose:	Some various two's complement related C++ helper routines.
-//		Specifically, these help extract signed numbers from
-//	packed bitfields, while guaranteeing that the upper bits are properly
-//	extended (or not) as desired.
+// Purpose:	These are some *very* simple UART routines, designed to support
+//		a program before the C-library is up and running.  Once the
+//	C-library is running on a device, it is anticipated that these routines
+//	will no longer be needed or used--since they access the raw hardware
+//	device(s).
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
@@ -38,24 +39,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
-#include "twoc.h"
+#ifndef	TXFNS_H
+#define	TXFNS_H
 
-long	sbits(const long val, const int bits) {
-	long	r;
+#include "board.h"
 
-	r = val & ((1l<<bits)-1);
-	if (r & (1l << (bits-1)))
-		r |= (-1l << bits);
-	return r;
-}
+extern	void	txchr(char ch);
+extern	void	txstr(const char *str);
+extern	void	txhex(unsigned val);
+extern	void	txdecimal(int val);
 
-bool	sfits(const long val, const int bits) {
-	return (sbits(val, bits) == bits);
-}
-
-unsigned long	ubits(const long val, const int bits) {
-	unsigned long r = val & ((1l<<bits)-1);
-	return r;
-}
-
-
+#endif

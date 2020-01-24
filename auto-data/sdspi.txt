@@ -49,19 +49,19 @@
 @SLAVE.TYPE=OTHER
 @SLAVE.BUS=wb
 @BUS.NAME=wb
-# @SCOPE.TRIGGER=sd_debug[31]
-# @SCOPE.DATA=sd_debug
+## @SCOPE.TRIGGER=sd_debug[31]
+## @SCOPE.DATA=sd_debug
 @INT.SDCARD.WIRE= @$(PREFIX)_int
 @INT.SDCARD.PIC= buspic syspic
 @TOP.PORTLIST=
 		// SD Card
-		o_sd_sck, io_sd_cmd, io_sd, i_sd_cd_n
+		o_sd_sck, io_sd_cmd, io_sd, i_sd_cd
 @TOP.IODECL=
 	// SD Card
 	output	wire		o_sd_sck;
 	inout	wire		io_sd_cmd;
 	inout	wire	[3:0]	io_sd;
-	input	wire		i_sd_cd_n;
+	input	wire		i_sd_cd;
 @TOP.DEFNS=
 	wire		w_sd_cmd;
 	wire	[3:0]	w_sd_data;
@@ -70,7 +70,7 @@
 	wire	[3:0]	i_sd;
 @TOP.MAIN=
 		// SD Card
-		o_sd_sck, w_sd_cmd, w_sd_data, i_sd_cmd, i_sd, !i_sd_cd_n
+		o_sd_sck, w_sd_cmd, w_sd_data, io_sd_cmd, io_sd, i_sd_cd
 @TOP.INSERT=
 	//
 	//

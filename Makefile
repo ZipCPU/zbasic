@@ -120,7 +120,7 @@ autodata: check-autofpga
 	$(SUBMAKE) auto-data
 	$(call copyif-changed,auto-data/toplevel.v,rtl/toplevel.v)
 	$(call copyif-changed,auto-data/main.v,rtl/main.v)
-	$(call copyif-changed,auto-data/iscachable.v,rtl/cpu/iscachable.cpp)
+	$(call copyif-changed,auto-data/iscachable.v,rtl/cpu/iscachable.v)
 	$(call copyif-changed,auto-data/regdefs.h,sw/host/regdefs.h)
 	$(call copyif-changed,auto-data/regdefs.cpp,sw/host/regdefs.cpp)
 	$(call copyif-changed,auto-data/board.h,sw/zlib/board.h)

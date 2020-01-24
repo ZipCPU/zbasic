@@ -4,7 +4,10 @@
 //
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
-// Purpose:	
+// Purpose:	To convert between little endian and big endian byte orders,
+//		and to handle conversions between character strings and
+//	bit-endian words made from those characters.
+//
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
@@ -40,15 +43,48 @@
 
 #include <stdint.h>
 
+/*
+ * The byte swapping routines below are designed to support conversions from a little endian
+ * machine/host (such as my PC) to the big endian byte order used on the ZipCPU.  If the current
+ * machine is already little endian, no byte swapping is required.
+ */
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-extern	uint32_t byteswap(uint32_t v);
+/*
+ * byteswap
+ *
+ * Given a big (or little) endian word, return a little (or big) endian word.
+ */
+extern	uint32_t
+byteswap(uint32_t v);
+
+/*
+ * byteswapbuf
+ *
+ * To swap from the byte order of every 32-bit word in the given buffer.
+ */
 extern	void	byteswapbuf(int ln, uint32_t *buf);
+
 #else
 #define	byteswap(A)		 (A)
 #define	byteswapbuf(A, B)
 #endif
 
+/*
+ * buildword
+ *
+ * Given a pointer within an array of characters, build a 32-bit big-endian
+ * word from those characters.  Does not require the character pointer to be
+ * aligned.
+ */
 extern	uint32_t buildword(const unsigned char *p);
+
+/*
+ * buildswap
+ *
+ * Same as buildword, except that we build a little endian word from the
+ * characters given to us.  Hence the first character is the low order octet
+ * of the word.
+ */
 extern	uint32_t buildswap(const unsigned char *p);
 
 #endif

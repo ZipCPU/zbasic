@@ -44,19 +44,21 @@
 //
 module	wbubus(i_clk, i_rx_stb, i_rx_data, 
 		o_wb_cyc, o_wb_stb, o_wb_we, o_wb_addr, o_wb_data,
-		i_wb_stall, i_wb_ack, i_wb_err, i_wb_data,
+		i_wb_stall, i_wb_ack, i_wb_data, i_wb_err,
 		i_interrupt,
 		o_tx_stb, o_tx_data, i_tx_busy);
 	parameter	LGWATCHDOG=19,
 			LGINPUT_FIFO=6,
 			LGOUTPUT_FIFO=10;
+	parameter [0:0] CMD_PORT_OFF_UNTIL_ACCESSED = 1'b1;
 	input	wire		i_clk;
 	input	wire		i_rx_stb;
 	input	wire	[7:0]	i_rx_data;
 	output	wire		o_wb_cyc, o_wb_stb, o_wb_we;
 	output	wire	[31:0]	o_wb_addr, o_wb_data;
-	input	wire		i_wb_stall, i_wb_ack, i_wb_err;
+	input	wire		i_wb_stall, i_wb_ack;
 	input	wire	[31:0]	i_wb_data;
+	input	wire		i_wb_err;
 	input	wire		i_interrupt;
 	output	wire		o_tx_stb;
 	output	wire	[7:0]	o_tx_data;
@@ -65,6 +67,22 @@ module	wbubus(i_clk, i_rx_stb, i_rx_data,
 
 
 	reg		r_wdt_reset;
+	reg		cmd_port_active;
+
+	generate if (CMD_PORT_OFF_UNTIL_ACCESSED)
+	begin
+
+		initial	cmd_port_active = 1'b0;
+		always @(posedge i_clk)
+		if (i_rx_stb && i_rx_data[7])
+			cmd_port_active <= 1'b1;
+
+	end else begin
+
+		always @(*)
+			cmd_port_active = 1'b1;
+
+	end endgenerate
 
 	// Decode ASCII input requests into WB bus cycle requests
 	wire		in_stb;
@@ -105,12 +123,14 @@ module	wbubus(i_clk, i_rx_stb, i_rx_data,
 		i_wb_stall, i_wb_ack, i_wb_err, i_wb_data,
 		exec_stb, exec_word);
 
-	wire		ofifo_err;
+	wire		ofifo_err, w_tx_stb;
 	// wire	[30:0]	out_dbg;
 	wbuoutput #(LGOUTPUT_FIFO) wroutput(i_clk, w_bus_reset,
 			exec_stb, exec_word,
 			o_wb_cyc, i_interrupt, exec_stb,
-			o_tx_stb, o_tx_data, i_tx_busy, ofifo_err);
+			w_tx_stb, o_tx_data, i_tx_busy || !cmd_port_active, ofifo_err);
+	assign	o_tx_stb = cmd_port_active & w_tx_stb;
+
 	// verilator lint_off UNUSED
 	wire	ofifo_unused;
 	assign	ofifo_unused = ofifo_err;

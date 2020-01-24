@@ -266,7 +266,7 @@ bool	FLASHDRVR::erase_sector(const unsigned sector, const bool verify_erase) {
 			for(int j=0; j<SZPAGEW; j++)
 				if (page[j] != 0xffffffff) {
 					unsigned rdaddr = R_FLASH+flashaddr+i*SZPAGEB;
-					
+
 					if (m_debug)
 						printf("FLASH[%07x] = %08x, not 0xffffffff as desired (%06x + %d)\n",
 							R_FLASH+flashaddr+i*SZPAGEB+(j<<2),
@@ -308,70 +308,75 @@ bool	FLASHDRVR::page_program(const unsigned addr, const unsigned len,
 			empty_page = false;
 	}
 
-	if (!empty_page) {
+	if (empty_page) {
+		place_online();
+		return true;
+	}
 #ifndef	EQSPIFLASH
-		// Write enable
-		m_fpga->writeio(R_FLASHCFG, F_END);
-		m_fpga->writeio(R_FLASHCFG, F_WREN);
-		m_fpga->writeio(R_FLASHCFG, F_END);
+	// Write enable
+	m_fpga->writeio(R_FLASHCFG, F_END);
+	m_fpga->writeio(R_FLASHCFG, F_WREN);
+	m_fpga->writeio(R_FLASHCFG, F_END);
 
-		//
-		// Write the page
-		//
+	//
+	// Write the page
+	//
 
-		// Issue the page program command
-		//
-		// Our interface will limit us, so there's no reason to use
-		// QUAD page programming here
-		// if (F_QPP) {} else
-		m_fpga->writeio(R_FLASHCFG, F_PP);
-		// The address
-		m_fpga->writeio(R_FLASHCFG, CFG_USERMODE|((flashaddr>>16)&0x0ff));
-		m_fpga->writeio(R_FLASHCFG, CFG_USERMODE|((flashaddr>> 8)&0x0ff));
-		m_fpga->writeio(R_FLASHCFG, CFG_USERMODE|((flashaddr    )&0x0ff));
+	// Issue the page program command
+	//
+	// Our interface will limit us, so there's no reason to use
+	// QUAD page programming here
+	// if (F_QPP) {} else
+	m_fpga->writeio(R_FLASHCFG, F_PP);
+	// The address of the page to be programmed
+	m_fpga->writeio(R_FLASHCFG, CFG_USERMODE|((flashaddr>>16)&0x0ff));
+	m_fpga->writeio(R_FLASHCFG, CFG_USERMODE|((flashaddr>> 8)&0x0ff));
+	m_fpga->writeio(R_FLASHCFG, CFG_USERMODE|((flashaddr    )&0x0ff));
 
-		// Write the page data itself
-		for(unsigned i=0; i<len; i++)
-			m_fpga->writeio(R_FLASHCFG, 
-				CFG_USERMODE | CFG_WEDIR | (data[i] & 0x0ff));
-		m_fpga->writeio(R_FLASHCFG, F_END);
+	//
+	// Write the page data itself
+	//
+	for(unsigned i=0; i<len; i++)
+		m_fpga->writeio(R_FLASHCFG,
+			CFG_USERMODE | CFG_WEDIR | (data[i] & 0x0ff));
+	m_fpga->writeio(R_FLASHCFG, F_END);
 #else
-		// Write the page
-		m_fpga->writeio(R_ICONTROL, ISPIF_DIS);
-		m_fpga->clear();
-		m_fpga->writeio(R_ICONTROL, ISPIF_EN);
-		m_fpga->writeio(R_QSPI_EREG, DISABLEWP);
-		SETSCOPE;
-		m_fpga->writei(addr, (len>>2), bswapd);
-		fflush(stdout);
+	// Write the page
+	m_fpga->writeio(R_ICONTROL, ISPIF_DIS);
+	m_fpga->clear();
+	m_fpga->writeio(R_ICONTROL, ISPIF_EN);
+	m_fpga->writeio(R_QSPI_EREG, DISABLEWP);
+	SETSCOPE;
+	m_fpga->writei(addr, (len>>2), bswapd);
+	fflush(stdout);
 
-		// If we're in high speed mode and we want to verify the write,
-		// then we can skip waiting for the write to complete by
-		// issueing a read command immediately.  As soon as the write
-		// completes the read will begin sending commands back.  This
-		// allows us to recover the lost time between the interrupt and
-		// the next command being received.
+	// If we're in high speed mode and we want to verify the write,
+	// then we can skip waiting for the write to complete by
+	// issueing a read command immediately.  As soon as the write
+	// completes the read will begin sending commands back.  This
+	// allows us to recover the lost time between the interrupt and
+	// the next command being received.
 #endif
 
-		printf("Writing page: 0x%08x - 0x%08x", addr, addr+len-1);
-		if ((m_debug)&&(verify_write))
-			fflush(stdout);
-		else
-			printf("\n");
+	printf("Writing page: 0x%08x - 0x%08x", addr, addr+len-1);
+	if ((m_debug)&&(verify_write))
+		fflush(stdout);
+	else
+		printf("\n");
 
-		flwait();
-	}
+	// Wait for the write to complete
+	flwait();
 
+	// Turn quad-mode read back on, so we can verify the program
 	place_online();
 	if (verify_write) {
-
 		// printf("Attempting to verify page\n");
 		// NOW VERIFY THE PAGE
 		m_fpga->readi(addr, len>>2, buf);
 		for(unsigned i=0; i<(len>>2); i++) {
 			if (buf[i] != bswapd[i]) {
 				printf("\nVERIFY FAILS[%d]: %08x\n", i, (i<<2)+addr);
-				printf("\t(Flash[%d]) %08x != %08x (Goal[%08x])\n", 
+				printf("\t(Flash[%d]) %08x != %08x (Goal[%08x])\n",
 					(i<<2), buf[i], bswapd[i], (i<<2)+addr);
 				return false;
 			}
@@ -457,7 +462,7 @@ bool	FLASHDRVR::write(const unsigned addr, const unsigned len,
 			for(unsigned i=0; i<ln; i++) {
 				if ((sbuf[i]&dp[i]) != dp[i]) {
 					if (m_debug) {
-						printf("\nNEED-ERASE @0x%08x ... %08x != %08x (Goal)\n", 
+						printf("\nNEED-ERASE @0x%08x ... %08x != %08x (Goal)\n",
 							i+base-addr, sbuf[i], dp[i]);
 					}
 					need_erase = true;

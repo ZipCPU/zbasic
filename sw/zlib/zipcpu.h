@@ -57,7 +57,9 @@
 #define	CC_FAULT	(CC_ILL|CC_BUSERR|CC_DIVERR|CC_FPUERR)
 #define	CC_EXCEPTION	(CC_BREAK|CC_FAULT|CC_MMUERR)
 
-#define	CLEAR_CACHE	asm("OR 16384,CC")
+#define	CLEAR_ICACHE	asm("OR 16384,CC")
+#define	CLEAR_DCACHE	asm("OR 32768,CC")
+#define	CLEAR_CACHE	asm("OR 49152,CC")
 
 // extern void	zip_break(void);
 #define	zip_break()		asm("BREAK\n")

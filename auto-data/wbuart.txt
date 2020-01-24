@@ -36,7 +36,7 @@
 ##
 ##
 # The prefix is used to create a series of bus data lines for interaction with
-# the bus.  In this case, these will be uart_sel, uart_ack, uart_stall, and
+# the bus.  In this case, these will be uart_sel, uart_stall, uart_ack, and
 # uart_data.
 @PREFIX=uart
 # The number of addressable registers this peripheral has on the wishbone bus.

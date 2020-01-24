@@ -100,5 +100,8 @@ module	wbudeword(i_clk, i_stb, i_word, i_tx_busy, o_stb, o_nl_hexbits, o_busy);
 	always @(*)
 		o_busy = o_stb;
 
+`ifdef	FORMAL
+// Formal properties for this module are maintained elsewhere
+`endif
 endmodule
 

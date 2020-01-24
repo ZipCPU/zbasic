@@ -59,15 +59,8 @@ VFLAGS = -Wall --MMD -O3 --trace -Mdir $(VDIRFB) $(AUTOVDIRS) -cc
 .PHONY: test auto-test
 test:	auto-test
 
-# .PHONY: hand-test
-# hand-test: $(VDIRFB)/Vbusmaster__ALL.a
-
 .PHONY: auto-test
 auto-test: $(VDIRFB)/Vmain__ALL.a
-
-$(VDIRFB)/Vbusmaster__ALL.a: $(VDIRFB)/Vbusmaster.h $(VDIRFB)/Vbusmaster.cpp
-$(VDIRFB)/Vbusmaster__ALL.a: $(VDIRFB)/Vbusmaster.mk
-$(VDIRFB)/Vbusmaster.h $(VDIRFB)/Vbusmaster.cpp $(VDIRFB)/Vbusmaster.mk: $(SOURCES)
 
 $(VDIRFB)/Vmain__ALL.a: $(VDIRFB)/Vmain.h $(VDIRFB)/Vmain.cpp
 $(VDIRFB)/Vmain__ALL.a: $(VDIRFB)/Vmain.mk

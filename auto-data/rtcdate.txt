@@ -42,11 +42,21 @@
 @DEPENDS=RTC_ACCESS
 @SLAVE.TYPE=SINGLE
 @SLAVE.BUS=wb
+@MAIN.PARAM=
+	//
+	// Initial calendar DATE
+	//
+`ifdef	VERSION_ACCESS
+	parameter	INITIAL_DATE = `DATESTAMP;
+`else
+	parameter	INITIAL_DATE = 30'h20000101;
+`endif
 @MAIN.INSERT=
 	//
 	// The Calendar DATE
 	//
-	rtcdate	@$(PREFIX)i(i_clk, rtc_ppd,
+	rtcdate	#(.INITIAL_DATE(INITIAL_DATE[29:0]))
+	@$(PREFIX)i(i_clk, rtc_ppd,
 		@$(SLAVE.PORTLIST));
 @REGS.N=1
 @REGS.0= 0 R_@$(DEVID) @$(DEVID) DATE

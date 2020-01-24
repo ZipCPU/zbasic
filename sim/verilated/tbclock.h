@@ -120,7 +120,7 @@ public:
 
 	int	advance(unsigned long itime) {
 		// Should never skip clocks
-		assert(itime < 4*m_increment_ps);
+		assert(itime <= m_increment_ps);
 
 		m_now_ps += itime;
 

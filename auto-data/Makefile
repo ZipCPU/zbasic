@@ -67,7 +67,7 @@ $(AUTOFPGA):
 
 .PHONY: data
 data: $(AUTOFPGA) $(DATA)
-	$(AUTOFPGA) -o . $(DATA)
+	$(AUTOFPGA) -d -o . $(DATA)
 
 clean:
 	rm -f toplevel.v main.v regdefs.h regdefs.cpp board.h board.ld

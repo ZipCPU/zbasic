@@ -81,3 +81,5 @@ typedef	struct	RTCLIGHT_S	{
 @RTL.MAKE.GROUP=@$(DEVID)
 @RTL.MAKE.SUBD=rtc
 @RTL.MAKE.FILES=rtclight.v rtcbare.v rtcalarm.v rtcstopwatch.v rtctimer.v
+##
+##

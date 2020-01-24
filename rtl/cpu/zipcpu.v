@@ -1975,14 +1975,15 @@ module	zipcpu(i_clk, i_reset, i_interrupt,
 
 		initial	r_break_pending = 1'b0;
 		always @(posedge i_clk)
-			if ((clear_pipeline)||(!op_valid))
-				r_break_pending <= 1'b0;
-			else if ((op_break)&&(!r_break_pending))
-				r_break_pending <= (!alu_busy)&&(!div_busy)
-					&&(!fpu_busy)&&(!mem_busy)
-					&&(!wr_reg_ce);
-			// else
-				// r_break_pending <= 1'b0;
+		if ((clear_pipeline)||(!op_valid))
+			r_break_pending <= 1'b0;
+		else if ((op_break)&&(!r_break_pending))
+			r_break_pending <= (!alu_busy)&&(!div_busy)
+				&&(!fpu_busy)&&(!mem_busy)
+				&&(!wr_reg_ce);
+		// else
+			// r_break_pending <= 1'b0;
+
 		assign	break_pending = r_break_pending;
 	end else begin
 

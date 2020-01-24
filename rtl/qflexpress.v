@@ -140,7 +140,7 @@ module	qflexpress(i_clk, i_reset,
 	// For dealing with multiple flash devices, the OPT_STARTUP_FILE allows
 	// a hex file to be provided containing the necessary script to place
 	// the design into the proper initial configuration.
-	parameter	OPT_STARTUP_FILE="";
+	parameter	OPT_STARTUP_FILE="spansion.hex";
 	//
 	//
 	//

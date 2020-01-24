@@ -40,12 +40,6 @@
 //
 `default_nettype	none
 //
-`define	UART_SETUP	2'b00
-`define	UART_FIFO	2'b01
-`define	UART_RXREG	2'b10
-`define	UART_TXREG	2'b11
-//
-// `define	USE_LITE_UART
 module	wbuart(i_clk, i_rst,
 		//
 		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
@@ -63,6 +57,10 @@ module	wbuart(i_clk, i_rst,
 	// interface.
 	localparam [3:0]	LCLLGFLEN = (LGFLEN > 4'ha)? 4'ha
 					: ((LGFLEN < 4'h2) ? 4'h2 : LGFLEN);
+	localparam	[1:0]	UART_SETUP = 2'b00,
+				UART_FIFO  = 2'b01,
+				UART_RXREG = 2'b10,
+				UART_TXREG = 2'b11;
 	//
 	input	wire		i_clk, i_rst;
 	// Wishbone inputs
@@ -104,7 +102,7 @@ module	wbuart(i_clk, i_rst,
 		// Under wishbone rules, a write takes place any time i_wb_stb
 		// is high.  If that's the case, and if the write was to the
 		// setup address, then set us up for the new parameters.
-		if ((i_wb_stb)&&(i_wb_addr == `UART_SETUP)&&(i_wb_we))
+		if ((i_wb_stb)&&(i_wb_addr == UART_SETUP)&&(i_wb_we))
 			uart_setup <= {
 				(i_wb_data[30])
 					||(!HARDWARE_FLOW_CONTROL_PRESENT),
@@ -199,7 +197,7 @@ module	wbuart(i_clk, i_rst,
 	// delayed by an extra clock.
 	initial	rxf_wb_read = 1'b0;
 	always @(posedge i_clk)
-		rxf_wb_read <= (i_wb_stb)&&(i_wb_addr[1:0]==`UART_RXREG)
+		rxf_wb_read <= (i_wb_stb)&&(i_wb_addr[1:0]==UART_RXREG)
 				&&(!i_wb_we);
 
 	// Now, let's deal with those RX UART errors: both the parity and frame
@@ -216,7 +214,7 @@ module	wbuart(i_clk, i_rst,
 			r_rx_perr <= 1'b0;
 			r_rx_ferr <= 1'b0;
 		end else if ((i_wb_stb)
-				&&(i_wb_addr[1:0]==`UART_RXREG)&&(i_wb_we))
+				&&(i_wb_addr[1:0]==UART_RXREG)&&(i_wb_we))
 		begin
 			// Reset the error lines if a '1' is ever written to
 			// them, otherwise leave them alone.
@@ -237,11 +235,11 @@ module	wbuart(i_clk, i_rst,
 
 	initial	rx_uart_reset = 1'b1;
 	always @(posedge i_clk)
-		if ((i_rst)||((i_wb_stb)&&(i_wb_addr[1:0]==`UART_SETUP)&&(i_wb_we)))
+		if ((i_rst)||((i_wb_stb)&&(i_wb_addr[1:0]==UART_SETUP)&&(i_wb_we)))
 			// The receiver reset, always set on a master reset
 			// request.
 			rx_uart_reset <= 1'b1;
-		else if ((i_wb_stb)&&(i_wb_addr[1:0]==`UART_RXREG)&&(i_wb_we))
+		else if ((i_wb_stb)&&(i_wb_addr[1:0]==UART_RXREG)&&(i_wb_we))
 			// Writes to the receive register will command a receive
 			// reset anytime bit[12] is set.
 			rx_uart_reset <= i_wb_data[12];
@@ -283,7 +281,7 @@ module	wbuart(i_clk, i_rst,
 	initial	txf_wb_write = 1'b0;
 	always @(posedge i_clk)
 	begin
-		txf_wb_write <= (i_wb_stb)&&(i_wb_addr == `UART_TXREG)
+		txf_wb_write <= (i_wb_stb)&&(i_wb_addr == UART_TXREG)
 					&&(i_wb_we);
 		txf_wb_data  <= i_wb_data[7:0];
 	end
@@ -326,7 +324,7 @@ module	wbuart(i_clk, i_rst,
 	always @(posedge i_clk)
 		if (i_rst)
 			r_tx_break <= 1'b0;
-		else if ((i_wb_stb)&&(i_wb_addr[1:0]==`UART_TXREG)&&(i_wb_we))
+		else if ((i_wb_stb)&&(i_wb_addr[1:0]==UART_TXREG)&&(i_wb_we))
 			r_tx_break <= i_wb_data[9];
 	assign	tx_break = r_tx_break;
 `else
@@ -341,9 +339,9 @@ module	wbuart(i_clk, i_rst,
 	// normal.
 	initial	tx_uart_reset = 1'b1;
 	always @(posedge i_clk)
-		if((i_rst)||((i_wb_stb)&&(i_wb_addr == `UART_SETUP)&&(i_wb_we)))
+		if((i_rst)||((i_wb_stb)&&(i_wb_addr == UART_SETUP)&&(i_wb_we)))
 			tx_uart_reset <= 1'b1;
-		else if ((i_wb_stb)&&(i_wb_addr[1:0]==`UART_TXREG)&&(i_wb_we))
+		else if ((i_wb_stb)&&(i_wb_addr[1:0]==UART_TXREG)&&(i_wb_we))
 			tx_uart_reset <= i_wb_data[12];
 		else
 			tx_uart_reset <= 1'b0;
@@ -417,10 +415,10 @@ module	wbuart(i_clk, i_rst,
 	// interconnect, etc.  For this reason, we can just simplify our logic.
 	always @(posedge i_clk)
 		casez(r_wb_addr)
-		`UART_SETUP: o_wb_data <= { 1'b0, uart_setup };
-		`UART_FIFO:  o_wb_data <= wb_fifo_data;
-		`UART_RXREG: o_wb_data <= wb_rx_data;
-		`UART_TXREG: o_wb_data <= wb_tx_data;
+		UART_SETUP: o_wb_data <= { 1'b0, uart_setup };
+		UART_FIFO:  o_wb_data <= wb_fifo_data;
+		UART_RXREG: o_wb_data <= wb_rx_data;
+		UART_TXREG: o_wb_data <= wb_tx_data;
 		endcase
 
 	// This device never stalls.  Sure, it takes two clocks, but they are

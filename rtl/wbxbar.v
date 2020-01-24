@@ -761,9 +761,8 @@ module	wbxbar(i_clk, i_reset,
 			initial	r_merr[N]   = 0;
 			always @(posedge i_clk)
 			begin
-				// Verilator lint_off WIDTH
-				iM = mindex[N];
-				// Verilator lint_on  WIDTH
+				iM = 0;
+				iM[LGNS-1:0] = mindex[N];
 				r_mack[N]   <= mgrant[N] && s_ack[mindex[N]];
 				r_merr[N]   <= mgrant[N] && s_err[mindex[N]];
 				if (OPT_LOWPOWER && !mgrant[N])

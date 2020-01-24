@@ -2,4 +2,7 @@ dry2
 dry2.txt
 notes.txt
 pfile.bin
+*.map
+*.bin
+dry.txt
 pfile.txt
