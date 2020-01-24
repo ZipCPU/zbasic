@@ -14,8 +14,7 @@ RAW=dry.c
 # Runs: 1000	0x6d122a (SingleFetch, block RAM)
 # Runs:  100	0xb53897 (SingleFetch, insns in flash), 0.0048 DMIPS/MHz
 # Runs:  100	0x944c3a (DoubleFetch, insns in flash), 0.0058 DMIPS/MHz
-CORES  := $(HOME)/work/rnd/opencores
-ZBASIC := $(CORES)/zbasic/trunk
+ZBASIC := ../../..
 LDSCRIPT  := $(ZBASIC)/sw/board/board.ld
 ZBASICLIB := $(ZBASIC)/sw/zlib/libzbasic.a
 ZLIBD  := -L$(ZBASIC)/sw/zlib
