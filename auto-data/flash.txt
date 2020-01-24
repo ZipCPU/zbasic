@@ -11,7 +11,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017-2019, Gisselquist Technology, LLC
+## Copyright (C) 2017-2020, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -158,10 +158,10 @@
 `endif
 		)
 		@$(PREFIX)i(i_clk, i_reset,
-			(wb_cyc), (wb_stb)&&(@$(PREFIX)_sel),
-			(wb_stb)&&(flashcfg_sel), wb_we,
-			wb_addr[(@$LGFLASHSZ-3):0], wb_data,
-			@$(PREFIX)_ack, @$(PREFIX)_stall, @$(PREFIX)_data,
+			// Primary memory reading inputs
+			@$(SLAVE.PORTLIST),
+			// Configuration bus ports
+			@$(flashcfg.SLAVE.PORTLIST),
 			o_qspi_sck, o_qspi_cs_n, o_qspi_mod, o_qspi_dat, i_qspi_dat,
 			flash_dbg_trigger, flash_debug);
 @MAIN.ALT=
@@ -169,6 +169,9 @@
 	assign	o_qspi_cs_n = 1'b1;
 	assign	o_qspi_mod  = 2'b01;
 	assign	o_qspi_dat  = 4'b1111;
+	// Verilator lint_off UNUSED
+	wire	@$(PREFIX)_unused = &{ 1'b0, i_qspi_dat };
+	// Verilator lint_on UNUSED
 @MEM.NAME= flash
 @MEM.ACCESS = rx
 @REGS.N= 1
@@ -185,6 +188,7 @@
 @BDEF.OSVAL=extern int _@$(PREFIX)[1];
 @LD.PERM=	rx
 @LD.NAME=	@$(PREFIX)
+@SIM.CLOCK=clk
 @SIM.INCLUDE=
 #include "flashsim.h"
 @SIM.DEFNS=
@@ -204,9 +208,7 @@
 			m_core->o_qspi_mod);
 #endif // @$(ACCESS)
 @SIM.LOAD=
-#ifdef	@$(ACCESS)
 			m_@$(MEM.NAME)->load(start, &buf[offset], wlen);
-#endif // @$(ACCESS)
 ##
 ##
 ##
@@ -225,11 +227,8 @@
 @SLAVE.TYPE=OTHER
 @SLAVE.BUS=wb
 @MAIN.INSERT=
-	// The Flash control interface result comes back together with the
-	// flash interface itself.  Hence, we always return zero here.
-	assign	@$(PREFIX)_ack   = 1'b0;
-	assign	@$(PREFIX)_stall = 1'b0;
-	assign	@$(PREFIX)_data  = flash_data;
+	// The Flash control interface is defined by the flash instantiation
+	// hence we don't need to do anything to define it here.
 @REGS.NOTE= // FLASH erase/program configuration registers
 @REGS.N= 1
 @REGS.0= 0 R_@$(DEVID) @$(DEVID) QSPIC
@@ -254,4 +253,4 @@
 @BDEF.OSVAL=static volatile @$(BDEF.IOTYPE) * const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)(@$[0x%08x](REGBASE)));
 ##
 @RTL.MAKE.GROUP= FLASH
-@RTL.MAKE.FILES= qflexpress.v
+@RTL.MAKE.FILES= qflexpress.v wbarbiter.v

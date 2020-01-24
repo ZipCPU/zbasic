@@ -91,10 +91,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2017-2019, Gisselquist Technology, LLC
+// Copyright (C) 2017-2020, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -207,6 +207,7 @@ extern	void	_bootloader(void) __attribute__ ((section (".boot")));
 //		zero.  This is sometimes called the BSS segment.
 //
 #ifndef	SKIP_BOOTLOADER
+#define	NOTNULL(A)	(4 != (unsigned)&A[1])
 void	_bootloader(void) {
 	if (_rom == NULL) {
 		int	*wrp = _ram_image_end;
@@ -260,13 +261,13 @@ void	_bootloader(void) {
 	if (_bss_image_end != _ram_image_end) {
 		volatile int	zero = 0;
 
-		// asm("NSTR \"BSS\n\"\n");
-		_zip->z_dma.d_len = _bss_image_end - _ram_image_end;
+		// NSTR("BSS");
+		_zip->z_pic = SYSINT_DMAC;
+		_zip->z_dma.d_len = bsend - ramend;
 		_zip->z_dma.d_rd  = (unsigned *)&zero;
 		// _zip->z_dma.wr // Keeps the same value
 		_zip->z_dma.d_ctrl = DMACCOPY|DMA_CONSTSRC;
 
-		_zip->z_pic = SYSINT_DMAC;
 		while((_zip->z_pic & SYSINT_DMAC)==0)
 			;
 	}
@@ -275,6 +276,7 @@ void	_bootloader(void) {
 	_zip->z_pic = CLEARPIC;
 #else
 	int	*rdp = _kram_start, *wrp = (_kram) ? _kram : _ram;
+	// NSTR("Not using DMA");
 
 	//
 	// Load any part of the image into block RAM, but *only* if there's a
@@ -284,6 +286,7 @@ void	_bootloader(void) {
 	// the flash address region.
 	//
 	if (_kram_end != _kram_start) {
+		// NSTR("KRAM");
 		while(wrp < _kram_end)
 			*wrp++ = *rdp++;
 	}
@@ -298,6 +301,7 @@ void	_bootloader(void) {
 	// linker.
 	// 
 	// while(wrp < sdend)	// Could also be done this way ...
+	// NSTR("RAM");
 	for(int i=0; i< ramend - _ram; i++)
 		*wrp++ = *rdp++;
 
@@ -307,10 +311,12 @@ void	_bootloader(void) {
 	// initialization is expected within it.  We start writing where
 	// the valid SDRAM context, i.e. the non-zero contents, end.
 	//
+	// NSTR("BSS");
 	for(int i=0; i<bsend - ramend; i++)
 		*wrp++ = 0;
 
 #endif
+	// NSTR("Bootloader complete");
 }
 #endif
 

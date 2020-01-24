@@ -11,7 +11,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017-2019, Gisselquist Technology, LLC
+## Copyright (C) 2017-2020, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -88,9 +88,7 @@
 @MAIN.INSERT=
 	wbuart #(.INITIAL_SETUP(@$.UARTSETUP))
  		@$(PREFIX)_uart(i_clk, 1'b0,
- 			wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we,
-				wb_addr[1:0], wb_data,
- 			@$(PREFIX)_ack, @$(PREFIX)_stall, @$(PREFIX)_data,
+			@$(SLAVE.PORTLIST),
  			i_@$(PREFIX)_rx, o_@$(PREFIX)_tx, @$CTS, @$RTS,
 			@$(PREFIX)rx_int, @$(PREFIX)tx_int,
 			@$(PREFIX)rxf_int, @$(PREFIX)txf_int);
@@ -140,6 +138,7 @@ typedef struct  WBUART_S {
 @BDEF.IOTYPE= WBUART
 @BDEF.OSDEF=	_BOARD_HAS_WBUART
 @BDEF.OSVAL=static volatile WBUART *const @$BDEF.IONAME = ((WBUART *)@$[0x%08x](REGBASE));
+@RTL.MAKE.SUBD=wbuart
 @RTL.MAKE.GROUP=WBUART
 @RTL.MAKE.FILES= wbuart.v ufifo.v rxuart.v txuart.v
 @SIM.INCLUDE=

@@ -11,7 +11,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017-2019, Gisselquist Technology, LLC
+## Copyright (C) 2017-2020, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -47,16 +47,20 @@
 @INT.RTC.WIRE=rtc_int
 @INT.RTC.PIC=altpic
 @MAIN.DEFNS=
-	// Definitions in support of the GPS driven RTC
+	// This clock step is designed to match @$(CLOCK.FREQUENCY) Hz
+	localparam	[31:0]	RTC_CLKSTEP = @$[32'h%08x](CLKSTEP);
 	wire	@$(PREFIX)_ppd;
+	wire	ck_pps;
 @MAIN.INSERT=
-	rtclight #(@$[32'h%x](CLKSTEP)) the@$(PREFIX)(i_clk, i_reset,
-		wb_cyc, (wb_stb)&&(@$(PREFIX)_sel), wb_we, wb_addr[2:0],
-			wb_data, wb_sel,
-		@$(PREFIX)_stall, @$(PREFIX)_ack, @$(PREFIX)_data,
-		@$(PREFIX)_int, @$(PREFIX)_ppd);
+	rtclight #(.DEFAULT_SPEED(@$[32'h%x](CLKSTEP)),
+		.OPT_TIMER(1'b1),
+		.OPT_STOPWATCH(1'b1),
+		.OPT_ALARM(1'b0),
+		.OPT_FIXED_SPEED(1'b1))
+	the@$(PREFIX)(i_clk, i_reset, @$(SLAVE.PORTLIST),
+		@$(PREFIX)_int, ck_pps, @$(PREFIX)_ppd);
 @MAIN.ALT=
-	assign	@$(PREFIX)_ppd = 1'b0;
+	assign	ck_pps = 1'b0;
 @REGS.NOTE= // RTC clock registers
 @REGS.N=5
 @REGS.0= 0 R_CLOCK	CLOCK
@@ -75,4 +79,5 @@ typedef	struct	RTCLIGHT_S	{
 #
 #
 @RTL.MAKE.GROUP=@$(DEVID)
+@RTL.MAKE.SUBD=rtc
 @RTL.MAKE.FILES=rtclight.v rtcbare.v rtcalarm.v rtcstopwatch.v rtctimer.v

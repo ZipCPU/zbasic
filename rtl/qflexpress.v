@@ -33,7 +33,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2018-2019, Gisselquist Technology, LLC
+// Copyright (C) 2018-2020, Gisselquist Technology, LLC
 //
 // This file is part of the set of Wishbone controlled SPI flash controllers
 // project
@@ -64,8 +64,10 @@
 //
 // 290 raw, 372 w/ pipe, 410 cfg, 499 cfg w/pipe
 module	qflexpress(i_clk, i_reset,
-		i_wb_cyc, i_wb_stb, i_cfg_stb, i_wb_we, i_wb_addr, i_wb_data,
-			o_wb_ack, o_wb_stall, o_wb_data,
+		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel,
+			o_wb_stall, o_wb_ack, o_wb_data,
+		i_cfg_cyc, i_cfg_stb, i_cfg_we, i_cfg_data, i_cfg_sel,
+			o_cfg_stall, o_cfg_ack, o_cfg_data,
 		o_qspi_sck, o_qspi_cs_n, o_qspi_mod, o_qspi_dat, i_qspi_dat,
 		o_dbg_trigger, o_debug);
 	//
@@ -102,7 +104,7 @@ module	qflexpress(i_clk, i_reset,
 	// systems, not so much for little endian systems.  The endian swap
 	// allows the bus to swap the return values in order to support little
 	// endian systems.
-	parameter [0:0]	OPT_ENDIANSWAP = 1'b1;
+	parameter [0:0]	OPT_ENDIANSWAP = 1'b0;
 	//
 	// OPT_ODDR will be true any time the clock has no clock division
 	localparam [0:0]	OPT_ODDR = (OPT_CLKDIV == 0);
@@ -160,21 +162,90 @@ module	qflexpress(i_clk, i_reset,
 	//
 	input	wire			i_clk, i_reset;
 	//
-	input	wire			i_wb_cyc, i_wb_stb, i_cfg_stb, i_wb_we;
+	// Flash memory port
+	input	wire			i_wb_cyc, i_wb_stb, i_wb_we;
 	input	wire	[(AW-1):0]	i_wb_addr;
 	input	wire	[(DW-1):0]	i_wb_data;
+	input	wire	[DW/8-1:0]	i_wb_sel;
 	//
-	output	reg			o_wb_ack, o_wb_stall;
+	output	wire			o_wb_stall, o_wb_ack;
 	output	reg	[(DW-1):0]	o_wb_data;
+	//
+	// Configuration port
+	input	wire			i_cfg_cyc, i_cfg_stb, i_cfg_we;
+	input	wire	[(DW-1):0]	i_cfg_data;
+	input	wire	[DW/8-1:0]	i_cfg_sel;
+	//
+	output	wire			o_cfg_stall, o_cfg_ack;
+	output	wire	[(DW-1):0]	o_cfg_data;
 	//
 	output	reg		o_qspi_sck;
 	output	reg		o_qspi_cs_n;
 	output	reg	[1:0]	o_qspi_mod;
 	output	wire	[3:0]	o_qspi_dat;
 	input	wire	[3:0]	i_qspi_dat;
+	//
 	// Debugging port
 	output	wire		o_dbg_trigger;
 	output	wire	[31:0]	o_debug;
+
+	//
+	//
+	// Arbitrated bus registers and inputs
+	//
+	wire		bus_cyc, bus_stb, bus_we, ign_wb_err, ign_cfg_err;
+	wire	[(AW-1):0]	bus_addr;
+	wire	[31:0]	bus_data;
+	wire	[3:0]	bus_sel;
+	reg		bus_stall, bus_ack;
+	wire		cfg_bus_stb, mem_bus_stb;
+
+	generate if (OPT_CFG)
+	begin
+		wire	cfg_bus_grant;
+		//
+		// Memory vs Configuration bus arbiter
+		//
+		wbarbiter #(.DW(DW), .AW(AW+1), .SCHEME("PRIORITY"),
+				.F_MAX_STALL(0),
+				.F_MAX_ACK_DELAY(0))
+		arbiter(i_clk, i_reset,
+			i_wb_cyc, i_wb_stb, i_wb_we, { 1'b0, i_wb_addr },
+				i_wb_data, i_wb_sel,
+				o_wb_stall, o_wb_ack, ign_wb_err,
+			i_cfg_cyc, i_cfg_stb, i_cfg_we, { 1'b1, i_wb_addr },
+				i_cfg_data, i_cfg_sel,
+				o_cfg_stall, o_cfg_ack, ign_cfg_err,
+			bus_cyc, bus_stb, bus_we, { cfg_bus_grant, bus_addr }, bus_data, bus_sel,
+				bus_stall, bus_ack, 1'b0);
+
+		assign	cfg_bus_stb = bus_stb &&  cfg_bus_grant;
+		assign	mem_bus_stb = bus_stb && !cfg_bus_grant;
+		assign	o_cfg_data = o_wb_data;
+
+		// verilator lint_off UNUSED
+		wire	unused;
+		assign	unused = &{ 1'b0, bus_data, bus_addr, ign_cfg_err,
+					ign_wb_err };
+		// verilator lint_on  UNUSED
+	end else begin
+		assign	bus_cyc  = i_wb_cyc;
+		assign	bus_stb  = i_wb_stb;
+		assign	bus_we   = i_wb_we;
+		assign	bus_addr = i_wb_addr;
+		assign	bus_data = i_wb_data;
+		assign	bus_sel  = i_wb_sel;
+
+		assign	o_wb_ack   = bus_ack;
+		assign	o_wb_stall = bus_stall;
+
+		assign	mem_bus_stb = bus_stb;
+		assign	cfg_bus_stb = 0;
+		assign	o_cfg_ack   = i_cfg_stb;
+		assign	o_cfg_stall = 0;
+		assign	o_cfg_data  = 0;
+	end endgenerate
+
 
 	reg		dly_ack, read_sck, xtra_stall;
 	// clk_ctr must have enough bits for ...
@@ -191,20 +262,20 @@ module	qflexpress(i_clk, i_reset,
 	wire	cfg_write, cfg_hs_write, cfg_ls_write, cfg_hs_read,
 		user_request, bus_request, pipe_req, cfg_noop, cfg_stb;
 	//
-	assign	bus_request  = (i_wb_stb)&&(!o_wb_stall)
-					&&(!i_wb_we)&&(!cfg_mode);
-	assign	cfg_stb      = (OPT_CFG)&&(i_cfg_stb)&&(!o_wb_stall);
-	assign	cfg_noop     = ((cfg_stb)&&((!i_wb_we)||(!i_wb_data[CFG_MODE])
-					||(i_wb_data[USER_CS_n])))
-				||((!OPT_CFG)&&(i_cfg_stb)&&(!o_wb_stall));
-	assign	user_request = (cfg_stb)&&(i_wb_we)&&(i_wb_data[CFG_MODE]);
+	assign	bus_request  = (mem_bus_stb)&&(!bus_stall)
+					&&(!bus_we)&&(!cfg_mode);
+	assign	cfg_stb      = (OPT_CFG)&&(cfg_bus_stb)&&(!bus_stall);
+	assign	cfg_noop     = ((cfg_stb)&&((!bus_we)||(!i_cfg_data[CFG_MODE])
+					||(i_cfg_data[USER_CS_n])))
+				||((!OPT_CFG)&&(cfg_bus_stb)&&(!bus_stall));
+	assign	user_request = (cfg_stb)&&(i_cfg_we)&&(i_cfg_data[CFG_MODE]);
 
-	assign	cfg_write    = (user_request)&&(!i_wb_data[USER_CS_n]);
-	assign	cfg_hs_write = (cfg_write)&&(i_wb_data[QSPEED_BIT])
-					&&(i_wb_data[DIR_BIT]);
-	assign	cfg_hs_read  = (cfg_write)&&(i_wb_data[QSPEED_BIT])
-					&&(!i_wb_data[DIR_BIT]);
-	assign	cfg_ls_write = (cfg_write)&&(!i_wb_data[QSPEED_BIT]);
+	assign	cfg_write    = (user_request)&&(!i_cfg_data[USER_CS_n]);
+	assign	cfg_hs_write = (cfg_write)&&(i_cfg_data[QSPEED_BIT])
+					&&(i_cfg_data[DIR_BIT]);
+	assign	cfg_hs_read  = (cfg_write)&&(i_cfg_data[QSPEED_BIT])
+					&&(!i_cfg_data[DIR_BIT]);
+	assign	cfg_ls_write = (cfg_write)&&(!i_cfg_data[QSPEED_BIT]);
 
 
 	reg		ckstb, ckpos, ckneg, ckpre;
@@ -239,7 +310,7 @@ module	qflexpress(i_clk, i_reset,
 			clk_counter <= 1'b0;
 		else if (bus_request)
 			clk_counter <= (pipe_req);
-		else if ((maintenance)||(!o_qspi_cs_n && o_wb_stall))
+		else if ((maintenance)||(!o_qspi_cs_n && bus_stall))
 			clk_counter <= 1'b1;
 
 		always @(*)
@@ -262,7 +333,7 @@ module	qflexpress(i_clk, i_reset,
 			clk_counter <= clk_counter - 1;
 		else if (bus_request)
 			clk_counter <= (pipe_req ? OPT_CLKDIV : 0);
-		else if ((maintenance)||(!o_qspi_cs_n && o_wb_stall))
+		else if ((maintenance)||(!o_qspi_cs_n && bus_stall))
 			clk_counter <= OPT_CLKDIV;
 
 		initial	ckpre = (OPT_CLKDIV == 1);
@@ -585,7 +656,7 @@ module	qflexpress(i_clk, i_reset,
 	initial	data_pipe = 0;
 	always @(posedge i_clk)
 	begin
-		if (!o_wb_stall)
+		if (!bus_stall)
 		begin
 			// Set the high bits to zero initially
 			data_pipe <= 0;
@@ -593,24 +664,24 @@ module	qflexpress(i_clk, i_reset,
 			data_pipe[8+LGFLASHSZ-1:0] <= {
 					i_wb_addr, 2'b00, 4'ha, 4'h0 };
 
-			if (i_cfg_stb)
+			if (cfg_bus_stb)
 				// High speed configuration I/O
-				data_pipe[24+(OPT_ADDR32 ? 8:0) +: 8] <= i_wb_data[7:0];
+				data_pipe[24+(OPT_ADDR32 ? 8:0) +: 8] <= i_cfg_data[7:0];
 
-			if ((i_cfg_stb)&&(!i_wb_data[QSPEED_BIT]))
+			if ((i_cfg_stb)&&(!i_cfg_data[QSPEED_BIT]))
 			begin // Low speed configuration I/O
-				data_pipe[28+(OPT_ADDR32 ? 8:0)]<= i_wb_data[7];
-				data_pipe[24+(OPT_ADDR32 ? 8:0)]<= i_wb_data[6];
+				data_pipe[28+(OPT_ADDR32 ? 8:0)] <= i_cfg_data[7];
+				data_pipe[24+(OPT_ADDR32 ? 8:0)] <= i_cfg_data[6];
 			end
 
 			if (i_cfg_stb)
 			begin // These can be set independent of speed
-				data_pipe[20+(OPT_ADDR32 ? 8:0)]<= i_wb_data[5];
-				data_pipe[16+(OPT_ADDR32 ? 8:0)]<= i_wb_data[4];
-				data_pipe[12+(OPT_ADDR32 ? 8:0)]<= i_wb_data[3];
-				data_pipe[ 8+(OPT_ADDR32 ? 8:0)]<= i_wb_data[2];
-				data_pipe[ 4+(OPT_ADDR32 ? 8:0)]<= i_wb_data[1];
-				data_pipe[ 0+(OPT_ADDR32 ? 8:0)]<= i_wb_data[0];
+				data_pipe[20+(OPT_ADDR32 ? 8:0)] <= i_cfg_data[5];
+				data_pipe[16+(OPT_ADDR32 ? 8:0)] <= i_cfg_data[4];
+				data_pipe[12+(OPT_ADDR32 ? 8:0)] <= i_cfg_data[3];
+				data_pipe[ 8+(OPT_ADDR32 ? 8:0)] <= i_cfg_data[2];
+				data_pipe[ 4+(OPT_ADDR32 ? 8:0)] <= i_cfg_data[1];
+				data_pipe[ 0+(OPT_ADDR32 ? 8:0)] <= i_cfg_data[0];
 			end
 		end else if (ckstb)
 			data_pipe <= { data_pipe[(32+(OPT_ADDR32 ? 8:0)+4*((OPT_ODDR ? 0:1)-1))-1:0], 4'h0 };
@@ -626,7 +697,7 @@ module	qflexpress(i_clk, i_reset,
 	// keep track of whether this operation should be ack'd upon
 	// completion
 	always @(posedge i_clk)
-	if ((i_reset)||(!i_wb_cyc))
+	if ((i_reset)||(!bus_cyc))
 		pre_ack <= 1'b0;
 	else if ((bus_request)||(cfg_write))
 		pre_ack <= 1'b1;
@@ -638,10 +709,11 @@ module	qflexpress(i_clk, i_reset,
 
 		reg	[(AW-1):0]	next_addr;
 		always  @(posedge i_clk)
-		if (!o_wb_stall)
+		if (!bus_stall)
 			next_addr <= i_wb_addr + 1'b1;
 
-		assign	w_pipe_condition = (i_wb_stb)&&(!i_wb_we)&&(pre_ack)
+		assign	w_pipe_condition = (mem_bus_stb)
+				&&(!i_wb_we)&&(pre_ack)
 				&&(!maintenance)
 				&&(!cfg_mode)
 				&&(!o_qspi_cs_n)
@@ -720,8 +792,8 @@ module	qflexpress(i_clk, i_reset,
 		o_qspi_cs_n <= 1'b1;
 	else if (maintenance)
 		o_qspi_cs_n <= m_cs_n;
-	else if ((cfg_stb)&&(i_wb_we))
-		o_qspi_cs_n <= (!i_wb_data[CFG_MODE])||(i_wb_data[USER_CS_n]);
+	else if ((cfg_stb)&&(i_cfg_we))
+		o_qspi_cs_n <= (!i_cfg_data[CFG_MODE])||(i_cfg_data[USER_CS_n]);
 	else if ((OPT_CFG)&&(cfg_cs))
 		o_qspi_cs_n <= 1'b0;
 	else if ((bus_request)||(cfg_write))
@@ -750,34 +822,34 @@ module	qflexpress(i_clk, i_reset,
 	else if ((ckstb)&&(clk_ctr <= 5'd9)&&((!cfg_mode)||(!cfg_dir)))
 		o_qspi_mod <= QUAD_READ;
 
-	initial	o_wb_stall = 1'b1;
+	initial	bus_stall = 1'b1;
 	always @(posedge i_clk)
 	if (i_reset)
-		o_wb_stall <= 1'b1;
+		bus_stall <= 1'b1;
 	else if (maintenance)
-		o_wb_stall <= 1'b1;
-	else if ((RDDELAY > 0)&&((i_cfg_stb)||(i_wb_stb))&&(!o_wb_stall))
-		o_wb_stall <= 1'b1;
+		bus_stall <= 1'b1;
+	else if ((RDDELAY > 0)&&(bus_stb)&&(!bus_stall))
+		bus_stall <= 1'b1;
 	else if ((RDDELAY == 0)&&((cfg_write)||(bus_request)))
-		o_wb_stall <= 1'b1;
+		bus_stall <= 1'b1;
 	else if (ckstb || clk_ctr == 0)
 	begin
-		if (ckpre && (i_wb_stb)&&(pipe_req)&&(clk_ctr == 5'd2))
-			o_wb_stall <= 1'b0;
+		if (ckpre && (mem_bus_stb)&&(pipe_req)&&(clk_ctr == 5'd2))
+			bus_stall <= 1'b0;
 		else if ((clk_ctr > 1)||(xtra_stall))
-			o_wb_stall <= 1'b1;
+			bus_stall <= 1'b1;
 		else
-			o_wb_stall <= 1'b0;
-	end else if (ckpre && (i_wb_stb)&&(pipe_req)&&(clk_ctr == 5'd1))
-		o_wb_stall <= 1'b0;
+			bus_stall <= 1'b0;
+	end else if (ckpre && (mem_bus_stb)&&(pipe_req)&&(clk_ctr == 5'd1))
+		bus_stall <= 1'b0;
 
 	initial	dly_ack = 1'b0;
 	always @(posedge i_clk)
 	if (i_reset)
 		dly_ack <= 1'b0;
 	else if ((ckstb)&&(clk_ctr == 1))
-		dly_ack <= (i_wb_cyc)&&(pre_ack);
-	else if ((i_wb_stb)&&(!o_wb_stall)&&(!bus_request))
+		dly_ack <= (bus_cyc)&&(pre_ack);
+	else if ((!cfg_bus_stb && bus_stb)&&(!bus_stall)&&(!bus_request))
 		dly_ack <= 1'b1;
 	else if (cfg_noop)
 		dly_ack <= 1'b1;
@@ -822,7 +894,7 @@ module	qflexpress(i_clk, i_reset,
 		always @(*)
 		begin
 			read_sck = actual_sck;
-			o_wb_ack = dly_ack;
+			bus_ack = dly_ack;
 			xtra_stall = 1'b0;
 		end
 
@@ -845,7 +917,7 @@ module	qflexpress(i_clk, i_reset,
 				sck_pipe <= { sck_pipe[RDDELAY-2:0], actual_sck };
 
 			always @(posedge i_clk)
-			if (i_reset || !i_wb_cyc)
+			if (i_reset || !bus_cyc)
 				ack_pipe <= 0;
 			else
 				ack_pipe <= { ack_pipe[RDDELAY-2:0], dly_ack };
@@ -857,8 +929,7 @@ module	qflexpress(i_clk, i_reset,
 				stall_pipe <= { stall_pipe[RDDELAY-2:0], not_done };
 
 
-		end else // if (RDDELAY > 0)
-		begin
+		end else begin
 			always @(posedge i_clk)
 			if (i_reset)
 				sck_pipe <= 0;
@@ -866,7 +937,7 @@ module	qflexpress(i_clk, i_reset,
 				sck_pipe <= actual_sck;
 
 			always @(posedge i_clk)
-			if (i_reset || !i_wb_cyc)
+			if (i_reset || !bus_cyc)
 				ack_pipe <= 0;
 			else
 				ack_pipe <= dly_ack;
@@ -880,7 +951,7 @@ module	qflexpress(i_clk, i_reset,
 
 		always @(*)
 		begin
-			not_done = (i_wb_stb || i_cfg_stb) && !o_wb_stall;
+			not_done = bus_stb && !bus_stall;
 			if (clk_ctr > 1)
 				not_done = 1'b1;
 			if ((clk_ctr == 1)&&(!ckstb))
@@ -888,7 +959,7 @@ module	qflexpress(i_clk, i_reset,
 		end
 
 		always @(*)
-			o_wb_ack = ack_pipe[RDDELAY-1];
+			bus_ack = ack_pipe[RDDELAY-1];
 
 		always @(*)
 			read_sck = sck_pipe[RDDELAY-1];
@@ -948,15 +1019,15 @@ module	qflexpress(i_clk, i_reset,
 	always @(posedge i_clk)
 	if ((i_reset)||(!OPT_CFG))
 		cfg_mode <= 1'b0;
-	else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
-		cfg_mode <= i_wb_data[CFG_MODE];
+	else if ((cfg_bus_stb)&&(!bus_stall)&&(i_cfg_we))
+		cfg_mode <= i_cfg_data[CFG_MODE];
 
 	initial	cfg_cs = 1'b0;
 	always @(posedge i_clk)
 	if ((i_reset)||(!OPT_CFG))
 		cfg_cs <= 1'b0;
-	else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
-		cfg_cs    <= (!i_wb_data[USER_CS_n])&&(i_wb_data[CFG_MODE]);
+	else if ((cfg_bus_stb)&&(!bus_stall)&&(i_cfg_we))
+		cfg_cs    <= (!i_cfg_data[USER_CS_n])&&(i_cfg_data[CFG_MODE]);
 
 	initial	cfg_speed = 1'b0;
 	initial	cfg_dir   = 1'b0;
@@ -965,10 +1036,10 @@ module	qflexpress(i_clk, i_reset,
 	begin
 		cfg_speed <= 1'b0;
 		cfg_dir   <= 1'b0;
-	end else if ((i_cfg_stb)&&(!o_wb_stall)&&(i_wb_we))
+	end else if ((cfg_bus_stb)&&(!bus_stall)&&(i_cfg_we))
 	begin
-		cfg_speed <= i_wb_data[QSPEED_BIT];
-		cfg_dir   <= i_wb_data[DIR_BIT];
+		cfg_speed <= i_cfg_data[QSPEED_BIT];
+		cfg_dir   <= i_cfg_data[DIR_BIT];
 	end
 
 	reg	r_last_cfg;
@@ -978,18 +1049,18 @@ module	qflexpress(i_clk, i_reset,
 		r_last_cfg <= cfg_mode;
 	assign	o_dbg_trigger = (!cfg_mode)&&(r_last_cfg);
 	assign	o_debug = { o_dbg_trigger,
-			i_wb_cyc, i_cfg_stb, i_wb_stb, o_wb_ack, o_wb_stall,//6
+			bus_cyc, cfg_bus_stb, mem_bus_stb, bus_ack, bus_stall,//6
 			o_qspi_cs_n, o_qspi_sck, o_qspi_dat, o_qspi_mod,// 8
 			i_qspi_dat, cfg_mode, cfg_cs, cfg_speed, cfg_dir,// 8
-			actual_sck, i_wb_we,
-			(((i_wb_stb)||(i_cfg_stb))
-				&&(i_wb_we)&&(!o_wb_stall)&&(!o_wb_ack))
-				? i_wb_data[7:0] : o_wb_data[7:0]
+			actual_sck, bus_we,
+			(((cfg_bus_stb)||(i_cfg_stb))
+				&&(bus_we)&&(!bus_stall)&&(!bus_ack))
+				? i_cfg_data[7:0] : o_wb_data[7:0]
 			};
 
 	// verilator lint_off UNUSED
-	wire	[19:0]	unused;
-	assign	unused = { i_wb_data[31:12] };
+	wire	unused;
+	assign	unused = &{ 1'b0, i_wb_data, i_cfg_data[31:12], bus_sel };
 	// verilator lint_on  UNUSED
 
 `ifdef	FORMAL

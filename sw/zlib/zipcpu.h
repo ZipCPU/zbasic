@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2019, Gisselquist Technology, LLC
+// Copyright (C) 2015-2020, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -57,11 +57,15 @@
 #define	CC_FAULT	(CC_ILL|CC_BUSERR|CC_DIVERR|CC_FPUERR)
 #define	CC_EXCEPTION	(CC_BREAK|CC_FAULT|CC_MMUERR)
 
+#define	CLEAR_CACHE	asm("OR 16384,CC")
+
 // extern void	zip_break(void);
 #define	zip_break()		asm("BREAK\n")
 // #define	BREAK(ID)	asm("BREAK " ##ID "\n")
 #define	GETUREG(A,ID)	asm("MOV " ID ",%0" : "=r"(A))
 #define	SETUREG(A,ID)	asm("MOV %0," ID : : "r"(A))
+#define	NSTR(A)		asm("NSTR \"" A "\\n\"")
+#define	NVAL(V)		do { unsigned tmp = (unsigned)(V); asm volatile("NDUMP %0":"=r"(tmp):"0"(tmp)); } while(0)
 extern void	zip_rtu(void);
 extern void	zip_halt(void);
 extern void	zip_idle(void);

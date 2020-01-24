@@ -14,7 +14,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017-2019, Gisselquist Technology, LLC
+## Copyright (C) 2017-2020, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -47,7 +47,7 @@ all:	data
 # of parts and pieces of our project that autofpga will copy/paste into our
 # main project files.
 #
-BASE    := global.txt dlyarbiter.txt
+BASE    := global.txt # dlyarbiter.txt
 AUX     := version.txt buserr.txt pic.txt pwrcount.txt
 IO      := gpio.txt # spio.txt
 RTC     := rtclight.txt rtcdate.txt

@@ -48,7 +48,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2016-2019, Gisselquist Technology, LLC
+// Copyright (C) 2016-2020, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -70,12 +70,12 @@
 `default_nettype	none
 //
 //
-module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
+module	dcache(i_clk, i_reset, i_clear, i_pipe_stb, i_lock,
 		i_op, i_addr, i_data, i_oreg,
 			o_busy, o_pipe_stalled, o_valid, o_err, o_wreg,o_data,
 		o_wb_cyc_gbl, o_wb_cyc_lcl, o_wb_stb_gbl, o_wb_stb_lcl,
 			o_wb_we, o_wb_addr, o_wb_data, o_wb_sel,
-		i_wb_ack, i_wb_stall, i_wb_err, i_wb_data
+		i_wb_stall, i_wb_ack, i_wb_err, i_wb_data
 `ifdef	FORMAL
 		, f_nreqs, f_nacks, f_outstanding, f_pc
 `endif
@@ -103,7 +103,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	localparam [1:0]	DC_READS = 2'b10; // Read a single value(!cachd)
 	localparam [1:0]	DC_READC = 2'b11; // Read a whole cache line
 	//
-	input	wire		i_clk, i_reset;
+	input	wire		i_clk, i_reset, i_clear;
 	// Interface from the CPU
 	input	wire		i_pipe_stb, i_lock;
 	input	wire [2:0]		i_op;
@@ -124,7 +124,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	output	reg [(DW-1):0]	o_wb_data;
 	output	wire [(DW/8-1):0] o_wb_sel;
 	// Wishbone bus slave response inputs
-	input	wire			i_wb_ack, i_wb_stall, i_wb_err;
+	input	wire			i_wb_stall, i_wb_ack, i_wb_err;
 	input	wire	[(DW-1):0]	i_wb_data;
 	//
 	// output	reg	[31:0]		o_debug;
@@ -211,17 +211,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	initial	last_tag_valid = 0;
 	initial	r_rd_pending = 0;
 	always @(posedge i_clk)
-	if (i_reset)
 	begin
-		r_rd <= 1'b0;
-		r_cachable <= 1'b0;
-		r_svalid <= 1'b0;
-		r_dvalid <= 1'b0;
-		r_cache_miss <= 1'b0;
-		r_addr <= 0;
-		r_rd_pending <= 0;
-		last_tag_valid <= 0;
-	end else begin
 		// The single clock path
 		// The valid for the single clock path
 		//	Only ... we need to wait if we are currently writing
@@ -280,6 +270,20 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 				// Two clock path -- misses as well
 				&&(r_rd)&&(!r_svalid)
 				&&((r_itag != r_ctag)||(!r_iv));
+
+		if (i_clear)
+			last_tag_valid <= 0;
+		if (i_reset)
+		begin
+			// r_rd <= 1'b0;
+			r_cachable <= 1'b0;
+			r_svalid <= 1'b0;
+			r_dvalid <= 1'b0;
+			r_cache_miss <= 1'b0;
+			// r_addr <= 0;
+			r_rd_pending <= 0;
+			last_tag_valid <= 0;
+		end
 	end
 
 	initial	r_sel = 4'hf;
@@ -305,7 +309,7 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 	always @(posedge i_clk)
 	if (i_reset)
 		o_wb_data <= 0;
-	else if ((!o_busy)||((stb)&&(!i_wb_stall)))
+	else if (!o_busy || !i_wb_stall)
 	begin
 		casez(i_op[2:1])
 		2'b0?: o_wb_data <= i_data;
@@ -653,6 +657,9 @@ module	dcache(i_clk, i_reset, i_pipe_stb, i_lock,
 				o_wb_stb_lcl <= 1'b0;
 			end
 		end
+
+		if (i_clear)
+			c_v <= 0;
 	end
 
 	//

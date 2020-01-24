@@ -28,3 +28,4 @@ builddate.v
 octave-workspace
 *.xdc
 *.dbg
+*.map
