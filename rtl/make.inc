@@ -43,7 +43,7 @@ CONSOLED := wbuart
 CONSOLE  := $(addprefix $(CONSOLED)/,txuartlite.v rxuartlite.v ufifo.v)
 GPIO := wbgpio.v
 
-FLASH := qflexpress.v wbarbiter.v
+FLASH := qflexpress.v
 
 WBUBUSD := wbubus
 WBUBUS  := $(addprefix $(WBUBUSD)/,wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v wbudecompress.v wbudeword.v wbuexec.v wbuidleint.v wbuinput.v wbuoutput.v wbureadcw.v wbusixchar.v wbutohex.v wbconsole.v)

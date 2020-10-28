@@ -217,7 +217,6 @@ module	main(i_clk, i_reset,
 	// These declarations come from the @MAIN.DEFNS keys found in the
 	// various components comprising the design.
 	//
-// Looking for string: MAIN.DEFNS
 	// Console definitions
 	wire		w_console_rx_stb, w_console_tx_stb, w_console_busy;
 	wire	[6:0]	w_console_rx_data, w_console_tx_data;
@@ -474,14 +473,14 @@ module	main(i_clk, i_reset,
 
 	always	@(posedge i_clk)
 	casez( wb_sio_addr[2:0] )
-		3'h0: r_wb_sio_data <= wb_buildtime_idata;
-		3'h1: r_wb_sio_data <= wb_buserr_idata;
-		3'h2: r_wb_sio_data <= wb_buspic_idata;
-		3'h3: r_wb_sio_data <= wb_gpio_idata;
-		3'h4: r_wb_sio_data <= wb_pwrcount_idata;
-		3'h5: r_wb_sio_data <= wb_rtcdate_idata;
-		3'h6: r_wb_sio_data <= wb_version_idata;
-		default: r_wb_sio_data <= wb_version_idata;
+	3'h0: r_wb_sio_data <= wb_buildtime_idata;
+	3'h1: r_wb_sio_data <= wb_buserr_idata;
+	3'h2: r_wb_sio_data <= wb_buspic_idata;
+	3'h3: r_wb_sio_data <= wb_gpio_idata;
+	3'h4: r_wb_sio_data <= wb_pwrcount_idata;
+	3'h5: r_wb_sio_data <= wb_rtcdate_idata;
+	3'h6: r_wb_sio_data <= wb_version_idata;
+	default: r_wb_sio_data <= wb_version_idata;
 	endcase
 	assign	wb_sio_idata = r_wb_sio_data;
 
@@ -547,6 +546,9 @@ module	main(i_clk, i_reset,
 	wbxbar #(
 		.NM(2), .NS(7), .AW(23), .DW(32),
 		.SLAVE_ADDR({
+			// Address width    = 23
+			// Address LSBs     = 2
+			// Slave name width = 8
 			{ 23'h400000 }, //    flash: 0x1000000
 			{ 23'h300000 }, //    bkram: 0x0c00000
 			{ 23'h280000 }, //   wb_sio: 0x0a00000
@@ -556,6 +558,9 @@ module	main(i_clk, i_reset,
 			{ 23'h080000 }  // flashcfg: 0x0200000
 		}),
 		.SLAVE_MASK({
+			// Address width    = 23
+			// Address LSBs     = 2
+			// Slave name width = 8
 			{ 23'h400000 }, //    flash
 			{ 23'h780000 }, //    bkram
 			{ 23'h780000 }, //   wb_sio
@@ -720,10 +725,16 @@ module	main(i_clk, i_reset,
 	wbxbar #(
 		.NM(1), .NS(2), .AW(24), .DW(32),
 		.SLAVE_ADDR({
+			// Address width    = 24
+			// Address LSBs     = 2
+			// Slave name width = 11
 			{ 24'h800000 }, //         zip: 0x2000000
 			{ 24'h000000 }  // wbu_arbiter: 0x0000000
 		}),
 		.SLAVE_MASK({
+			// Address width    = 24
+			// Address LSBs     = 2
+			// Slave name width = 11
 			{ 24'h800000 }, //         zip
 			{ 24'h800000 }  // wbu_arbiter
 		}),

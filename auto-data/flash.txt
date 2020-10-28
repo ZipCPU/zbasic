@@ -253,4 +253,4 @@
 @BDEF.OSVAL=static volatile @$(BDEF.IOTYPE) * const @$(BDEF.IONAME) = ((@$BDEF.IOTYPE *)(@$[0x%08x](REGBASE)));
 ##
 @RTL.MAKE.GROUP= FLASH
-@RTL.MAKE.FILES= qflexpress.v wbarbiter.v
+@RTL.MAKE.FILES= qflexpress.v
