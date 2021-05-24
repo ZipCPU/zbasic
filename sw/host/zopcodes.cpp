@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	zopcodes.cpp
-//
+// {{{
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	A simple program to handle the disassembly and definition
@@ -15,9 +15,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -32,14 +32,14 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
+// }}}
 #include <stdio.h>
 #include <strings.h>
 #include <string.h>
@@ -532,13 +532,14 @@ zipi_to_halfstring(const uint32_t addr, const ZIPI ins, char *line, const ZOPCOD
 		int	dv = zip_getbits(ins, ZIP_REGFIELD(27));
 		int	iv = zip_sbits(ins, 13);
 		uint32_t	ref;
+		char	opcode[128];
 
 		ref = (iv<<2) + addr + 4;
 
-		sprintf(line, "%s%s", "MOV", zip_ccstr[cv]);
-		sprintf(line, "%-11s", line);
-		sprintf(line, "%s0x%08x", line, ref);
-		sprintf(line, "%s,%s", line, zip_regstr[dv]);
+		sprintf(opcode, "%s%s", "MOV", zip_ccstr[cv]);
+		sprintf(line, "%-11s", opcode);
+		sprintf(opcode, "%s0x%08x", line, ref);
+		sprintf(line, "%s,%s", opcode, zip_regstr[dv]);
 
 		return;
 	} else if (TWOWORD_CIS_JSR(ins)) {
@@ -569,11 +570,12 @@ zipi_to_halfstring(const uint32_t addr, const ZIPI ins, char *line, const ZOPCOD
 			// zip_oplist[i].s_mask, zip_oplist[i].s_val);
 		if ((ins & listp[i].s_mask) == listp[i].s_val) {
 			// Write the opcode onto our line
-			sprintf(line, "%s", listp[i].s_opstr);
+			char	opcode[128];
+			sprintf(opcode, "%s", listp[i].s_opstr);
 			if (listp[i].s_cf != ZIP_OPUNUSED) {
 				int bv = zip_getbits(ins, listp[i].s_cf);
-				strcat(line, zip_ccstr[bv]);
-			} sprintf(line, "%-11s", line); // Pad it to 11 chars
+				strcat(opcode, zip_ccstr[bv]);
+			} sprintf(line, "%-11s", opcode); // Pad it to 11 chars
 
 			int	ra = -1, rb = -1, rr = -1, imv = 0;
 

@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	zipload.cpp
-//
+// {{{
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	To load a program for the ZipCPU into memory, whether flash
@@ -13,9 +13,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -30,14 +30,14 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
+// }}}
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -336,23 +336,25 @@ int main(int argc, char **argv) {
 
 		// Now ... how shall we start this CPU?
 		printf("Clearing the CPUs registers\n");
-		for(int i=0; i<32; i++) {
-			m_fpga->writeio(R_ZIPCTRL, CPU_HALT|i);
-			m_fpga->writeio(R_ZIPDATA, 0);
+		{
+			unsigned r[32];
+			m_fpga->writeio(R_ZIPCTRL, CPU_HALT);
+			for(int i=0; i<32; i++)
+				r[i] = 0;
+			m_fpga->writei(R_ZIPREGS, 32, r);
 		}
 
 		m_fpga->writeio(R_ZIPCTRL, CPU_HALT|CPU_CLRCACHE);
 		printf("Setting PC to %08x\n", entry);
-		m_fpga->writeio(R_ZIPCTRL, CPU_HALT|CPU_sPC);
-		m_fpga->writeio(R_ZIPDATA, entry);
+		m_fpga->writeio(R_ZIPPC, entry);
 
 		if (start_when_finished) {
 			printf("Starting the CPU\n");
-			m_fpga->writeio(R_ZIPCTRL, CPU_GO|CPU_sPC);
+			m_fpga->writeio(R_ZIPCTRL, CPU_GO);
 		} else {
 			printf("The CPU should be fully loaded, you may now\n");
 			printf("start it (from reset/reboot) with:\n");
-			printf("> wbregs cpu 0x0f\n");
+			printf("> wbregs cpu 0\n");
 			printf("\n");
 		}
 	} catch(BUSERR a) {

@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename:	wbuexec.v
-//
+// {{{
 // Project:	FPGA library
 //
 // Purpose:	This is the part of the USB-JTAG to wishbone conversion that
@@ -15,9 +15,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -32,24 +32,51 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype none
-//
-module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
-		o_wb_cyc, o_wb_stb, o_wb_we, o_wb_addr, o_wb_data,
-			i_wb_stall, i_wb_ack, i_wb_err, i_wb_data,
-		o_stb, o_codword);
-	parameter	AW = 32, DW = 32;
-	//
-	//
-	localparam [5:0]	END_OF_WRITE = 6'h2e;
+// }}}
+module	wbuexec #(
+		parameter	AW = 32, DW = 32
+	) (
+		// {{{
+		input	wire		i_clk, i_reset,
+		// The command inputs
+		// {{{
+		input	wire		i_stb,
+		input	wire	[35:0]	i_codword,
+		output	reg		o_busy,
+		// }}}
+		// Wishbone outputs
+		// {{{
+		output	reg			o_wb_cyc,
+		output	reg			o_wb_stb,
+		output	reg			o_wb_we,
+		output	reg	[AW-1:0]	o_wb_addr,
+		output	reg	[DW-1:0]	o_wb_data,
+		// }}}
+		// Wishbone inputs
+		// {{{
+		input	wire			i_wb_stall, i_wb_ack,
+		input	wire	[DW-1:0]	i_wb_data,
+		input	wire			i_wb_err,
+		// }}}
+		// And our codeword outputs
+		// {{{
+		output	reg		o_stb,
+		output	reg	[35:0]	o_codword
+		// }}}
+		// }}}
+	);
+
+	// Local declarations
+	// {{{
+	// localparam [5:0]	END_OF_WRITE = 6'h2e;
 	localparam [1:0]	WB_IDLE			= 2'b00,
 				WB_READ_REQUEST		= 2'b01,
 				WB_WRITE_REQUEST	= 2'b10,
@@ -57,32 +84,28 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 				WB_FLUSH_WRITE_REQUESTS = 2'b11;
 	localparam [1:0]	WRITE_PREFIX = 2'b01;
 
-	//
-	input	wire		i_clk, i_reset;
-	// The command inputs
-	input	wire		i_stb;
-	input	wire	[35:0]	i_codword;
-	output	reg		o_busy;
-	// Wishbone outputs
-	output	reg		o_wb_cyc;
-	output	reg		o_wb_stb;
-	output	reg		o_wb_we;
-	output	reg	[31:0]	o_wb_addr, o_wb_data;
-	// Wishbone inputs
-	input	wire		i_wb_stall, i_wb_ack, i_wb_err;
-	input	wire	[31:0]	i_wb_data;
-	// And our codeword outputs
-	output	reg		o_stb;
-	output	reg	[35:0]	o_codword;
-
 	wire	[31:0]	w_cod_data;
-	assign	w_cod_data={ i_codword[32:31], i_codword[29:0] };
+
+//	wire	w_accept, w_eow, w_newwr, w_new_err;
+//	// wire	w_newad, w_newrd;
+//	assign	w_accept = (i_stb)&&(!o_busy);
+//	// assign	w_newad  = (w_accept)&&(i_codword[35:34] == 2'b00);
+//	assign	w_newwr  = (w_accept)&&(i_codword[35:34] == WRITE_PREFIX);
+//	assign	w_eow    = (w_accept)&&(i_codword[35:30] == END_OF_WRITE);
+//	// assign	w_newrd  = (w_accept)&&(i_codword[35:34] == 2'b11);
+//	assign	w_new_err = ((w_accept)
+//				&&(i_codword[35:33] != 3'h3)
+//				&&(i_codword[35:30] != END_OF_WRITE));
 
 	reg	[1:0]	wb_state;
 	reg	[9:0]	r_acks_needed, r_len;
 	reg	r_inc, r_new_addr, last_read_request, last_ack, zero_acks;
-	reg	single_read_request;
 
+	assign	w_cod_data={ i_codword[32:31], i_codword[29:0] };
+	//  }}}
+
+	// CYC, STB, wb_state and o_busy
+	// {{{
 	initial	wb_state = WB_IDLE;
 	initial	o_wb_cyc = 1'b0;
 	initial	o_wb_stb = 1'b0;
@@ -90,14 +113,18 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 	always @(posedge i_clk)
 	if (i_reset)
 	begin
+		// {{{
 		wb_state <= WB_IDLE;
 		o_wb_cyc <= 1'b0;
 		o_wb_stb <= 1'b0;
 		o_busy   <= 1'b0;
+		// }}}
 	end else case(wb_state)
 	WB_IDLE: begin
+		// {{{
 		o_wb_cyc <= 1'b0;
 		o_wb_stb <= 1'b0;
+		o_busy   <= 1'b0;
 
 		// The new instruction.  The following
 		// don't matter if we're not running,
@@ -110,7 +137,7 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 		// starting a write.  Hence, let's always set it as
 		// though we were about to start a write.
 		//
-		o_wb_data <= w_cod_data;
+		// o_wb_data <= w_cod_data;
 		//
 		if (i_stb)
 		begin
@@ -146,7 +173,9 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 				;
 			endcase
 		end end
+		// }}}
 	WB_READ_REQUEST: begin
+		// {{{
 		o_wb_cyc <= 1'b1;
 		// o_wb_stb <= 1'b1;
 
@@ -156,7 +185,7 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 
 		if (!i_wb_stall) // Deal with the strobe line
 		begin // Strobe was accepted, busy should be '1' here
-			if ((single_read_request)||(last_read_request))
+			if (last_read_request)
 				o_wb_stb <= 1'b0;
 		end
 
@@ -174,41 +203,37 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 			wb_state <= WB_IDLE;
 			o_busy   <= 1'b0;
 		end end
+		// }}}
 	WB_WRITE_REQUEST: begin
+		// {{{
 		o_wb_cyc <= 1'b1;
-		// o_wb_stb <= 1'b1;
 		o_busy   <= 1'b1;
-		//
-
-		// Don't need to worry about accepting anything new
-		// here, since we'll always be busy while in this state.
-		// Hence, we cannot accept new write requests.
-		//
 
 		if (!i_wb_stall)
 			o_wb_stb <= 1'b0;
 
-		if (!o_busy)
-			o_wb_data <= w_cod_data;
-
-		if (i_stb && !o_wb_stb)
+		if (i_stb && (!o_wb_stb || !i_wb_stall))
 		begin
 			if (o_busy && (i_codword[35:34] != WRITE_PREFIX)
 				&& zero_acks)
 			begin
 				o_wb_cyc <= 1'b0;
-				// o_busy   <= 1'b0;
+				o_busy   <= 1'b0;
 				wb_state <= WB_IDLE;
-			end
-
-			if (!o_busy) // && w_newwr must be true
+			end else if (!o_busy) // && w_newwr must be true
 			begin
 				o_wb_stb <= 1'b1;
 				o_busy <= 1'b1;
-			end else if ((i_codword[35:34] == WRITE_PREFIX)
-				||zero_acks)
-				// (r_acks_needed == (i_wb_ack ? 1:0)))
+			end else if (i_codword[35:34] == WRITE_PREFIX)
 				o_busy <= 1'b0;
+		end
+
+		if (!i_stb && !o_wb_stb && o_busy && zero_acks)
+		begin
+			o_wb_cyc <= 1'b0;
+			o_wb_stb <= 1'b0;
+			wb_state <= WB_IDLE;
+			o_busy   <= 1'b0;
 		end
 
 		if (i_wb_err) // Bus returns an error
@@ -218,7 +243,9 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 			wb_state <= WB_FLUSH_WRITE_REQUESTS;
 			o_busy   <= 1'b1;
 		end end
+		// }}}
 	WB_FLUSH_WRITE_REQUESTS: begin
+		// {{{
 		// We come in here after an error within a write
 		// We need to wait until the command cycle finishes
 		// issuing all its write commands before we can go back
@@ -237,18 +264,26 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 			wb_state <= WB_IDLE;
 			o_busy   <= 1'b0;
 		end end
+		// }}}
 	default: begin
+		// {{{
 		wb_state <= WB_IDLE;
 		o_wb_cyc <= 1'b0;
 		o_wb_stb <= 1'b0;
 		o_busy   <= 1'b0;
 		end
+		// }}}
 	endcase
+	// }}}
+
+	always @(posedge i_clk)
+	if (!o_busy)
+		o_wb_data <= w_cod_data;
 
 	always @(posedge i_clk)
 	if (wb_state == WB_IDLE)
 		// Will this be a write?
-		o_wb_we <= (!i_codword[35]);
+		o_wb_we <= !i_codword[35];
 
 	always @(posedge i_clk)
 	if (i_stb && !o_busy && i_codword[35:32] == 4'h0)
@@ -335,10 +370,6 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 	2'b01: zero_acks <= (r_acks_needed == 10'h01);
 	default: begin end
 	endcase
-`ifdef	FORMAL
-	always @(*)
-		assert(zero_acks == (r_acks_needed == 0));
-`endif
 
 	always @(posedge i_clk)
 	if (!o_wb_cyc) // (!o_wb_cyc)&&(i_codword[35:34] == 2'b11))
@@ -346,21 +377,8 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 	else if ((o_wb_stb)&&(!i_wb_stall)&&(|r_len))
 		r_len <= r_len - 10'h01;
 
-// single_read_request and last_read_request used to be ...
-//	always @(posedge i_clk)
-//	begin
-//		single_read_request <= (!o_wb_cyc)&&(i_codword[9:0] <= 10'h01);
-//		// When there is one read request left, it will be the last one
-//		// will be the last one
-//		last_read_request <= (o_wb_stb)&&(r_len[9:2] == 8'h00)
-//			&&((!r_len[1])
-//				||((!r_len[0])&&(!i_wb_stall)));
-//	end
-
 	always @(posedge i_clk)
 	begin
-		if (!o_wb_cyc)
-			single_read_request <= (i_codword[9:0] <= 10'h01);
 		// When there is one read request left, it will be the last one
 		// will be the last one
 		if (!o_wb_cyc)

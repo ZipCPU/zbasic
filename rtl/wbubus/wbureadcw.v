@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename:	wbureadcw.v
-//
+// {{{
 // Project:	FPGA library
 //
 // Purpose:	Read bytes from a serial port (i.e. the jtagser) and translate
@@ -16,9 +16,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -33,26 +33,28 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
 //
-//
 ////////////////////////////////////////////////////////////////////////////////
-//
 //
 `default_nettype none
 //
 // Goal: single clock pipeline, 50 slices or less
-//
-module	wbureadcw(i_clk, i_stb, i_valid, i_hexbits,
-			o_stb, o_codword);
-	input	wire		i_clk, i_stb, i_valid;
-	input	wire	[5:0]	i_hexbits;
-	output	reg		o_stb;
-	output	reg	[35:0]	o_codword;
+// }}}
+module	wbureadcw(
+		// {{{
+		input	wire		i_clk, i_reset, i_stb, i_valid,
+		input	wire	[5:0]	i_hexbits,
+		output	reg		o_stb,
+		output	reg	[35:0]	o_codword
+		// }}}
+	);
 
-
+	// Local declarations
+	// {{{
 	// Timing:
 	//	Clock 0:	i_stb is high, i_valid is low
 	//	Clock 1:	shiftreg[5:0] is valid, cw_len is valid
@@ -64,27 +66,35 @@ module	wbureadcw(i_clk, i_stb, i_valid, i_hexbits,
 	//			cw_len = 0,
 	//			r_len = 0 (unless i_stb)
 	//			Ready for next word
-
 	reg	[2:0]	r_len, cw_len;
 	reg	[1:0]	lastcw;
 
 	wire	w_stb;
+	reg	[35:0]	shiftreg;
+
+	// }}}
+
 	assign	w_stb = ((r_len == cw_len)&&(cw_len != 0))
 			||((i_stb)&&(!i_valid)&&(lastcw == 2'b01));
 
+	// r_len
+	// {{{
 	// r_len is the length of the codeword as it exists
 	// in our register
 	initial r_len = 3'h0;
 	always @(posedge i_clk)
-	if ((i_stb)&&(!i_valid)) // Newline reset
+	if (i_reset)
+		r_len <= 0;
+	else if ((i_stb)&&(!i_valid)) // Newline reset
 		r_len <= 0;
 	else if (w_stb) // reset/restart w/o newline
 		r_len <= (i_stb)? 3'h1:3'h0;
 	else if (i_stb) //in middle of word
 		r_len <= r_len + 3'h1;
+	// }}}
 
-	reg	[35:0]	shiftreg;
-
+	// shiftreg
+	// {{{
 	initial	shiftreg = 0;
 	always @(posedge i_clk)
 	if (w_stb)
@@ -98,21 +108,34 @@ module	wbureadcw(i_clk, i_stb, i_valid, i_hexbits,
 	3'b101: shiftreg[ 5: 0] <= i_hexbits;
 	default: begin end
 	endcase
+	// }}}
 
+	// lastcw
+	// {{{
 	initial	lastcw = 2'b00;
 	always @(posedge i_clk)
 	if (o_stb)
 		lastcw <= o_codword[35:34];
+	// }}}
+
+	// o_codword
+	// {{{
 	always @(posedge i_clk)
 	if ((i_stb)&&(!i_valid)&&(lastcw == 2'b01))
+		// End of write signal
 		o_codword[35:30] <= 6'h2e;
 	else
 		o_codword <= shiftreg;
+	// }}}
 
+	// cw_len
+	// {{{
 	// How long do we expect this codeword to be?
 	initial	cw_len = 3'b000;
 	always @(posedge i_clk)
-	if ((i_stb)&&(!i_valid))
+	if (i_reset)
+		cw_len <= 0;
+	else if ((i_stb)&&(!i_valid))
 		cw_len <= 0;
 	else if ((i_stb)&&((cw_len == 0)||(w_stb)))
 	begin
@@ -128,10 +151,13 @@ module	wbureadcw(i_clk, i_stb, i_valid, i_hexbits,
 			cw_len <= 3'h6;
 	end else if (w_stb)
 		cw_len <= 0;
+	// }}}
 
+	// o_stb
+	// {{{
 	initial	o_stb = 1'b0;
 	always @(posedge i_clk)
-		o_stb <= w_stb;
-
+		o_stb <= w_stb && !i_reset;
+	// }}}
 endmodule
 

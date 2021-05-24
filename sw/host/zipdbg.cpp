@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	zipdbg.cpp
-//
+// {{{
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	Provide a debugger to step through the ZipCPU assembler,
@@ -13,9 +13,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -30,14 +30,14 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
+// }}}
 // BUGS:
 //	- No ability to verify CPU functionality (3rd party simulator)
 //	- No ability to set/clear breakpoints
@@ -108,12 +108,9 @@ public:
 
 	void	read_raw_state(void) {
 		m_state.m_valid = false;
-		for(int i=0; i<16; i++)
-			m_state.m_sR[i] = cmd_read(i);
-		for(int i=0; i<16; i++)
-			m_state.m_uR[i] = cmd_read(i+16);
-		for(int i=0; i<20; i++)
-			m_state.m_p[i]  = cmd_read(i+32);
+		readi(R_ZIPREGS,   16, m_state.m_sR);
+		readi(R_ZIPUSER,   16, m_state.m_uR);
+		readi(R_ZIPSYSTEM, 20, m_state.m_p);
 
 		m_state.m_gie = (m_state.m_sR[14] & 0x020);
 		m_state.m_pc  = (m_state.m_gie) ? (m_state.m_uR[15]):(m_state.m_sR[15]);
@@ -264,6 +261,7 @@ public:
 	}
 
 	unsigned int	cmd_read(unsigned int a) {
+		/*
 		int errcount = 0;
 		unsigned int	s;
 
@@ -289,9 +287,13 @@ public:
 			exit(EXIT_FAILURE);
 		}
 		return readio(R_ZIPDATA);
+		*/
+
+		return	readio(R_ZIPREGS + (4*a));
 	}
 
 	void	cmd_write(unsigned int a, int v) {
+		/*
 		int errcount = 0;
 		unsigned int	s;
 
@@ -318,6 +320,9 @@ public:
 		}
 
 		writeio(R_ZIPDATA, (unsigned int)v);
+		*/
+
+		writeio(R_ZIPREGS+(4*a), (unsigned int)v);
 	}
 
 	void	read_state(void) {

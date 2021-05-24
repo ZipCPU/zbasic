@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	udiv.c
-//
+// {{{
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	This is a temporary file--a crutch if you will--until a similar
@@ -13,9 +13,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -30,21 +30,24 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
+// }}}
 #include <stdint.h>
 
 
-
+// Bit reversal
+// {{{
 #ifdef	__ZIPCPU__
 #include "zipcpu.h"
 #else
+// This is a compatibility function, in case we are ever running ZipCPU
+// programs on a non-ZipCPU platform
 uint32_t zip_bitrev(const uint32_t a) {
 	uint32_t	r, b = a;
 	r = 0;
@@ -54,7 +57,10 @@ uint32_t zip_bitrev(const uint32_t a) {
 	} return r;
 }
 #endif
+// }}}
 
+// cltz: Count leading zeros
+// {{{
 extern	int	cltz(unsigned long);
 
 #ifdef	__ZIPCPU__
@@ -120,7 +126,10 @@ cltz(unsigned long v) {
 	return cnt;
 }
 #endif
+// }}}
 
+// __udivdi3
+// {{{
 unsigned long
 __udivdi3(unsigned long a, unsigned long b) {
 	unsigned long	r;
@@ -168,8 +177,10 @@ __udivdi3(unsigned long a, unsigned long b) {
 		} return r;
 	}
 }
+// }}}
 
-//
+// __divdi3
+// {{{
 // A possible assembly version of __divdi3
 //
 //	SUB	8,SP
@@ -225,3 +236,4 @@ long __divdi3(long a, long b) {
 		r = -r;
 	return r;
 }
+// }}}

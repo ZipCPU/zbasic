@@ -1,7 +1,7 @@
 ################################################################################
 ##
 ## Filename: 	wbuconsole.txt
-##
+## {{{
 ## Project:	AutoFPGA, a utility for composing FPGA designs from peripherals
 ##
 ## Purpose:	Provide access to both a debugging bus and a console port for
@@ -15,9 +15,9 @@
 ##		Gisselquist Technology, LLC
 ##
 ################################################################################
-##
-## Copyright (C) 2017-2019, Gisselquist Technology, LLC
-##
+## }}}
+## Copyright (C) 2017-2021, Gisselquist Technology, LLC
+## {{{
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
 ## by the Free Software Foundation, either version 3 of the License, or (at
@@ -32,14 +32,14 @@
 ## with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 ## target there if the PDF file isn't present.)  If not, see
 ## <http://www.gnu.org/licenses/> for a copy.
-##
+## }}}
 ## License:	GPL, v3, as defined and found on www.gnu.org,
+## {{{
 ##		http://www.gnu.org/licenses/gpl.html
-##
 ##
 ################################################################################
 ##
-##
+## }}}
 @PREFIX=wbu
 @DEVID=DBGBUS
 @ACCESS=WBUBUS_MASTER
@@ -99,11 +99,6 @@
 	wire		zip_dbg_stall, zip_dbg_ack;
 	wire	[31:0]	zip_dbg_data;
 `endif
-@$ZIP_ADDRESS_BIT=@$BUS_ADDRESS_WIDTH-1
-@$ZIP_ADDRESS=(1<<(@$.ZIP_ADDRESS_BIT+2))
-@ZIP_ADDRESS.FORMAT= 0x%08x
-@$ZIP_DBGDATA=4+@$.ZIP_ADDRESS
-@ZIP_DBGDATA.FORMAT= 0x%08x
 @MAIN.INSERT=
 	// The Host USB interface, to be used by the WB-UART bus
 	rxuartlite	#(.TIMER_BITS(@$(DEVID)BITS),
@@ -132,10 +127,11 @@
 	wire	[31:0]	@$(MASTER.PREFIX)_tmp_addr;
 	// Verilator lint_on  UNUSED
 	wbuconsole #(.LGWATCHDOG(@$(DEVID)WATCHDOG))
-	genbus(@$(CLOCK.WIRE), @$(PREFIX)_rx_stb, @$(PREFIX)_rx_data,
+	genbus(@$(CLOCK.WIRE), 1'b0, @$(PREFIX)_rx_stb, @$(PREFIX)_rx_data,
 			@$(MASTER.PREFIX)_cyc, @$(MASTER.PREFIX)_stb, @$(MASTER.PREFIX)_we, @$(MASTER.PREFIX)_tmp_addr, @$(MASTER.PREFIX)_data,
 			@$(MASTER.PREFIX)_stall, @$(MASTER.PREFIX)_ack,
-			@$(MASTER.PREFIX)_err, @$(MASTER.PREFIX)_idata,
+			@$(MASTER.PREFIX)_idata,
+			@$(MASTER.PREFIX)_err,
 			w_bus_int,
 			@$(PREFIX)_tx_stb, @$(PREFIX)_tx_data, @$(PREFIX)_tx_busy,
 			//
@@ -146,8 +142,6 @@
 	assign	@$(MASTER.PREFIX)_sel = 4'hf;
 	assign	@$(MASTER.PREFIX)_addr = @$(MASTER.PREFIX)_tmp_addr[(@$BUS_ADDRESS_WIDTH-1):0];
 @REGDEFS.H.DEFNS=
-#define	R_ZIPCTRL	@$.ZIP_ADDRESS
-#define	R_ZIPDATA	@$.ZIP_DBGDATA
 #define	BAUDRATE	@$[%d](BAUDRATE)
 @RTL.MAKE.GROUP= WBUBUS
 @RTL.MAKE.SUBD=wbubus

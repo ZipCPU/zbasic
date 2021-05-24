@@ -147,7 +147,7 @@ module	qflexpress(i_clk, i_reset,
 	//
 	localparam [4:0]	CFG_MODE =	12;
 	localparam [4:0]	QSPEED_BIT = 	11;
-	localparam [4:0]	DSPEED_BIT = 	10; // Not supported
+	// localparam [4:0]	DSPEED_BIT = 	10; // Not supported
 	localparam [4:0]	DIR_BIT	= 	 9;
 	localparam [4:0]	USER_CS_n = 	 8;
 	//
@@ -155,7 +155,7 @@ module	qflexpress(i_clk, i_reset,
 	localparam [1:0]	QUAD_WRITE = 	2'b10;
 	localparam [1:0]	QUAD_READ = 	2'b11;
 	// localparam [7:0] DIO_READ_CMD = 8'hbb;
-	localparam [7:0] QIO_READ_CMD = OPT_ADDR32 ? 8'hec : 8'heb;
+	// localparam [7:0] QIO_READ_CMD = OPT_ADDR32 ? 8'hec : 8'heb;
 	//
 	localparam	AW=LGFLASHSZ-2;
 	localparam	DW=32;
@@ -206,10 +206,11 @@ module	qflexpress(i_clk, i_reset,
 		//
 		// Memory vs Configuration bus arbiter
 		//
-		wbarbiter #(.DW(DW), .AW(AW+1), .SCHEME("PRIORITY"),
-				.F_MAX_STALL(0),
-				.F_MAX_ACK_DELAY(0))
-		arbiter(i_clk, i_reset,
+		wbarbiter #(
+			// {{{
+			.DW(DW), .AW(AW+1), .SCHEME("PRIORITY")
+			// }}}
+		) arbiter(i_clk, i_reset,
 			i_wb_cyc, i_wb_stb, i_wb_we, { 1'b0, i_wb_addr },
 				i_wb_data, i_wb_sel,
 				o_wb_stall, o_wb_ack, ign_wb_err,

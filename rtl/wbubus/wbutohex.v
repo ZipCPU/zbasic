@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	wbutohex.v
-//
+// {{{
 // Project:	FPGA library
 //
 // Purpose:	Supports a printable character conversion from a printable
@@ -21,9 +21,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -38,31 +38,41 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype none
-//
-module	wbutohex(i_clk, i_stb, i_byte, o_stb, o_valid, o_hexbits);
-	input	wire		i_clk, i_stb;
-	input	wire	[7:0]	i_byte;
-	output	reg		o_stb, o_valid;
-	output	reg	[5:0]	o_hexbits;
+// }}}
+module	wbutohex (
+		// {{{
+		input	wire		i_clk, i_reset, i_stb,
+		input	wire	[7:0]	i_byte,
+		output	reg		o_soft_reset,
+		output	reg		o_stb, o_valid,
+		output	reg	[5:0]	o_hexbits
+		// }}}
+	);
 
-	initial	o_stb = 1'b0;
-	always @(posedge i_clk)
-		o_stb <= i_stb;
-
+	// Local declarations
+	// {{{
 	reg	[6:0]	remap	[0:127];
-
 	integer	k;
 	reg	[6:0]	newv;
+	// }}}
 
+	// o_stb
+	// {{{
+	initial	o_stb = 1'b0;
+	always @(posedge i_clk)
+		o_stb <= i_stb && !i_reset;
+	// }}}
+
+	// newv, remap
+	// {{{
 	always @(*)
 	// initial
 	begin
@@ -91,14 +101,26 @@ module	wbutohex(i_clk, i_stb, i_byte, o_stb, o_valid, o_hexbits);
 			remap[k] = newv;
 		end
 	end
-		
+	// }}}
+
+	// o_valid
+	// {{{
 	always @(posedge i_clk)
 	begin
 		{ o_valid, o_hexbits } <= remap[i_byte[6:0]];
 		if (i_byte[7])
 			o_valid <= 0;
 	end
+	// }}}
 
-
+	// o_soft_reset
+	// {{{
+	initial	o_soft_reset = 1'b1;
+	always @(posedge i_clk)
+	if (i_reset)
+		o_soft_reset <= 1;
+	else
+		o_soft_reset <= i_stb && (i_byte[6:0] == 7'h3);
+	// }}}
 endmodule
 

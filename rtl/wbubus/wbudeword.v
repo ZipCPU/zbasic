@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename:	wbudeword.v
-//
+// {{{
 // Project:	FPGA library
 //
 // Purpose:	Once a word has come from the bus, undergone compression, had
@@ -15,9 +15,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -32,26 +32,33 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype none
-//
-module	wbudeword(i_clk, i_stb, i_word, i_tx_busy, o_stb, o_nl_hexbits, o_busy);
-	input	wire		i_clk, i_stb;
-	input	wire	[35:0]	i_word;
-	input	wire		i_tx_busy;
-	output	reg		o_stb;
-	output	reg	[6:0]	o_nl_hexbits;
-	output	reg		o_busy;
+// }}}
+module	wbudeword (
+		// {{{
+		input	wire		i_clk, i_reset, i_stb,
+		input	wire	[35:0]	i_word,
+		input	wire		i_tx_busy,
+		output	reg		o_stb,
+		output	reg	[6:0]	o_nl_hexbits,
+		output	reg		o_busy
+		// }}}
+	);
 
-
+	// Local declarations
+	// {{{
 	wire	[2:0]	w_len;
+	reg	[2:0]	r_len;
+	reg	[29:0]	r_word;
+	// }}}
+
 	assign w_len = (i_word[35:33]==3'b000)? 3'b001
 			: (i_word[35:32]==4'h2)? 3'b110
 			: (i_word[35:32]==4'h3)? (3'b010+{1'b0,i_word[31:30]})
@@ -59,8 +66,6 @@ module	wbudeword(i_clk, i_stb, i_word, i_tx_busy, o_stb, o_nl_hexbits, o_busy);
 			: (i_word[35:34]==2'b10)? 3'b001
 			:  3'b110;
 
-	reg	[2:0]	r_len;
-	reg	[29:0]	r_word;
 	initial o_stb  = 1'b0;
 	initial o_busy = 1'b0;
 	initial	o_nl_hexbits = 7'h40;
@@ -85,7 +90,9 @@ module	wbudeword(i_clk, i_stb, i_word, i_tx_busy, o_stb, o_nl_hexbits, o_busy);
 
 	initial	o_stb = 1'b0;
 	always @(posedge i_clk)
-	if (i_stb && !o_busy)
+	if (i_reset)
+		o_stb <= 1'b0;
+	else if (i_stb && !o_busy)
 		o_stb <= 1'b1;
 	else if (r_len == 0 && !i_tx_busy)
 		o_stb <= 1'b0;

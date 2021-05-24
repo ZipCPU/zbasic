@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	zipsys.h
-//
+// {{{
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	Declare the capabilities and memory structure of the ZipSystem
@@ -11,9 +11,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -28,14 +28,14 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
+// }}}
 #ifndef	ZIPCPU_H
 #define	ZIPCPU_H
 
@@ -72,8 +72,8 @@ extern void	zip_rtu(void);
 extern void	zip_halt(void);
 extern void	zip_idle(void);
 extern void	zip_syscall(void);
-extern void	zip_restore_context(int *);
-extern void	zip_save_context(int *);
+extern void	zip_restore_context(void *);
+extern void	zip_save_context(void *);
 extern int	zip_bitrev(int v);
 extern unsigned	zip_cc(void);
 extern unsigned	zip_ucc(void);

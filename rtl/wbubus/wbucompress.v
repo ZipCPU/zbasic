@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename:	wbucompress.v
-//
+// {{{
 // Project:	FPGA library
 //
 // Purpose:	When reading many words that are identical, it makes no sense
@@ -25,9 +25,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -42,30 +42,33 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
 //
-//
 ////////////////////////////////////////////////////////////////////////////////
-//
 //
 `default_nettype none
 //
 // All input words are valid codewords.  If we can, we make them
 // better here.
-module	wbucompress(i_clk, i_reset, i_stb, i_codword, i_busy, o_stb, o_cword,
-		o_busy);
-	parameter	DW=32, CW=36, TBITS=10;
-	input	wire			i_clk, i_reset, i_stb;
-	input	wire	[(CW-1):0]	i_codword;
-	input	wire			i_busy;
-	output	reg			o_stb;
-	output	wire	[(CW-1):0]	o_cword;
-	output	wire			o_busy;
+// }}}
+module	wbucompress #(
+		parameter	DW=32, CW=36, TBITS=10
+	) (
+		// {{{
+		input	wire			i_clk, i_reset, i_stb,
+		input	wire	[(CW-1):0]	i_codword,
+		input	wire			i_busy,
+		output	reg			o_stb,
+		output	wire	[(CW-1):0]	o_cword,
+		output	wire			o_busy
+		// }}}
+	);
 
-	//
-	//
+	// Local declarations
+	// {{{
 	// First stage is to compress the address.
 	// This stage requires one clock.
 	//
@@ -83,7 +86,7 @@ module	wbucompress(i_clk, i_reset, i_stb, i_codword, i_busy, o_stb, o_cword,
 	wire	[31:0]	w_addr;
 	wire	[3:0]	addr_zcheck;
 	reg		tbl_busy;
-
+	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Address compression stage

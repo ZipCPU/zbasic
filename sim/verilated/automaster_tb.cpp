@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename:	automaster_tb.cpp
-//
+// {{{
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	This file calls and accesses the main.v function via the
@@ -13,9 +13,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2019, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -30,14 +30,14 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
+// }}}
 #include <signal.h>
 #include <time.h>
 #include <ctype.h>
@@ -56,6 +56,7 @@
 #include "main_tb.cpp"
 
 void	usage(void) {
+	// {{{
 	fprintf(stderr, "USAGE: main_tb <options> [zipcpu-elf-file]\n");
 	fprintf(stderr,
 #ifdef	SDSPI_ACCESS
@@ -70,8 +71,11 @@ void	usage(void) {
 "\t\tbe a vcd file\n"
 );
 }
+// }}}
 
 int	main(int argc, char **argv) {
+	// Variable declaration and initialization
+	// {{{
 #ifdef	OLED_ACCESS
 	Gtk::Main	main_instance(argc, argv);
 #endif
@@ -87,7 +91,10 @@ int	main(int argc, char **argv) {
 	FILE	*profile_fp;
 
 	MAINTB	*tb = new MAINTB;
+	// }}}
 
+	// Process arguments
+	// {{{
 	for(int argn=1; argn < argc; argn++) {
 		if (argv[argn][0] == '-') for(int j=1;
 					(j<512)&&(argv[argn][j]);j++) {
@@ -120,7 +127,10 @@ int	main(int argc, char **argv) {
 			exit(EXIT_FAILURE);
 		}
 	}
+	// }}}
 
+	// Setup
+	// {{{
 	if (elfload)
 		willexit = true;
 	if (debug_flag) {
@@ -146,13 +156,15 @@ int	main(int argc, char **argv) {
 		}
 	} else
 		profile_fp = NULL;
-
+	// }}}
 
 	tb->reset();
 #ifdef	SDSPI_ACCESS
 	tb->setsdcard(sdimage_file);
 #endif
 
+	// Load the ZipCPU
+	// {{{
 	if (elfload) {
 #ifndef	INCLUDE_ZIPCPU
 		fprintf(stderr, "ERR: Design has no ZipCPU\n");
@@ -189,11 +201,15 @@ int	main(int argc, char **argv) {
 		tb->m_core->cpu_cmd_halt = 0;
 		tb->m_core->VVAR(_swic__DOT__cmd_reset) = 0;
 	}
+	// }}}
 
+	// Main while(1) loop
+	// {{{
 #ifdef	OLED_ACCESS
 	Gtk::Main::run(tb->m_oled);
 #else
-	if (profile_fp) {
+	if (profile_fp) { // Profile the ZipCPU
+		// {{{
 		unsigned long	last_instruction_tick = 0, now = 0;
 		while((!willexit)||(!tb->done())) {
 			unsigned long	iticks;
@@ -214,13 +230,19 @@ int	main(int argc, char **argv) {
 				last_instruction_tick = now;
 			}
 		}
-	} else if (willexit) {
+		// }}}
+	} else if (willexit) {	// Run until an exit call
+		// {{{
 		while(!tb->done())
 			tb->tick();
-	} else
+		// }}}
+	} else	// Run forever
+		// {{{
 		while(true)
 			tb->tick();
+		// }}}
 #endif
+	// }}}
 
 	tb->close();
 	delete tb;

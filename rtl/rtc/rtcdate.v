@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	rtcdate.v
-//
+// {{{
 // Project:	A Wishbone Controlled Real--time Clock Core
 //
 // Purpose:
@@ -27,9 +27,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -44,8 +44,9 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
 //
 //
@@ -53,42 +54,60 @@
 //
 //
 `default_nettype	none
-//
-module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data, i_wb_sel,
-		o_wb_stall, o_wb_ack, o_wb_data);
-	parameter [29:0]	INITIAL_DATE = 30'h20000101;
-	input	wire		i_clk;
-	// A one part per day signal, i.e. basically a clock enable line that
-	// controls when the beginning of the day happens.  This line should
-	// be high on the very last second of any day in order for the rtcdate
-	// module to always have the right date.
-	input	wire		i_ppd;
-	// Wishbone inputs
-	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
-	input	wire	[31:0]	i_wb_data;
-	input	wire	[3:0]	i_wb_sel;
-	// Wishbone outputs
-	output	wire		o_wb_stall;
-	output	reg		o_wb_ack;
-	output	wire	[31:0]	o_wb_data;
+// }}}
+module rtcdate #(
+	parameter [29:0]	INITIAL_DATE = 30'h20000101
+	) (
+		// {{{
+		input	wire		i_clk,
+		// A one part per day signal, i.e. basically a clock enable
+		// line that controls when the beginning of the day happens.
+		// This line should be high on the very last second of any day
+		// in order for the rtcdate module to always have the right
+		// date.
+		input	wire		i_ppd,
+		// Wishbone inputs
+		input	wire		i_wb_cyc, i_wb_stb, i_wb_we,
+		input	wire	[31:0]	i_wb_data,
+		input	wire	[3:0]	i_wb_sel,
+		// Wishbone outputs
+		output	wire		o_wb_stall,
+		output	reg		o_wb_ack,
+		output	wire	[31:0]	o_wb_data
+		// }}}
+	);
 
+	// Signal declarations
+	// {{{
 	wire		update;
 	reg	[9:0]	r_block_updates;
-	initial	r_block_updates = 10'h3ff;
-	always @(posedge i_clk)
-	if ((i_wb_we)&&(i_wb_stb))
-		r_block_updates <= 10'h3ff;
-	else
-		r_block_updates <= { r_block_updates[8:0], 1'b0 };
-
-	assign	update = (i_ppd)&&(!r_block_updates[9]);
-
 	reg	[5:0]	r_day;
 	reg	[4:0]	r_mon;
 	reg	[13:0]	r_year;
 
 	reg		last_day_of_month, last_day_of_year, is_leap_year;
 	reg	[5:0]	days_per_month;
+	reg		year_divisible_by_four, century_year, four_century_year;
+	reg	[5:0]	next_day, fixd_day;
+	reg	[4:0]	next_mon, fixd_mon;
+	reg	[13:0]	next_year;
+	reg	[2:0]	next_year_c;
+	// }}}
+
+	// r_block_updates
+	// {{{
+	initial	r_block_updates = 10'h3ff;
+	always @(posedge i_clk)
+	if ((i_wb_we)&&(i_wb_stb))
+		r_block_updates <= 10'h3ff;
+	else
+		r_block_updates <= { r_block_updates[8:0], 1'b0 };
+	// }}}
+
+	assign	update = (i_ppd)&&(!r_block_updates[9]);
+
+	// days_per_month
+	// {{{
 	initial	days_per_month = 6'h31; // Remember, this is BCD
 	always @(posedge i_clk)
 	begin // Clock 3
@@ -108,6 +127,15 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data, i_wb_sel,
 		default: days_per_month <= 6'h31; // Invalid month
 		endcase
 	end
+	// }}}
+
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Years
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	initial	last_day_of_month = 1'b0;
 	always @(posedge i_clk) // Clock 4
@@ -118,23 +146,33 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data, i_wb_sel,
 		last_day_of_year <= (last_day_of_month) && (r_mon == 5'h12);
 
 
-	reg	year_divisible_by_four, century_year, four_century_year;
 	initial	year_divisible_by_four = 1'b0;
-	initial	century_year      = 1'b0;
-	initial	four_century_year = 1'b0;
-	initial	is_leap_year      = 1'b0;
 	always @(posedge i_clk) // Clock 1
 		year_divisible_by_four<= ((!r_year[0])&&(r_year[4]==r_year[1]));
+
+	initial	century_year      = 1'b0;
 	always @(posedge i_clk) // Clock 1
 		century_year <= (r_year[7:0] == 8'h00);
+
+	initial	four_century_year = 1'b0;
 	always @(posedge i_clk) // Clock 1
 		four_century_year <= ((!r_year[8])&&((r_year[12]==r_year[9])));
+
+	initial	is_leap_year      = 1'b0;
 	always @(posedge i_clk) // Clock 2
 		is_leap_year <= (year_divisible_by_four)&&((!century_year)
 			||((century_year)&&(four_century_year)));
 
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Days
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
+
 	// Adjust the day of month
-	reg	[5:0]	next_day, fixd_day;
 	initial	next_day = INITIAL_DATE[5:0];
 	always @(posedge i_clk)
 	if (last_day_of_month)
@@ -166,10 +204,17 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data, i_wb_sel,
 		if ((i_wb_stb)&&(i_wb_we)&&(!i_wb_data[7])&&(i_wb_sel[0]))
 			r_day <= i_wb_data[5:0];
 	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Months
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	// Adjust the month of the year
-	reg	[4:0]	next_mon, fixd_mon;
-
+	initial	next_mon = 5'h01;
 	always @(posedge i_clk)
 	if (last_day_of_year)
 		next_mon <= 5'h01;
@@ -200,10 +245,16 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data, i_wb_sel,
 		if ((i_wb_stb)&&(i_wb_we)&&(!i_wb_data[15])&&(i_wb_sel[1]))
 			r_mon <= i_wb_data[12:8];
 	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Years (again)
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	// Adjust the year
-	reg	[13:0]	next_year;
-	reg	[2:0]	next_year_c;
 	initial	next_year   = INITIAL_DATE[29:16];
 	initial	next_year_c = 0;
 	always @(posedge i_clk)
@@ -243,22 +294,40 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data, i_wb_sel,
 				&&(i_wb_sel[3:2]==2'b11))
 			r_year <= i_wb_data[29:16];
 	end
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Bus returns
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	initial	o_wb_ack = 1'b0;
 	always @(posedge i_clk)
 		o_wb_ack <= (i_wb_stb);
 
 	assign	o_wb_stall = 1'b0;
-
 	assign	o_wb_data = { 2'h0, r_year, 3'h0, r_mon, 2'h0, r_day };
+	// }}}
 
 	// Make Verilator happy
+	// {{{
 	// verilator lint_off UNUSED
 	wire	unused;
-	assign	unused = &{ 1'b0, i_wb_cyc, i_wb_data[30],
-			i_wb_data[14:13], i_wb_data[6] };
+	assign	unused = &{ 1'b0, i_wb_cyc, i_wb_data[30], i_wb_data[14:13],
+			i_wb_data[6] };
 	// verilator lint_on  UNUSED
-
+	// }}}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//
+// Formal properties
+// {{{
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
 `ifdef	RTCDATE
 `define	ASSUME	assume
@@ -326,6 +395,6 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc, i_wb_stb, i_wb_we, i_wb_data, i_wb_sel,
 		assert(r_year[ 7: 4] <= 4'h9);
 		assert(r_year[11: 8] <= 4'h9);
 	end
-
 `endif
+// }}}
 endmodule

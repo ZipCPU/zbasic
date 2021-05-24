@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015,2017-2019, Gisselquist Technology, LLC
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
 //
 // This file is part of the set of Wishbone controlled SPI flash controllers
 // project
@@ -437,8 +437,9 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 			m_state = QSPIF_QUAD_READ_CMD;
 			m_mode = FM_QSPI;
 			break;
-		case 0x000:
-		case 0x0ff:
+		case 0x000:	// Dummy implementation of CMD 8'h00
+		case 0x031:	// Dummy implementation of CMD 8'h31
+		case 0x0ff:	// Dummy implementation of CMD 8'hff
 			m_state = QSPIF_IDLE;
 			m_mode = FM_SPI;
 			break;
@@ -582,7 +583,7 @@ int	FLASHSIM::operator()(const int csn, const int sck, const int dat) {
 				}
 			} else if ((m_count >= 24+4*NDUMMY)&&(0 == (m_sreg&0x01))) {
 				QOREG(m_mem[m_addr++]);
-				if (m_debug) printf("QSPIF[%08x]/QR = %02x\n", m_addr-1, m_oreg & 0x0ff);
+				// if (m_debug) printf("QSPIF[%08x]/QR = %02x\n", m_addr-1, m_oreg & 0x0ff);
 			} else m_oreg = 0;
 			break;
 		case QSPIF_PP:

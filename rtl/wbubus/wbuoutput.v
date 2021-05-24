@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename:	wbuoutput.v
-//
+// {{{
 // Project:	FPGA library
 //
 // Purpose:	Converts 36-bit codewords into bytes to be placed on the serial
@@ -14,9 +14,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -31,32 +31,35 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype none
-//
-module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
-		i_wb_cyc, i_int, i_bus_busy,
-		o_stb, o_char, i_tx_busy, o_fifo_err);
-	parameter	LGOUTPUT_FIFO = 10;
-	input	wire		i_clk, i_rst;
-	input	wire		i_stb;
-	input	wire	[35:0]	i_codword;
-	// Not Idle indicators
-	input	wire		i_wb_cyc, i_int, i_bus_busy;
-	// Outputs to our UART transmitter
-	output	wire		o_stb;
-	output	wire	[7:0]	o_char;
-	// Miscellaneous I/O: UART transmitter busy, and fifo error
-	input	wire		i_tx_busy;
-	output	wire		o_fifo_err;
+// }}}
+module	wbuoutput #(
+		parameter	LGOUTPUT_FIFO = 10
+	) (
+		// {{{
+		input	wire		i_clk, i_reset, i_soft_reset,
+		input	wire		i_stb,
+		input	wire	[35:0]	i_codword,
+		// Not Idle indicators
+		input	wire		i_wb_cyc, i_int, i_bus_busy,
+		// Outputs to our UART transmitter
+		output	wire		o_stb,
+		output	wire	[7:0]	o_char,
+		// Miscellaneous I/O: UART transmitter busy, and fifo error
+		input	wire		i_tx_busy,
+		output	wire		o_fifo_err
+		// }}}
+	);
 
+	// Local declarations
+	// {{{
 	wire		fifo_rd, dw_busy, fifo_empty_n, fifo_err;
 	wire	[35:0]	fifo_codword;
 
@@ -64,7 +67,10 @@ module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 			cp_busy, byte_busy;
 	wire	[35:0]	cw_codword, cp_word;
 	wire	[6:0]	dw_bits, ln_bits;
+	// }}}
 
+	// Output FIFO
+	// {{{
 	generate
 	if (LGOUTPUT_FIFO < 2)
 	begin : NO_OUTBOUND_FIFO
@@ -77,15 +83,16 @@ module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 
 		assign	fifo_rd = (fifo_empty_n)&&(!cw_busy);
 		wbufifo #(36,LGOUTPUT_FIFO)
-			busoutfifo(i_clk, i_rst, i_stb, i_codword,
+			busoutfifo(i_clk, i_soft_reset, i_stb, i_codword,
 				fifo_rd, fifo_codword, fifo_empty_n,
 				fifo_err);
 
 	end endgenerate
 
 	assign	o_fifo_err = fifo_err;
+	// }}}
 
-	wbuidleint	buildcw(i_clk, fifo_rd, fifo_codword,
+	wbuidleint	buildcw(i_clk, i_soft_reset, fifo_rd, fifo_codword,
 				i_wb_cyc, i_bus_busy, i_int,
 				cw_stb, cw_codword, cw_busy, cp_stb && cp_busy);
 	// assign	o_dbg = dw_busy; // Always asserted ... ???
@@ -105,18 +112,18 @@ module	wbuoutput(i_clk, i_rst, i_stb, i_codword,
 	assign	cp_word = cw_codword;
 	assign	cp_busy = dw_busy;
 `else
-	wbucompress	packit(i_clk, 1'b0, cw_stb, cw_codword, dw_busy,
+	wbucompress	packit(i_clk, i_soft_reset,cw_stb, cw_codword, dw_busy,
 				cp_stb, cp_word, cp_busy);
 `endif
 
-	wbudeword	deword(i_clk, cp_stb, cp_word, ln_busy,
+	wbudeword	deword(i_clk, i_reset, cp_stb, cp_word, ln_busy,
 					dw_stb, dw_bits, dw_busy);
 
-	wbucompactlines	linepacker(i_clk, dw_stb, dw_bits,
+	wbucompactlines	linepacker(i_clk, i_reset, dw_stb, dw_bits,
 			ln_stb, ln_bits,
 			(i_wb_cyc||i_bus_busy||fifo_empty_n||cw_busy),
 			byte_busy, ln_busy);
 
-	wbusixchar	mkbytes(i_clk, ln_stb, ln_bits, o_stb, o_char, byte_busy, i_tx_busy);
+	wbusixchar	mkbytes(i_clk, i_reset, ln_stb, ln_bits, o_stb, o_char, byte_busy, i_tx_busy);
 
 endmodule

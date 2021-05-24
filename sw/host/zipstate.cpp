@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	zipstate.cpp
-//
+// {{{
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
 // Purpose:	To get a quick (understandable) peek at what the ZipCPU
@@ -14,9 +14,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -31,14 +31,14 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
+// }}}
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -59,28 +59,18 @@ void	closeup(int v) {
 	exit(0);
 }
 
+/*
 unsigned int	cmd_read(FPGA *fpga, int r) {
 	const unsigned int	MAXERR = 1000;
 	unsigned int	errcount = 0;
 	unsigned int	s;
 
-	fpga->writeio(R_ZIPCTRL, CPU_HALT|(r&0x03f));
-	while((((s = fpga->readio(R_ZIPCTRL))&CPU_STALL)== 0)&&(errcount<MAXERR))
-		errcount++;
-	if (errcount >= MAXERR) {
-		printf("ERR: errcount(%d) >= MAXERR on cmd_read(a=%02x)\n",
-			errcount, r);
-		printf("ZIPCTRL = 0x%08x", s);
-		if ((s & 0x0200)==0) printf(" BUSY");
-		if  (s & 0x0400)     printf(" HALTED");
-		if ((s & 0x03000)==0x01000)
-			printf(" SW-HALT");
-		else {
-			if (s & 0x01000) printf(" SLEEPING");
-			if (s & 0x02000) printf(" GIE(UsrMode)");
-		} printf("\n");
-		exit(EXIT_FAILURE);
-	} return fpga->readio(R_ZIPDATA);
+	return	fpga->readio(R_ZIPCTRL, CPU_REGBASE + (r*4));
+}
+*/
+
+void	read_regs(FPGA *fpga, unsigned *r) {
+	fpga->readi(R_ZIPREGS, 32, r);
 }
 
 void	usage(void) {
@@ -108,34 +98,40 @@ int main(int argc, char **argv) {
 		v = m_fpga->readio(R_ZIPCTRL);
 
 		printf("0x%08x: ", v);
+		if (v & 0x0040) printf("RESET ");
 		if (v & 0x0080) printf("PINT ");
 		// if (v & 0x0100) printf("STEP "); // self resetting
-		if((v & 0x00200)==0) printf("BUSY ");
-		if (v & 0x00400) printf("HALTED ");
+		if((v & 0x00200)==0) printf("HALTED ");
+		if (v & 0x00400) printf("HALT_REQ ");
+		// if (v & 0x0800) printf("CLR-CACHE ");
 		if((v & 0x03000)==0x01000) {
 			printf("SW-HALT");
 		} else {
 			if (v & 0x01000) printf("SLEEPING ");
 			if (v & 0x02000) printf("GIE(UsrMode) ");
 		}
-		// if (v & 0x0800) printf("CLR-CACHE ");
+		if (v & 0x04000) printf("sBusErr ");
+		if (v & 0x08000) printf("BREAK-HALT");
 		printf("\n");
 	} else {
-		printf("Reading the long-state ...\n");
+		unsigned	r[32];
+
+		printf("Reading the long-state ...\n"); fflush(stdout);
+		read_regs(m_fpga, r);
 		for(int i=0; i<14; i++) {
-			printf("sR%-2d: 0x%08x ", i, cmd_read(m_fpga, i));
+			printf("sR%-2d: 0x%08x ", i, r[i]);
 			if ((i&3)==3)
 				printf("\n");
-		} printf("sCC : 0x%08x ", cmd_read(m_fpga, 14));
-		printf("sPC : 0x%08x ", cmd_read(m_fpga, 15));
+		} printf("sCC : 0x%08x ", r[14]);
+		printf("sPC : 0x%08x ", r[15]);
 		printf("\n\n"); 
 
 		for(int i=0; i<14; i++) {
-			printf("uR%-2d: 0x%08x ", i, cmd_read(m_fpga, i+16));
+			printf("uR%-2d: 0x%08x ", i, r[i+16]);
 			if ((i&3)==3)
 				printf("\n");
-		} printf("uCC : 0x%08x ", cmd_read(m_fpga, 14+16));
-		printf("uPC : 0x%08x ", cmd_read(m_fpga, 15+16));
+		} printf("uCC : 0x%08x ", r[14]);
+		printf("uPC : 0x%08x ", r[15]);
 		printf("\n\n"); 
 	}
 

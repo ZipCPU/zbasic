@@ -1,7 +1,7 @@
 ################################################################################
 ##
 ## Filename: 	zipmaster.txt
-##
+## {{{
 ## Project:	AutoFPGA, a utility for composing FPGA designs from peripherals
 ##
 ## Purpose:	To describe what needs to be done to make the ZipCPU a part
@@ -13,9 +13,9 @@
 ##		Gisselquist Technology, LLC
 ##
 ################################################################################
-##
-## Copyright (C) 2017-2020, Gisselquist Technology, LLC
-##
+## }}}
+## Copyright (C) 2017-2021, Gisselquist Technology, LLC
+## {{{
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
 ## by the Free Software Foundation, either version 3 of the License, or (at
@@ -30,17 +30,17 @@
 ## with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 ## target there if the PDF file isn't present.)  If not, see
 ## <http://www.gnu.org/licenses/> for a copy.
-##
+## }}}
 ## License:	GPL, v3, as defined and found on www.gnu.org,
+## {{{
 ##		http://www.gnu.org/licenses/gpl.html
-##
 ##
 ################################################################################
 ##
 ##
 ## Define @SYSPIC so that other peripherals needing to be on the ZipSystem's
 ## PIC know the name of the PIC we are using.  Note that this is a global.
-##
+## }}}
 @SYSPIC= syspic
 @PREFIX=zip
 @SIM.CLOCK=clk
@@ -106,19 +106,26 @@
 	//
 	//
 	assign	zip_int_vector = { alt_int_vector[14:8], sys_int_vector[14:6] };
-	zipsystem #(.RESET_ADDRESS(RESET_ADDRESS),
-			.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH),
-			.LGICACHE(@$(LGICACHE)),.LGDCACHE(@$(LGDCACHE)),
-			.START_HALTED(ZIP_START_HALTED),
-			.RESET_DURATION(20),
-			.EXTERNAL_INTERRUPTS(ZIP_INTS))
-		swic(i_clk, (i_reset)||(@$(CPURESET)),
+	zipsystem #(
+		// {{{
+		.RESET_ADDRESS(RESET_ADDRESS),
+		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH),
+		.LGICACHE(@$(LGICACHE)),.LGDCACHE(@$(LGDCACHE)),
+		.START_HALTED(ZIP_START_HALTED),
+		.RESET_DURATION(20),
+		.EXTERNAL_INTERRUPTS(ZIP_INTS)
+		// }}}
+	) swic(
+		// {{{
+		i_clk, (i_reset)||(@$(CPURESET)),
 			// Zippys wishbone interface
 			@$(MASTER.PORTLIST),
 			zip_int_vector, zip_cpu_int,
 			// Debug wishbone interface
 			@$(SLAVE.PORTLIST),
-			zip_debug);
+			zip_debug
+		// }}}
+	);
 	assign	zip_trigger = zip_debug[31];
 @BDEF.INCLUDE=
 #include <design.h>
@@ -169,7 +176,7 @@
 #endif
 #endif
 
-#define	CPUVAR(A)	VVAR(_swic__DOT__thecpu__DOT_ ## A)
+#define	CPUVAR(A)	VVAR(_swic__DOT__thecpu__DOT__core__DOT_ ## A)
 
 #define	cpu_reset	VVAR(_swic__DOT__cmd_reset)
 #define	cpu_break 	VVAR(_swic__DOT__cpu_break)
@@ -412,16 +419,55 @@
 ##
 ##
 @RTL.MAKE.GROUP=ZIPCPU
-@RTL.MAKE.FILES= zipcpu.v cpuops.v pfcache.v pipemem.v pfcache.v idecode.v
-		wbpriarbiter.v zipsystem.v zipcounter.v zipjiffies.v ziptimer.v
-		wbdmac.v icontrol.v wbwatchdog.v busdelay.v cpudefs.v
+@RTL.MAKE.FILES= zipsystem.v zipcore.v zipwb.v cpuops.v pfcache.v pipemem.v
+		pfcache.v idecode.v wbpriarbiter.v zipsystem.v zipcounter.v
+		zipjiffies.v ziptimer.v wbdmac.v icontrol.v wbwatchdog.v
+		busdelay.v cpudefs.v
 @RTL.MAKE.SUBD= cpu
 ##
 ## @PREFIX=zip_dbg
 @SLAVE.TYPE=OTHER
 @SLAVE.BUS=wbu
 @SLAVE.ORDER=1000000
-@NADDR=2
+@NADDR=128
+@REGS.N=36
+@REGS.NOTE=// ZipCPU control/debug registers
+@REGS.0=32   R_ZIPCTRL   CPU ZIPCTRL
+@REGS.1=0    R_ZIPREGS   ZIPREGS
+@REGS.2=0    R_ZIPS0     SR0
+@REGS.3=1    R_ZIPS1     SR1
+@REGS.4=2    R_ZIPS2     SR2
+@REGS.5=3    R_ZIPS3     SR3
+@REGS.6=4    R_ZIPS4     SR4
+@REGS.7=5    R_ZIPS5     SR5
+@REGS.8=6    R_ZIPS6     SR6
+@REGS.9=7    R_ZIPS7     SR7
+@REGS.10=8   R_ZIPS8     SR8
+@REGS.11=9   R_ZIPS9     SR9
+@REGS.12=10  R_ZIPS10    SR10
+@REGS.13=11  R_ZIPS11    SR11
+@REGS.14=12  R_ZIPS12    SR12
+@REGS.15=13  R_ZIPSSP    SSP SR13
+@REGS.16=14  R_ZIPCC     ZIPCC CC SCC SR14
+@REGS.17=15  R_ZIPPC     ZIPPC PC SPC SR15
+@REGS.18=16  R_ZIPUSER   ZIPUSER
+@REGS.19=16  R_ZIPU0     UR0
+@REGS.20=17  R_ZIPU1     UR1
+@REGS.21=18  R_ZIPU2     UR2
+@REGS.22=19  R_ZIPU3     UR3
+@REGS.23=20  R_ZIPU4     UR4
+@REGS.24=21  R_ZIPU5     UR5
+@REGS.25=22  R_ZIPU6     UR6
+@REGS.26=23  R_ZIPU7     UR7
+@REGS.27=24  R_ZIPU8     UR8
+@REGS.28=25  R_ZIPU9     UR9
+@REGS.29=26  R_ZIPU10    SR10
+@REGS.30=27  R_ZIPU11    SR11
+@REGS.31=28  R_ZIPU12    SR12
+@REGS.32=29  R_ZIPUSP    USP UR13
+@REGS.33=30  R_ZIPUCC    ZIPUCC UCC
+@REGS.34=31  R_ZIPUPC    ZIPUPC UPC
+@REGS.35=64  R_ZIPSYSTEM ZIPSYSTEM ZIPSYS
 ##
 ##
 @PREFIX=syspic

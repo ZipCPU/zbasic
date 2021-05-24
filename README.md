@@ -1,7 +1,7 @@
 # ZBasic
 
 This project provides a very basic version of a working
-[ZipCPU](https://github.com/ZipCPU/zbasic) system.  It is designed so that
+[ZipCPU](https://github.com/ZipCPU/zipcpu) system.  It is designed so that
 others (you perhaps?) can then build off of it and design with it.
 ZBasic has three primary goals:
 
