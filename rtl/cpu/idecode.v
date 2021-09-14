@@ -22,7 +22,7 @@
 // Copyright (C) 2015-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -60,6 +60,7 @@ module	idecode #(
 		parameter	[0:0]	OPT_LOCK   = (OPT_PIPELINED),
 		parameter	[0:0]	OPT_OPIPE  = (OPT_PIPELINED),
 		parameter	[0:0]	OPT_SIM    = 1'b0,
+		parameter	[0:0]	OPT_SUPPRESS_NULL_BRANCHES = 1'b0,
 		parameter	[0:0]	OPT_NO_USERMODE = 1'b0,
 		localparam		AW = ADDRESS_WIDTH
 		// }}}
@@ -668,7 +669,7 @@ module	idecode #(
 				begin
 					// Add x,PC
 					r_early_branch     <= 1'b1;
-					r_early_branch_stb <= 1'b1;
+					r_early_branch_stb <= (!OPT_SUPPRESS_NULL_BRANCHES) || !w_Iz;
 				end else begin
 					r_early_branch     <= 1'b0;
 					r_early_branch_stb <= 1'b0;

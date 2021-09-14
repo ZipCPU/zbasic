@@ -39,7 +39,7 @@
 // Copyright (C) 2015-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -433,8 +433,18 @@ module	axiicache #(
 	begin : NO_LINE_SHIFT
 
 		always @(*)
-			o_insn = cache_word;
+			o_insn = cache_word[INSN_WIDTH-1:0];
 
+		// Make Verilator happy
+		// {{{
+		// Verilator lint_off UNUSED
+		if (DW > INSN_WIDTH)
+		begin
+			wire	unused_wide;
+			assign	unused_wide = &{ 1'b0, cache_word[DW-1:INSN_WIDTH] };
+		end
+		// Verilator lint_on  UNUSED
+		// }}}
 	end else begin : SHIFT_CACHE_LINE
 
 		reg	[C_AXI_DATA_WIDTH-1:0]	shifted;
@@ -442,8 +452,19 @@ module	axiicache #(
 		always @(*)
 		begin
 			shifted=cache_word >> (INSN_WIDTH * o_pc[ADDRLSB-1:LGINSN]);
-			o_insn = shifted[DW-1:0];
+			o_insn = shifted[INSN_WIDTH-1:0];
 		end
+
+		// Make Verilator happy
+		// {{{
+		// Verilator lint_off UNUSED
+		if (DW > INSN_WIDTH)
+		begin
+			wire	unused_wide;
+			assign	unused_wide = &{ 1'b0, shifted[DW-1:INSN_WIDTH] };
+		end
+		// Verilator lint_on  UNUSED
+		// }}}
 	end endgenerate
 	// }}}
 

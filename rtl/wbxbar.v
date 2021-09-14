@@ -52,7 +52,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2019-2020, Gisselquist Technology, LLC
+// Copyright (C) 2019-2021, Gisselquist Technology, LLC
 // {{{
 // This file is part of the WB2AXIP project.
 //
@@ -116,10 +116,6 @@ module	wbxbar #(
 		parameter [0:0]	OPT_STARVATION_TIMEOUT = 1'b0
 						&& (OPT_TIMEOUT > 0),
 		//
-		// TIMEOUT_WIDTH is the number of bits in counter used to check
-		// on a timeout.
-		localparam	TIMEOUT_WIDTH = $clog2(OPT_TIMEOUT),
-		//
 		// OPT_DBLBUFFER is used to register all of the outputs, and
 		// thus avoid adding additional combinational latency through
 		// the core that might require a slower clock speed.
@@ -130,18 +126,7 @@ module	wbxbar #(
 		// that could be used to reduce the logic count of the device.
 		// Hence, OPT_LOWPOWER will use more logic, but it won't drive
 		// bus wires unless there's a value to drive onto them.
-		parameter [0:0]	OPT_LOWPOWER = 1'b1,
-		//
-		// LGNM is the log (base two) of the number of bus masters
-		// connecting to this crossbar
-		localparam	LGNM = (NM>1) ? $clog2(NM) : 1,
-		//
-		// LGNM is the log (base two) of the number of slaves plus one
-		// come out of the system.  The extra "plus one" is used for a
-		// pseudo slave representing the case where the given address
-		// doesn't connect to any of the slaves.  This address will
-		// generate a bus error.
-		localparam	LGNS = $clog2(NS+1)
+		parameter [0:0]	OPT_LOWPOWER = 1'b1
 		// }}}
 	) (
 		// {{{
@@ -178,6 +163,21 @@ module	wbxbar #(
 	//
 	// Register declarations
 	// {{{
+	//
+	// TIMEOUT_WIDTH is the number of bits in counter used to check
+	// on a timeout.
+	localparam	TIMEOUT_WIDTH = $clog2(OPT_TIMEOUT);
+	//
+	// LGNM is the log (base two) of the number of bus masters
+	// connecting to this crossbar
+	localparam	LGNM = (NM>1) ? $clog2(NM) : 1;
+	//
+	// LGNS is the log (base two) of the number of slaves plus one
+	// come out of the system.  The extra "plus one" is used for a
+	// pseudo slave representing the case where the given address
+	// doesn't connect to any of the slaves.  This address will
+	// generate a bus error.
+	localparam	LGNS = $clog2(NS+1);
 	// At one time I used o_macc and o_sacc to put into the outgoing
 	// trace file, just enough logic to tell me if a transaction was
 	// taking place on the given clock.
@@ -200,26 +200,27 @@ module	wbxbar #(
 	// Verilator lint_off UNUSED
 	wire	[LGMAXBURST-1:0]	w_mpending [0:NM-1];
 	// Verilator lint_on  UNUSED
-	reg	[NM-1:0]		mfull, mnearfull, mempty, timed_out;
+	reg	[NM-1:0]		mfull, mnearfull, mempty;
+	wire	[NM-1:0]		timed_out;
 
 	localparam	NMFULL = (NM > 1) ? (1<<LGNM) : 1;
 	localparam	NSFULL = (1<<LGNS);
 
-	reg	[LGNS-1:0]	mindex		[0:NMFULL-1];
-	reg	[LGNM-1:0]	sindex		[0:NSFULL-1];
+	wire	[LGNS-1:0]	mindex		[0:NMFULL-1];
+	wire	[LGNM-1:0]	sindex		[0:NSFULL-1];
 
-	reg	[NMFULL-1:0]	m_cyc;
-	reg	[NMFULL-1:0]	m_stb;
+	wire	[NMFULL-1:0]	m_cyc;
+	wire	[NMFULL-1:0]	m_stb;
 	wire	[NMFULL-1:0]	m_we;
 	wire	[AW-1:0]	m_addr		[0:NMFULL-1];
 	wire	[DW-1:0]	m_data		[0:NMFULL-1];
 	wire	[DW/8-1:0]	m_sel		[0:NMFULL-1];
 	reg	[NM-1:0]	m_stall;
 	//
-	reg	[NSFULL-1:0]	s_stall;
-	reg	[DW-1:0]	s_data		[0:NSFULL-1];
-	reg	[NSFULL-1:0]	s_ack;
-	reg	[NSFULL-1:0]	s_err;
+	wire	[NSFULL-1:0]	s_stall;
+	wire	[DW-1:0]	s_data		[0:NSFULL-1];
+	wire	[NSFULL-1:0]	s_ack;
+	wire	[NSFULL-1:0]	s_err;
 	wire	[NM-1:0]	dcd_stb;
 
 	localparam [0:0]	OPT_BUFFER_DECODER=(NS != 1 || SLAVE_MASK != 0);
@@ -260,13 +261,18 @@ module	wbxbar #(
 `endif
 			.OPT_OUTREG(0)
 			// }}}
-		) iskid (i_clk, i_reset || !i_mcyc[N], i_mstb[N], iskd_ready,
+		) iskid (
 			// {{{
-			{ i_mwe[N], i_maddr[N*AW +: AW], i_mdata[N*DW +: DW],
-					i_msel[N*DW/8 +: DW/8] },
-			skd_stb, !skd_stall,
-				{ skd_we, skd_addr, skd_data, skd_sel });
-		// }}}
+			.i_clk(i_clk),
+			.i_reset(i_reset || !i_mcyc[N]),
+			.i_valid(i_mstb[N]), .o_ready(iskd_ready),
+			.i_data({ i_mwe[N], i_maddr[N*AW +: AW],
+					i_mdata[N*DW +: DW],
+					i_msel[N*DW/8 +: DW/8] }),
+			.o_valid(skd_stb), .i_ready(!skd_stall),
+				.o_data({ skd_we, skd_addr, skd_data, skd_sel })
+			// }}}
+		);
 
 		always @(*)
 			o_mstall[N] = !iskd_ready;
@@ -282,34 +288,30 @@ module	wbxbar #(
 			.SLAVE_MASK(SLAVE_MASK),
 			.OPT_REGISTERED(OPT_BUFFER_DECODER)
 			// }}}
-		) adcd(i_clk, i_reset, skd_stb && i_mcyc[N], skd_stall,
+		) adcd(
 			// {{{
-			skd_addr, { skd_we, skd_data, skd_sel },
-			dcd_stb[N], (m_stall[N]&&i_mcyc[N]),decoded, m_addr[N],
-				{ m_we[N], m_data[N], m_sel[N] });
-		// }}}
+			.i_clk(i_clk), .i_reset(i_reset),
+			.i_valid(skd_stb && i_mcyc[N]), .o_stall(skd_stall),
+				.i_addr(skd_addr),
+				.i_data({ skd_we, skd_data, skd_sel }),
+			.o_valid(dcd_stb[N]), .i_stall(m_stall[N]&&i_mcyc[N]),
+			.o_decode(decoded), .o_addr(m_addr[N]),
+				.o_data({ m_we[N], m_data[N], m_sel[N] })
+			// }}}
+		);
 
 		assign	request[N] = (m_cyc[N] && dcd_stb[N]) ? decoded : 0;
 
-		always @(*)
-			m_cyc[N] = i_mcyc[N];
-		always @(*)
-		if (mfull[N])
-			m_stb[N] = 1'b0;
-		else
-			m_stb[N] = i_mcyc[N] && dcd_stb[N];
+		assign	m_cyc[N] = i_mcyc[N];
+		assign	m_stb[N] = i_mcyc[N] && dcd_stb[N] && !mfull[N];
 		// }}}
 	end for(N=NM; N<NMFULL; N=N+1)
 	begin : UNUSED_MASTER_SIGNALS
 		// {{{
 		// in case NM isn't one less than a power of two, complete
 		// the set
-		always @(*)
-		begin
-			m_cyc[N]  = 0;
-			m_stb[N]  = 0;
-		end
-
+		assign	m_cyc[N] = 0;
+		assign	m_stb[N] = 0;
 
 		assign	m_we[N]   = 0;
 		assign	m_addr[N] = 0;
@@ -391,35 +393,26 @@ module	wbxbar #(
 		begin
 			sgrant[M] = 0;
 			for(iN=0; iN<NM; iN=iN+1)
-				if (grant[iN][M])
-					sgrant[M] = 1;
+			if (grant[iN][M])
+				sgrant[M] = 1;
 		end
 		// }}}
 		// }}}
 `endif
 
-		always @(*)
-			s_data[M]  = i_sdata[M*DW +: DW];
-		always @(*)
-			s_stall[M] = o_sstb[M] && i_sstall[M];
-		always @(*)
-			s_ack[M]   = o_scyc[M] && i_sack[M];
-		always @(*)
-			s_err[M]   = o_scyc[M] && i_serr[M];
+		assign	s_data[M]  = i_sdata[M*DW +: DW];
+		assign	s_stall[M] = o_sstb[M] && i_sstall[M];
+		assign	s_ack[M]   = o_scyc[M] && i_sack[M];
+		assign	s_err[M]   = o_scyc[M] && i_serr[M];
 
 		// }}}
 	end for(M=NS; M<NSFULL; M=M+1)
 	begin : UNUSED_SLAVE_SIGNALS
 		// {{{
-		always @(*)
-			s_data[M]  = 0;
-		always @(*)
-			s_stall[M] = 1;
-		always @(*)
-			s_ack[M]   = 0;
-		always @(*)
-			s_err[M]   = 1;
-		// always @(*) sgrant[M]  = 0;
+		assign	s_data[M]  = 0;
+		assign	s_stall[M] = 1;
+		assign	s_ack[M]   = 0;
+		assign	s_err[M]   = 1;
 		// }}}
 	end endgenerate
 
@@ -432,8 +425,8 @@ module	wbxbar #(
 
 		// Register declarations
 		// {{{
-		reg	[NS:0]		regrant;
-		reg	[LGNS-1:0]	reindex;
+		wire	[NS:0]		regrant;
+		wire	[LGNS-1:0]	reindex;
 
 		// This is done using a couple of variables.
 		//
@@ -526,56 +519,65 @@ module	wbxbar #(
 		if (NS == 1)
 		begin : MINDEX_ONE_SLAVE
 			// {{{
-			always @(*)
-				mindex[N] = 0;
-
-			always @(*)
-				regrant = 0;
-
-			always @(*)
-				reindex = 0;
+			assign	mindex[N] = 0;
+			assign	regrant = 0;
+			assign	reindex = 0;
 			// }}}
 		end else begin : MINDEX_MULTIPLE_SLAVES
 			// {{{
+			reg	[LGNS-1:0]	r_mindex;
+
 `define	NEW_MINDEX_CODE
 `ifdef	NEW_MINDEX_CODE
 			// {{{
+			reg	[NS:0]		r_regrant;
+			reg	[LGNS-1:0]	r_reindex;
+
+			// r_regrant
+			// {{{
 			always @(*)
 			begin
-				regrant = 0;
+				r_regrant = 0;
 				for(iM=0; iM<NS; iM=iM+1)
 				begin
 					if (grant[N][iM])
 						// Maintain any open channels
-						regrant[iM] = 1'b1;
+						r_regrant[iM] = 1'b1;
 					else if (!sgrant[iM]&&!requested[N][iM])
-						regrant[iM] = 1'b1;
+						r_regrant[iM] = 1'b1;
 
 					if (!request[N][iM])
-						regrant[iM] = 1'b0;
+						r_regrant[iM] = 1'b0;
 				end
 
 				if (grant[N][NS])
-					regrant[NS] = 1;
+					r_regrant[NS] = 1;
 				if (!request[N][NS])
-					regrant[NS] = 0;
+					r_regrant[NS] = 0;
 
 				if (mgrant[N] && !mempty[N])
-					regrant = 0;
+					r_regrant = 0;
 			end
+			// }}}
 
-			always @(*)
+			// r_reindex
+			// {{{
+			always @(r_regrant, regrant)
 			begin
-				reindex = 0;
+				r_reindex = 0;
 				for(iM=0; iM<=NS; iM=iM+1)
-				if (regrant[iM])
-					reindex = reindex | iM[LGNS-1:0];
+				if (r_regrant[iM])
+					r_reindex = r_reindex | iM[LGNS-1:0];
 				if (regrant == 0)
-					reindex = mindex[N];
+					r_reindex = r_mindex;
 			end
+			// }}}
 
 			always @(posedge i_clk)
-				mindex[N] <= reindex;
+				r_mindex <= reindex;
+
+			assign	reindex = r_reindex;
+			assign	regrant = r_regrant;
 			// }}}
 `else
 			// {{{
@@ -588,27 +590,28 @@ module	wbxbar #(
 					if (request[N][iM] && grant[N][iM])
 					begin
 						// Maintain any open channels
-						mindex[N] <= iM;
+						r_mindex <= iM;
 					end else if (request[N][iM]
 							&& !sgrant[iM]
 							&& !requested[N][iM])
 					begin
 						// Open a new channel
 						// if necessary
-						mindex[N] <= iM;
+						r_mindex <= iM;
 					end
 				end
 			end
+
 			// }}}
 `endif // NEW_MINDEX_CODE
+			assign	mindex[N] = r_mindex;
 			// }}}
 		end
 		// }}}
 	end for (N=NM; N<NMFULL; N=N+1)
 	begin : UNUSED_MINDEXES
 		// {{{
-		always @(*)
-			mindex[N] = 0;
+		assign	mindex[N] = 0;
 		// }}}
 	end endgenerate
 
@@ -624,11 +627,11 @@ module	wbxbar #(
 			// {{{
 			// If there will only ever be one master, then we
 			// can assume all slave indexes point to that master
-			always @(*)
-				sindex[M] = 0;
+			assign	sindex[M] = 0;
 			// }}}
 		end else begin : SINDEX_MORE_THAN_ONE_MASTER
 			// {{{
+			reg	[LGNM-1:0]	r_sindex;
 `define	NEW_SINDEX_CODE
 `ifdef	NEW_SINDEX_CODE
 			// {{{
@@ -668,7 +671,9 @@ module	wbxbar #(
 			end
 
 			always @(posedge i_clk)
-				sindex[M] <= reindex;
+				r_sindex <= reindex;
+
+			assign	sindex[M] = r_sindex;
 			// }}}
 `else
 			// {{{
@@ -678,12 +683,14 @@ module	wbxbar #(
 				if (!mgrant[iN] || mempty[iN])
 				begin
 					if (request[iN][M] && grant[iN][M])
-						sindex[M] <= iN;
+						r_sindex <= iN;
 					else if (request[iN][M] && !sgrant[M]
 							&& !requested[iN][M])
-						sindex[M] <= iN;
+						r_sindex <= iN;
 				end
 			end
+
+			assign	sindex[M] = r_sindex;
 			// }}}
 `endif
 			// }}}
@@ -697,8 +704,7 @@ module	wbxbar #(
 		// Remember, to full out a full 2^something set of slaves,
 		// we may have more slave indexes than we actually have slaves
 
-		always @(*)
-			sindex[M] = 0;
+		assign	sindex[M] = 0;
 		// }}}
 	end endgenerate
 	// }}}
@@ -794,7 +800,7 @@ module	wbxbar #(
 		// Veri1ator.  Hence, we're using r_s* and setting all of o_s*
 		// here.
 		for(M=0; M<NS; M=M+1)
-		begin : ACTUAL_ASSIGNMENTS
+		begin : FOREACH_SLAVE_PORT
 			always @(*)
 			begin
 				o_swe[M]            = r_swe;
@@ -842,7 +848,7 @@ module	wbxbar #(
 		reg	[NM-1:0]	r_mack, r_merr;
 
 		for(N=0; N<NM; N=N+1)
-		begin
+		begin : FOREACH_MASTER_PORT
 			// m_stall isn't buffered, since it depends upon
 			// the already existing buffer within the address
 			// decoder
@@ -901,7 +907,7 @@ module	wbxbar #(
 	begin : SINGLE_SLAVE
 		// {{{
 		for(N=0; N<NM; N=N+1)
-		begin
+		begin : FOREACH_MASTER_PORT
 			always @(*)
 			begin
 				m_stall[N] = !mgrant[N] || s_stall[0]
@@ -939,7 +945,7 @@ module	wbxbar #(
 	end else begin : SINGLE_BUFFER_STALL
 		// {{{
 		for(N=0; N<NM; N=N+1)
-		begin
+		begin : FOREACH_MASTER_PORT
 			// initial	o_mstall[N] = 0;
 			// initial	o_mack[N]   = 0;
 			always @(*)
@@ -1018,12 +1024,13 @@ module	wbxbar #(
 	begin : CHECK_TIMEOUT
 		// {{{
 		for(N=0; N<NM; N=N+1)
-		begin
+		begin : FOREACH_MASTER_PORT
 
 			reg	[TIMEOUT_WIDTH-1:0]	deadlock_timer;
+			reg				r_timed_out;
 
 			initial	deadlock_timer = OPT_TIMEOUT;
-			initial	timed_out[N] = 0;
+			initial	r_timed_out = 0;
 			always @(posedge i_clk)
 			if (i_reset || !i_mcyc[N]
 					||((w_mpending[N] == 0) && !m_stb[N])
@@ -1032,18 +1039,19 @@ module	wbxbar #(
 					||(!OPT_STARVATION_TIMEOUT&&!mgrant[N]))
 			begin
 				deadlock_timer <= OPT_TIMEOUT;
-				timed_out[N] <= 0;
+				r_timed_out <= 0;
 			end else if (deadlock_timer > 0)
 			begin
 				deadlock_timer <= deadlock_timer - 1;
-				timed_out[N] <= (deadlock_timer <= 1);
+				r_timed_out <= (deadlock_timer <= 1);
 			end
+
+			assign	timed_out[N] = r_timed_out;
 		end
 		// }}}
 	end else begin : NO_TIMEOUT
 		// {{{
-		always @(*)
-			timed_out = 0;
+		assign	timed_out = 0;
 		// }}}
 	end endgenerate
 	// }}}
@@ -1199,7 +1207,7 @@ module	wbxbar #(
 
 	// Double check the timeout flags for consistency
 	generate for(N=0; N<NM; N=N+1)
-	begin : CHECK_TIMEOUT
+	begin : F_CHECK_TIMEOUT
 		// {{{
 		always @(*)
 		if (f_past_valid)

@@ -18,7 +18,7 @@
 * Copyright (C) 2017-2021, Gisselquist Technology, LLC
 * {{{
 * This program is free software (firmware): you can redistribute it and/or
-* modify it under the terms of  the GNU General Public License as published
+* modify it under the terms of the GNU General Public License as published
 * by the Free Software Foundation, either version 3 of the License, or (at
 * your option) any later version.
 *
@@ -48,7 +48,9 @@ MEMORY
 	* has a defined name in its @LD.NAME tag, it will be listed here
 	* under that name, otherwise it will be listed under it's
 	* @$(PREFIX) tag with an underscore prepended to it.  The permissions
-	* are given by the @LD.PERM tag.  If no permission tag exists, a
+	* are given by the @LD.PERM tag.  Allowable permissions include
+	* 'r' (read only), 'rx' (read and execute, but no writes),
+	* 'wx' (read, write, and execute).  If no permission tag exists, a
 	* permission of 'r' will be assumed.
 	*/
 	   bkram(wx) : ORIGIN = 0x00c00000, LENGTH = 0x00100000

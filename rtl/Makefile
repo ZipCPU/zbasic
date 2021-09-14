@@ -17,7 +17,7 @@
 ## Copyright (C) 2015-2021, Gisselquist Technology, LLC
 ## {{{
 ## This program is free software (firmware): you can redistribute it and/or
-## modify it under the terms of  the GNU General Public License as published
+## modify it under the terms of the GNU General Public License as published
 ## by the Free Software Foundation, either version 3 of the License, or (at
 ## your option) any later version.
 ##
@@ -104,7 +104,7 @@ design.h: main.v
 	@echo "#endif // DESIGN_H" >> $@
 
 $(VOBJ)/V%__ALL.a: $(VOBJ)/V%.mk
-	$(SUBMAKE) V$*.mk
+	+$(SUBMAKE) V$*.mk
 
 .PHONY:
 archive:

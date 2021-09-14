@@ -17,7 +17,7 @@
 // Copyright (C) 2016-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -43,29 +43,39 @@ module	sdspi #(
 		// {{{
 		parameter [0:0]	OPT_CARD_DETECT = 1'b1,
 		//
+		// LGFIFOLN
+		// {{{
 		// LGFIFOLN defines the size of the internal memory in words.
 		// An LGFIFOLN of 7 is appropriate for a 2^(7+2)=512 byte FIFO
 		parameter			LGFIFOLN = 7,
+		// }}}
 		parameter			POWERUP_IDLE = 1000,
-		//
+		// STARTUP_CLOCKS
+		// {{{
 		// Many SD-Cards require a minimum number of SPI clocks to get
 		// them started.  STARTUP_CLOCKS defines this number.  Set this
 		// to zero if you don't want to use this initialization
 		// sequence.
 		parameter			STARTUP_CLOCKS = 75,
-		//
+		// }}}
+		// CKDIV_BITS
+		// {{{
 		// For my first design, using an 80MHz clock, 7 bits to the
 		// clock divider was plenty.  Now that I'm starting to use
 		// faster and faster designs, it becomes important to
 		// parameterize the number of bits in the clock divider.  More
 		// than 8, however, and the interface will need to change.
 		parameter			CKDIV_BITS = 8,
-		//
+		// }}}
+		// INITIAL_CLKDIV
+		// {{{
 		// The SPI frequency is given by the system clock frequency
 		// divided by a (clock_divider + 1).  INITIAL_CLKDIV provides
 		// an initial value for this clock divider.
 		parameter [CKDIV_BITS-1:0]	INITIAL_CLKDIV = 8'h7c,
-		//
+		// }}}
+		// OPT_SPI_ARBITRATION
+		// {{{
 		// When I originally built this SDSPI controller, it was for an
 		// environment where the SPI was shared.  Doing this requires
 		// feedback from an arbiter, to know when one SPI device has
@@ -74,6 +84,7 @@ module	sdspi #(
 		// constant 1'b1 and set OPT_SPI_ARBITRATION to 1'b0 to remove
 		// this extra logic.
 		parameter [0:0]			OPT_SPI_ARBITRATION = 1'b0,
+		// }}}
 		//
 		//
 		parameter [0:0]		OPT_EXTRA_WB_CLOCK = 1'b0,
@@ -105,11 +116,12 @@ module	sdspi #(
 		// .. and whether or not we can use the SPI port
 		input	wire		i_bus_grant,
 		// And some wires for debugging it all
+		//
 		output	reg [DW-1:0]	o_debug
 		// }}}
 	);
 
-	// Local declarations
+	// Signal / parameter declarations
 	// {{{
 	localparam [1:0]	SDSPI_CMD_ADDRESS = 2'b00,
 				SDSPI_DAT_ADDRESS = 2'b01,
@@ -117,7 +129,6 @@ module	sdspi #(
 				SDSPI_FIFO_B_ADDR = 2'b11;
 
 	localparam	BLKBASE = 16;
-	reg			dbg_trigger;
 
 	//
 	// Command register bit definitions
@@ -128,7 +139,12 @@ module	sdspi #(
 			FIFO_ID_BIT	= 12,
 			USE_FIFO_BIT	= 11,
 			FIFO_WRITE_BIT	= 10;
+	//
+	// Some WB simplifications:
+	//
 	reg		r_cmd_busy;
+
+	reg			dbg_trigger;
 
 	wire		wb_stb, write_stb, wb_cmd_stb, new_data;
 	wire	[AW-1:0]	wb_addr;
@@ -177,6 +193,7 @@ module	sdspi #(
 	wire	[7:0]	cmd_out_byte;
 	wire		cmd_sent, cmd_valid, cmd_busy;
 	wire	[39:0]	cmd_response;
+
 	reg		rx_start;
 	wire		spi_write_to_fifo;
 	wire		rx_valid, rx_busy;
@@ -190,13 +207,11 @@ module	sdspi #(
 	wire	[7:0]	tx_response;
 
 	reg	last_busy;
+
+
 	// }}}
 
-	//
-	// Some WB simplifications:
-	//
-
-	// Poss. delay the WB interaction
+	// Take an extra wishbone clock?
 	// {{{
 	generate if (!OPT_EXTRA_WB_CLOCK)
 	begin : EXTRA_WB_PASSTHROUGH
@@ -249,11 +264,16 @@ module	sdspi #(
 		// }}}
 	end endgenerate
 	// }}}
-
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Lower-level SDSPI driver
+	// {{{
+	////////////////////////////////////////////////////////////////////////
 	//
 	// Access to our lower-level SDSPI driver, the one that actually
 	// uses/sets the SPI ports
 	//
+
 	llsdspi #(
 		// {{{
 		.SPDBITS(CKDIV_BITS),
@@ -269,6 +289,14 @@ module	sdspi #(
 		i_bus_grant
 		// }}}
 	);
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Command controller
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	assign	w_reset = i_sd_reset || r_watchdog_err;
 
@@ -283,6 +311,14 @@ module	sdspi #(
 		cmd_valid, cmd_response
 		// }}}
 	);
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Receive data (not commands)
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	spirxdata
 	spirxdatai(
@@ -294,6 +330,14 @@ module	sdspi #(
 		rx_valid, rx_response
 		// }}}
 	);
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Transmit/send data (not commands) to the SD card
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	spitxdata #(.RDDELAY(2))
 	spitxdatai(
@@ -306,10 +350,17 @@ module	sdspi #(
 		tx_valid, tx_response
 		// }}}
 	);
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Internal FIFO memory
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	//
 	// Let's work with our FIFO memory here ...
-	//
 	//
 	always @(posedge i_clk)
 	begin
@@ -580,7 +631,6 @@ module	sdspi #(
 			r_sdspi_clk <= INITIAL_CLKDIV;
 	end
 	// }}}
-
 	////////////////////////////////////////////////////////////////////////
 	//
 	// Wishbone return logic
@@ -648,6 +698,8 @@ module	sdspi #(
 	// {{{
 	////////////////////////////////////////////////////////////////////////
 	//
+	//
+
 	// Depends upon the i_card_detect signal.  Set this signal to 1'b1 if
 	// you your device doesn't have it.
 	//
@@ -748,5 +800,16 @@ module	sdspi #(
 			spi_read_from_fifo };
 	// verilator lint_on  UNUSED
 	// }}}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//
+// Formal verification properties
+// {{{
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+`ifdef	FORMAL
+`endif
+// }}}
 endmodule
-

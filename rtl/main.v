@@ -19,7 +19,7 @@
 // Copyright (C) 2017-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -479,7 +479,7 @@ module	main(i_clk, i_reset,
 	// {{{
 	//
 	// BUS-LOGIC for wb
-	//
+	// {{{
 	//
 	// wb Bus logic to handle SINGLE slaves
 	//
@@ -727,9 +727,11 @@ module	main(i_clk, i_reset,
 		})
 		);
 
+	// End of bus logic for wb
+	// }}}
 	//
 	// BUS-LOGIC for wbu
-	//
+	// {{{
 	//
 	// No class SINGLE peripherals on the "wbu" bus
 	//
@@ -836,6 +838,8 @@ module	main(i_clk, i_reset,
 		})
 		);
 
+	// End of bus logic for wbu
+	// }}}
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -927,10 +931,10 @@ module	main(i_clk, i_reset,
 	//
 `ifdef	INCLUDE_ZIPCPU
 	// {{{
-	//
+	////////////////////////////////////////////////////////////////////////
 	//
 	// The ZipCPU/ZipSystem BUS master
-	//
+	// {{{
 	//
 	assign	zip_int_vector = { alt_int_vector[14:8], sys_int_vector[14:6] };
 	zipsystem #(

@@ -18,7 +18,7 @@
 // Copyright (C) 2017-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -76,6 +76,7 @@ public:
 	//
 
 	TESTB(void) {
+		// {{{
 		m_core = new VA;
 		m_time_ps  = 0ul;
 		m_trace    = NULL;
@@ -83,14 +84,19 @@ public:
 		m_paused_trace = false;
 		Verilated::traceEverOn(true);
 	}
+	// }}}
+
 	virtual ~TESTB(void) {
+		// {{{
 		if (m_trace) m_trace->close();
 		delete m_core;
 		m_core = NULL;
 	}
+	// }}}
 
 	//
 	// opentrace()
+	// {{{
 	//
 	// Useful for beginning a (VCD) trace.  To open such a trace, just call
 	// opentrace() with the name of the VCD file you'd like to trace
@@ -105,19 +111,21 @@ public:
 			m_paused_trace = false;
 		}
 	}
+	// }}}
 
 	//
 	// trace()
-	//
+	// {{{
 	// A synonym for opentrace() above.
 	//
 	void	trace(const char *vcdname) {
 		opentrace(vcdname);
 	}
+	// }}}
 
 	//
 	// pausetrace(pause)
-	//
+	// {{{
 	// Set/clear a flag telling us whether or not to write to the VCD trace
 	// file.  The default is to write to the file, but this can be changed
 	// by calling pausetrace.  pausetrace(false) will resume tracing,
@@ -128,20 +136,22 @@ public:
 		m_paused_trace = pausetrace;
 		return m_paused_trace;
 	}
+	// }}}
 
 	//
 	// pausetrace()
-	//
+	// {{{
 	// Like pausetrace(bool) above, except that pausetrace() will return
 	// the current status of the pausetrace flag above.  Specifically, it
 	// will return true if the trace has been paused or false otherwise.
 	virtual	bool	pausetrace(void) {
 		return m_paused_trace;
 	}
+	// }}}
 
 	//
 	// closetrace()
-	//
+	// {{{
 	// Closes the open trace file.  No more information will be written
 	// to it
 	virtual	void	closetrace(void) {
@@ -151,10 +161,11 @@ public:
 			m_trace = NULL;
 		}
 	}
+	// }}}
 
 	//
 	// eval()
-	//
+	// {{{
 	// This is a synonym for Verilator's eval() function.  It evaluates all
 	// of the logic within the design.  AutoFPGA based designs shouldn't
 	// need to be calling this, they should call tick() instead.  However,
@@ -164,10 +175,11 @@ public:
 	virtual	void	eval(void) {
 		m_core->eval();
 	}
+	// }}}
 
 	//
 	// tick()
-	//
+	// {{{
 	// tick() is the main entry point into this helper core.  In general,
 	// tick() will advance the clock by one clock tick.  In a multiple clock
 	// design, this will advance the clocks up until the nearest clock
@@ -203,15 +215,19 @@ public:
 		// to advance their inputs based upon this clock
 		sim_clk_tick();
 	}
+	// }}}
 
 	virtual	void	sim_clk_tick(void) {
+		// {{{
 		// AutoFPGA will override this method within main_tb.cpp if any
 		// @SIM.TICK key is present within a design component also
 		// containing a @SIM.CLOCK key identifying this clock.  That
 		// component must also set m_changed to true.
 		m_changed = false;
 	}
+	// }}}
 	virtual bool	done(void) {
+		// {{{
 		if (m_done)
 			return true;
 
@@ -220,10 +236,11 @@ public:
 
 		return m_done;
 	}
+	// }}}
 
 	//
 	// reset()
-	//
+	// {{{
 	// Sets the i_reset input for one clock tick.  It's really just a
 	// function for the capabilies shown below.  You'll want to reset any
 	// external input values before calling this though.
@@ -233,6 +250,7 @@ public:
 		m_core->i_reset = 0;
 		// printf("RESET\n");
 	}
+	// }}}
 };
 
 #endif	// TESTB

@@ -18,7 +18,7 @@
 // Copyright (C) 2017-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -161,7 +161,6 @@
 #define	CPU_uPC		0x001f
 
 #define	RESET_ADDRESS	0x01400000
-
 
 // Flash control constants
 #define	QSPI_FLASH	// This core and hardware support a Quad SPI flash

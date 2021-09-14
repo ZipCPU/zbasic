@@ -17,7 +17,7 @@
 // Copyright (C) 2015-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -87,7 +87,7 @@ int	main(int argc, char **argv) {
 #endif
 			*profile_file = NULL,
 			*trace_file = NULL; // "trace.vcd";
-	bool	debug_flag = false, willexit = false;
+	bool	debug_flag = false, willexit = false, verbose_flag = false;
 	FILE	*profile_fp;
 
 	MAINTB	*tb = new MAINTB;
@@ -109,6 +109,7 @@ int	main(int argc, char **argv) {
 			case 'f': profile_file = "pfile.bin"; break;
 			case 't': trace_file = argv[++argn]; j=1000; break;
 			case 'h': usage(); exit(0); break;
+			case 'v': verbose_flag = true; break;
 			default:
 				fprintf(stderr, "ERR: Unexpected flag, -%c\n\n",
 					argv[argn][j]);
@@ -133,7 +134,7 @@ int	main(int argc, char **argv) {
 	// {{{
 	if (elfload)
 		willexit = true;
-	if (debug_flag) {
+	if (debug_flag && verbose_flag) {
 		printf("Opening design with\n");
 		printf("\tDebug Access port = %d\n", FPGAPORT); // fpga_port);
 		printf("\tSerial Console    = %d\n", FPGAPORT+1);
@@ -178,7 +179,8 @@ int	main(int argc, char **argv) {
 		elfread(elfload, entry, secpp);
 		free(secpp);
 
-		printf("Attempting to start from 0x%08x\n", entry);
+		if (verbose_flag)
+			printf("Attempting to start ZipCPU from 0x%08x\n", entry);
 		tb->m_core->cpu_ipc = entry;
 
 		tb->m_core->cpu_cmd_halt = 0;

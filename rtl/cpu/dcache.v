@@ -51,7 +51,7 @@
 // Copyright (C) 2016-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -209,7 +209,7 @@ module	dcache #(
 
 	// Cachability checking
 	// {{{
-	iscachable chkaddress(i_addr[AW+1:2], raw_cachable_address);
+	iscachable chkaddress(i_addr[AW+1:0], raw_cachable_address);
 	// }}}
 
 	// r_* values

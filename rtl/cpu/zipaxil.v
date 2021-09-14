@@ -14,26 +14,9 @@
 //	registers.) Please see the accompanying spec.pdf file for a description
 //	of these instructions.
 //
-//	All instructions are 32-bits wide.  All bus accesses, both address and
-//	data, are 32-bits over a wishbone bus.
-//
-//	The Zip CPU is fully pipelined with the following pipeline stages:
-//
-//		1. Prefetch, returns the instruction from memory.
-//
-//		2. Instruction Decode
-//
-//		3. Read Operands
-//
-//		4. Apply Instruction
-//
-//		4. Write-back Results
-//
-//	Further information about the inner workings of this CPU, such as
-//	what causes pipeline stalls, may be found in the spec.pdf file.  (The
-//	documentation within this file had become out of date and out of sync
-//	with the spec.pdf, so look to the spec.pdf for accurate and up to date
-//	information.)
+//	This version is bus width agnostic for both instruction and data buses,
+//	although the debug bus must still be 32-bits.  Instruction and data
+//	buses must be at least 32-bits wide.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
@@ -43,7 +26,7 @@
 // Copyright (C) 2015-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -72,13 +55,11 @@
 module	zipaxil #(
 		// {{{
 		parameter	C_DBG_ADDR_WIDTH = 8,
-		localparam	C_DBG_DATA_WIDTH = 32,
-		localparam	DBGLSB = $clog2(C_DBG_DATA_WIDTH/8),
 		parameter	C_AXI_ADDR_WIDTH = 32,
 		parameter	C_AXI_DATA_WIDTH = 32,
-		localparam	ADDRESS_WIDTH = C_AXI_ADDR_WIDTH,
 		parameter [C_AXI_ADDR_WIDTH-1:0] RESET_ADDRESS=32'h010_0000,
 		parameter [0:0]	START_HALTED = 1'b0,
+		parameter [0:0]	SWAP_WSTRB = 1'b1,
 `ifdef	OPT_MULTIPLY
 		parameter	IMPLEMENT_MPY = `OPT_MULTIPLY,
 `else
@@ -104,25 +85,23 @@ module	zipaxil #(
 `else
 		parameter [0:0]	OPT_CIS = 1'b0,
 `endif
-		// localparam	[0:0]	OPT_NO_USERMODE = 1'b0,
 `ifdef	OPT_PIPELINED
 		parameter	[0:0]	OPT_PIPELINED = 1'b1,
 `else
 		parameter	[0:0]	OPT_PIPELINED = 1'b0,
 `endif
-`ifdef	OPT_PIPELINED_BUS_ACCESS
-		localparam	[0:0]	OPT_PIPELINED_BUS_ACCESS = (OPT_PIPELINED),
-`else
-		localparam	[0:0]	OPT_PIPELINED_BUS_ACCESS = 1'b0,
-`endif
-		// localparam	[0:0]	OPT_MEMPIPE = OPT_PIPELINED_BUS_ACCESS,
-		localparam	[0:0]	IMPLEMENT_LOCK=0,
-		// localparam	[0:0]	OPT_LOCK=(IMPLEMENT_LOCK)&&(OPT_PIPELINED),
-		// localparam		OPT_LGDCACHE = 0,
-		// localparam	[0:0]	OPT_DCACHE = (OPT_LGDCACHE > 0),
 		parameter	RESET_DURATION = 10,
 		// localparam [0:0]	WITH_LOCAL_BUS = 1'b0,
-		localparam	AW=ADDRESS_WIDTH-2
+`ifdef	VERILATOR
+		parameter	[0:0]	OPT_SIM = 1'b1,
+`else
+		parameter	[0:0]	OPT_SIM = 1'b0,
+`endif
+`ifdef	VERILATOR
+		localparam	[0:0]	OPT_GATE_CLOCK = 1'b0
+`else
+		localparam	[0:0]	OPT_GATE_CLOCK = 1'b0
+`endif
 `ifdef	FORMAL
 		, parameter	F_LGDEPTH=8
 `endif
@@ -130,7 +109,7 @@ module	zipaxil #(
 	) (
 		// {{{
 		input	wire		S_AXI_ACLK, S_AXI_ARESETN,
-					i_interrupt,
+					i_interrupt, i_cpu_reset,
 		// Debug interface
 		// {{{
 		// Debug interface -- inputs
@@ -222,6 +201,9 @@ module	zipaxil #(
 		input	wire	[1:0]			M_DATA_RRESP,
 		// }}}
 		// Accounting outputs ... to help us count stalls and usage
+		output	wire		o_cmd_reset,
+		output	wire		o_halted,
+		output	wire		o_gie,
 		output	wire		o_op_stall,
 		output	wire		o_pf_stall,
 		output	wire		o_i_count
@@ -234,6 +216,20 @@ module	zipaxil #(
 
 	// Declarations
 	// {{{
+	// localparam	[0:0]	OPT_NO_USERMODE = 1'b0;
+	localparam	[0:0]	IMPLEMENT_LOCK=0;
+	localparam	C_DBG_DATA_WIDTH = 32;
+	localparam	DBGLSB = $clog2(C_DBG_DATA_WIDTH/8);
+	localparam	ADDRESS_WIDTH = C_AXI_ADDR_WIDTH;
+	localparam	AW=ADDRESS_WIDTH-2;
+`ifdef	OPT_PIPELINED_BUS_ACCESS
+	localparam	[0:0]	OPT_PIPELINED_BUS_ACCESS = (OPT_PIPELINED);
+`else
+	localparam	[0:0]	OPT_PIPELINED_BUS_ACCESS = 1'b0;
+`endif
+	localparam		OPT_LGDCACHE = (OPT_PIPELINED_BUS_ACCESS)? 1:0;
+	localparam	[0:0]	OPT_DCACHE = (OPT_LGDCACHE > 0);
+
 	localparam FETCH_LIMIT = 4;
 	wire	[31:0]	cpu_debug;
 
@@ -242,6 +238,7 @@ module	zipaxil #(
 			HALT_BIT = 10,
 			CLEAR_CACHE_BIT = 11;
 	localparam [0:0]	OPT_LOWPOWER = 1'b1;
+	localparam [0:0]	OPT_ALIGNMENT_ERR = 1'b0;
 	localparam [0:0]	SWAP_ENDIANNESS = 1'b0;
 
 	// AXI-lite signal handling
@@ -256,12 +253,12 @@ module	zipaxil #(
 	wire	[4:0]	dbg_read_reg;
 	reg	[31:0]	dbg_write_data;
 	wire	[31:0]	dbg_read_data;
-	wire		cpu_dbg_stall, cpu_break;
+	wire		cpu_dbg_stall, cpu_break, dbg_write_stall;
 	wire	[2:0]	cpu_dbg_cc;
 	// }}}
 
 	reg	reset_hold;
-	wire	cpu_clken;
+	wire	cpu_clken, cpu_clock, clk_gate;
 
 	// CPU control registers
 	// {{{
@@ -283,7 +280,7 @@ module	zipaxil #(
 	wire		clear_dcache, mem_ce, bus_lock;
 	wire	[2:0]	mem_op;
 	wire	[31:0]	mem_cpu_addr;
-	wire [AW+1:0]	mem_lock_pc;
+	wire	[AW+1:0]	mem_lock_pc;
 	wire	[31:0]	mem_wdata;
 	wire	[4:0]	mem_reg;
 	wire		mem_busy, mem_rdbusy, mem_pipe_stalled, mem_valid,
@@ -338,8 +335,8 @@ module	zipaxil #(
 	);
 
 	assign	dbg_write_ready = awskd_valid && wskd_valid
-			&& ((wskd_strb==0) || awskd_addr[5] || !cpu_dbg_stall
-				|| !dbg_write_valid)
+			&& ((wskd_strb==0) || awskd_addr[5]
+			   || !dbg_write_stall)
 			&& (!S_DBG_BVALID || S_DBG_BREADY);
 
 	// dbg_write_valid
@@ -348,7 +345,7 @@ module	zipaxil #(
 	always @(posedge S_AXI_ACLK)
 	if (!S_AXI_ARESETN)
 		dbg_write_valid <= 1'b0;
-	else if (!dbg_write_valid || !cpu_dbg_stall)
+	else if (!dbg_write_stall)
 	begin
 		dbg_write_valid <= dbg_write_ready && (|wskd_strb) && !awskd_addr[5];
 	end
@@ -357,10 +354,11 @@ module	zipaxil #(
 	// dbg_write_reg
 	// {{{
 	always @(posedge S_AXI_ACLK)
-	if (!dbg_write_valid || !cpu_dbg_stall)
+	if (!dbg_write_stall)
 	begin
 		dbg_write_reg <= awskd_addr[4:0];
-		if (OPT_LOWPOWER && !dbg_write_valid)
+		if (OPT_LOWPOWER && (!dbg_write_ready || wskd_strb == 0
+					|| awskd_addr[5]))
 			dbg_write_reg <= 0;
 	end
 	// }}}
@@ -368,7 +366,7 @@ module	zipaxil #(
 	// dbg_write_data
 	// {{{
 	always @(posedge S_AXI_ACLK)
-	if (!dbg_write_valid || !cpu_dbg_stall)
+	if (!dbg_write_stall)
 	begin
 		dbg_write_data <= wskd_data;
 		if (OPT_LOWPOWER && !dbg_write_ready)
@@ -486,14 +484,14 @@ module	zipaxil #(
 
 		initial	reset_counter = RESET_DURATION;
 		always @(posedge S_AXI_ACLK)
-		if (!S_AXI_ARESETN)
+		if (!S_AXI_ARESETN || i_cpu_reset)
 			reset_counter <= RESET_DURATION;
 		else if (reset_counter > 0)
 			reset_counter <= reset_counter - 1;
 
 		initial	reset_hold = 1;
 		always @(posedge S_AXI_ACLK)
-		if (!S_AXI_ARESETN)
+		if (!S_AXI_ARESETN || i_cpu_reset)
 			reset_hold <= 1;
 		else
 			reset_hold <= (reset_counter > 1);
@@ -513,7 +511,7 @@ module	zipaxil #(
 	// {{{
 	initial	cmd_reset = 1'b1;
 	always @(posedge S_AXI_ACLK)
-	if (!S_AXI_ARESETN)
+	if (!S_AXI_ARESETN || i_cpu_reset)
 		cmd_reset <= 1'b1;
 	else if (reset_hold)
 		cmd_reset <= 1'b1;
@@ -529,6 +527,8 @@ module	zipaxil #(
 	// {{{
 	always @(posedge S_AXI_ACLK)
 	if (!S_AXI_ARESETN)
+		cmd_halt <= START_HALTED;
+	else if (i_cpu_reset && !dbg_write_ready && !dbg_write_stall)
 		cmd_halt <= START_HALTED;
 	else if (cmd_reset && START_HALTED)
 		cmd_halt <= START_HALTED;
@@ -591,7 +591,7 @@ module	zipaxil #(
 	// {{{
 	initial	cmd_step = 1'b0;
 	always @(posedge S_AXI_ACLK)
-	if (!S_AXI_ARESETN)
+	if (!S_AXI_ARESETN || i_cpu_reset)
 		cmd_step <= 1'b0;
 	else if (dbg_cmd_write && wskd_data[STEP_BIT] && wskd_strb[1])
 		cmd_step <= 1'b1;
@@ -647,7 +647,7 @@ module	zipaxil #(
 		// {{{
 		.i_clk(S_AXI_ACLK),
 		.i_reset(!S_AXI_ARESETN),
-		.i_cpu_reset(cmd_reset),
+		.i_cpu_reset(cmd_reset || i_cpu_reset),
 		.i_halt(cmd_halt),
 		.i_halted(f_cpu_halted),
 		.i_clear_cache(cmd_clear_cache),
@@ -669,23 +669,24 @@ module	zipaxil #(
 		.IMPLEMENT_DIVIDE(IMPLEMENT_DIVIDE),
 		.IMPLEMENT_FPU(IMPLEMENT_FPU),
 		.OPT_EARLY_BRANCHING(EARLY_BRANCHING),
+		.OPT_SIM(OPT_SIM),
 		.OPT_CIS(OPT_CIS),
 		// .OPT_NO_USERMODE(OPT_NO_USERMODE),
 		.OPT_PIPELINED(OPT_PIPELINED),
 		.OPT_PIPELINED_BUS_ACCESS(OPT_PIPELINED_BUS_ACCESS),
 		// localparam	[0:0]	OPT_MEMPIPE = OPT_PIPELINED_BUS_ACCESS;
 		.IMPLEMENT_LOCK(IMPLEMENT_LOCK),
-		.OPT_DCACHE(1'b0),
+		.OPT_DCACHE(OPT_DCACHE),
 		// localparam	[0:0]	OPT_LOCK=(IMPLEMENT_LOCK)&&(OPT_PIPELINED);
 		// parameter [0:0]	WITH_LOCAL_BUS = 1'b1;
-		.OPT_GATE_CLOCK(1'b0)
+		.OPT_GATE_CLOCK(OPT_GATE_CLOCK)
 `ifdef	FORMAL
 		, .F_LGDEPTH(F_LGDEPTH)
 `endif
 		// }}}
 	) core (
 		// {{{
-		.i_clk(S_AXI_ACLK), .i_reset(cmd_reset),
+		.i_clk(cpu_clock), .i_reset(cmd_reset),
 			.i_interrupt(i_interrupt),
 		.o_clken(cpu_clken),
 		// Debug interface
@@ -727,6 +728,10 @@ module	zipaxil #(
 		// }}}
 	);
 `endif
+	assign	o_cmd_reset	= cmd_reset;
+	assign	o_gie		= cpu_dbg_cc[1];
+	assign	o_halted	= !cpu_dbg_stall;
+	assign	dbg_write_stall	= dbg_write_valid&&(cpu_dbg_stall || !clk_gate);
 	// }}}
 	// o_debug -- the debugging bus input
 	// {{{
@@ -736,6 +741,7 @@ module	zipaxil #(
 	// Verilator lint_off UNUSED
 	wire	dbg_unused;
 	assign	dbg_unused = &{ 1'b0, cpu_debug };
+	// Verilator lint_on  UNUSED
 `endif
 	// }}}
 	////////////////////////////////////////////////////////////////////////
@@ -814,7 +820,9 @@ module	zipaxil #(
 		axilpipe #(
 			// {{{
 			.C_AXI_ADDR_WIDTH(C_AXI_ADDR_WIDTH),
-			.C_AXI_DATA_WIDTH(C_AXI_DATA_WIDTH) //,
+			.C_AXI_DATA_WIDTH(C_AXI_DATA_WIDTH),
+			.OPT_ALIGNMENT_ERR(OPT_ALIGNMENT_ERR),
+			.SWAP_WSTRB(SWAP_WSTRB) //,
 			// .OPT_SIGN_EXTEND(OPT_SIGN_EXTEND)
 			// }}}
 		) domem(
@@ -842,8 +850,8 @@ module	zipaxil #(
 			// {{{
 			.M_AXI_AWVALID(M_DATA_AWVALID),
 			.M_AXI_AWREADY(M_DATA_AWREADY),
-			.M_AXI_AWADDR(M_DATA_AWADDR),
-			.M_AXI_AWPROT(M_DATA_AWPROT),
+			.M_AXI_AWADDR( M_DATA_AWADDR),
+			.M_AXI_AWPROT( M_DATA_AWPROT),
 			//
 			.M_AXI_WVALID(M_DATA_WVALID),
 			.M_AXI_WREADY(M_DATA_WREADY),
@@ -852,19 +860,19 @@ module	zipaxil #(
 			//
 			.M_AXI_BVALID(M_DATA_BVALID),
 			.M_AXI_BREADY(M_DATA_BREADY),
-			.M_AXI_BRESP(M_DATA_BRESP),
+			.M_AXI_BRESP( M_DATA_BRESP),
 			// }}}
 			// Read interface
 			// {{{
 			.M_AXI_ARVALID(M_DATA_ARVALID),
 			.M_AXI_ARREADY(M_DATA_ARREADY),
-			.M_AXI_ARADDR(M_DATA_ARADDR),
-			.M_AXI_ARPROT(M_DATA_ARPROT),
+			.M_AXI_ARADDR( M_DATA_ARADDR),
+			.M_AXI_ARPROT( M_DATA_ARPROT),
 			//
 			.M_AXI_RVALID(M_DATA_RVALID),
 			.M_AXI_RREADY(M_DATA_RREADY),
-			.M_AXI_RDATA(M_DATA_RDATA),
-			.M_AXI_RRESP(M_DATA_RRESP)
+			.M_AXI_RDATA( M_DATA_RDATA),
+			.M_AXI_RRESP( M_DATA_RRESP)
 			// }}}
 			// }}}
 		);
@@ -876,8 +884,8 @@ module	zipaxil #(
 			.C_AXI_ADDR_WIDTH(C_AXI_ADDR_WIDTH),
 			.C_AXI_DATA_WIDTH(C_AXI_DATA_WIDTH),
 			.SWAP_ENDIANNESS(SWAP_ENDIANNESS),
-			.SWAP_WSTRB(1'b0),
-			.OPT_ALIGNMENT_ERR(1'b0),
+			.SWAP_WSTRB(SWAP_WSTRB),
+			.OPT_ALIGNMENT_ERR(OPT_ALIGNMENT_ERR),
 			.OPT_LOWPOWER(OPT_LOWPOWER)
 			// }}}
 		) domem(
@@ -904,8 +912,8 @@ module	zipaxil #(
 			// {{{
 			.M_AXI_AWVALID(M_DATA_AWVALID),
 			.M_AXI_AWREADY(M_DATA_AWREADY),
-			.M_AXI_AWADDR(M_DATA_AWADDR),
-			.M_AXI_AWPROT(M_DATA_AWPROT),
+			.M_AXI_AWADDR( M_DATA_AWADDR),
+			.M_AXI_AWPROT( M_DATA_AWPROT),
 			//
 			.M_AXI_WVALID(M_DATA_WVALID),
 			.M_AXI_WREADY(M_DATA_WREADY),
@@ -914,19 +922,19 @@ module	zipaxil #(
 			//
 			.M_AXI_BVALID(M_DATA_BVALID),
 			.M_AXI_BREADY(M_DATA_BREADY),
-			.M_AXI_BRESP(M_DATA_BRESP),
+			.M_AXI_BRESP( M_DATA_BRESP),
 			// }}}
 			// Read interface
 			// {{{
 			.M_AXI_ARVALID(M_DATA_ARVALID),
 			.M_AXI_ARREADY(M_DATA_ARREADY),
-			.M_AXI_ARADDR(M_DATA_ARADDR),
-			.M_AXI_ARPROT(M_DATA_ARPROT),
+			.M_AXI_ARADDR( M_DATA_ARADDR),
+			.M_AXI_ARPROT( M_DATA_ARPROT),
 			//
 			.M_AXI_RVALID(M_DATA_RVALID),
 			.M_AXI_RREADY(M_DATA_RREADY),
-			.M_AXI_RDATA(M_DATA_RDATA),
-			.M_AXI_RRESP(M_DATA_RRESP)
+			.M_AXI_RDATA( M_DATA_RDATA),
+			.M_AXI_RRESP( M_DATA_RRESP)
 			// }}}
 			// }}}
 		);
@@ -935,16 +943,54 @@ module	zipaxil #(
 	end endgenerate
 `endif
 	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// (Optional) Clock gate
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
+
+	generate if (OPT_GATE_CLOCK)
+	begin : GATE_CPU_CLOCK
+
+		reg	gatep, gaten;
+
+		always @(posedge S_AXI_ACLK)
+		if (!S_AXI_ARESETN)
+			gatep <= 1'b1;
+		else
+			gatep <= cpu_clken;
+
+		always @(negedge S_AXI_ACLK)
+		if (!S_AXI_ARESETN)
+			gaten <= 1'b1;
+		else
+			gaten <= gatep;
+
+		assign	cpu_clock = S_AXI_ACLK && gaten;
+		assign	clk_gate = gaten;
+
+	end else begin : NO_CLOCK_GATE
+
+		assign	cpu_clock = S_AXI_ACLK;
+		assign	clk_gate = 1'b1;
+
+	end endgenerate
+	// }}}
+
 	// Make Verilator happy
 	// {{{
 	// Verilator lint_off UNUSED
 	wire	unused;
-	assign	unused = &{ 1'b0, cpu_clken, S_DBG_AWADDR[DBGLSB-1:0],
+	assign	unused = &{ 1'b0, cpu_clken,
+			S_DBG_AWADDR[DBGLSB-1:0],
 			mem_lock_pc, clear_dcache,
 			S_DBG_ARADDR[DBGLSB-1:0],
 			S_DBG_ARPROT, S_DBG_AWPROT,
 			M_INSN_AWREADY, M_INSN_WREADY,
-			M_INSN_BVALID, M_INSN_BRESP };
+			M_INSN_BVALID, M_INSN_BRESP
+		};
 	// Verilator lint_on  UNUSED
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////

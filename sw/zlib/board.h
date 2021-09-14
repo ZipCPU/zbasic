@@ -18,7 +18,7 @@
 // Copyright (C) 2017-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -108,6 +108,7 @@ typedef struct  CONSOLE_S {
 } CONSOLE;
 
 #define	_uart_txbusy	((_uart->u_fifo & 0x10000)==0)
+#define	_uart_txidle	((_uart->u_tx   & 0x100)  ==0)
 
 
 #define BUSPIC(X) (1<<X)

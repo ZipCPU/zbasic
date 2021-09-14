@@ -15,7 +15,7 @@
 // Copyright (C) 2015-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -68,6 +68,7 @@
 #define	SETUREG(A,ID)	asm("MOV %0," ID : : "r"(A))
 #define	NSTR(A)		asm("NSTR \"" A "\\n\"")
 #define	NVAL(V)		do { unsigned tmp = (unsigned)(V); asm volatile("NDUMP %0":"=r"(tmp):"0"(tmp)); } while(0)
+#define	NEXIT(V)	do { unsigned tmp = (unsigned)(V); asm volatile("NEXIT %0":"=r"(tmp)); } while(0)
 extern void	zip_rtu(void);
 extern void	zip_halt(void);
 extern void	zip_idle(void);

@@ -76,7 +76,7 @@
 // Copyright (C) 2015-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -144,7 +144,11 @@ module	zipwb #(
 `else
 		parameter		OPT_LGDCACHE = 0,
 `endif
-
+`ifdef	VERILATOR
+		parameter [0:0]		OPT_SIM = 1'b1,
+`else
+		parameter [0:0]		OPT_SIM = 1'b0,
+`endif
 		parameter [0:0]	WITH_LOCAL_BUS = 1'b1,
 		localparam	AW=ADDRESS_WIDTH
 `ifdef	FORMAL
@@ -263,9 +267,10 @@ module	zipwb #(
 		.IMPLEMENT_FPU(IMPLEMENT_FPU),
 		.OPT_EARLY_BRANCHING(EARLY_BRANCHING),
 		.OPT_CIS(OPT_CIS),
-		.OPT_NO_USERMODE(OPT_NO_USERMODE),
+		.OPT_SIM(OPT_SIM),
 		.OPT_PIPELINED(OPT_PIPELINED),
 		.OPT_PIPELINED_BUS_ACCESS(OPT_MEMPIPE),
+		.OPT_NO_USERMODE(OPT_NO_USERMODE),
 		.IMPLEMENT_LOCK(IMPLEMENT_LOCK)
 		// localparam	[0:0]	OPT_LOCK=(IMPLEMENT_LOCK)&&(OPT_PIPELINED);
 		// parameter [0:0]	WITH_LOCAL_BUS = 1'b1;

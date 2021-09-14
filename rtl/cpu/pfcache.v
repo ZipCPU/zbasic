@@ -38,7 +38,7 @@
 // Copyright (C) 2015-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -70,7 +70,7 @@ module	pfcache #(
 		parameter	LGCACHELEN = 12, ADDRESS_WIDTH=30,
 				LGLINES=6, // Log of # of separate cache lines
 `endif
-		// localparam	CACHELEN=(1<<LGCACHELEN), //Wrd Size of cach mem
+		localparam	CACHELEN=(1<<LGCACHELEN), //Wrd Size of cach mem
 		localparam	CW=LGCACHELEN,	// Short hand for LGCACHELEN
 		localparam	LS=LGCACHELEN-LGLINES, // Size of a cache line
 		localparam	BUSW = 32,	// Number of data lines on the bus
@@ -127,7 +127,7 @@ module	pfcache #(
 
 
 	wire			r_v;
-	reg	[(BUSW-1):0]	cache	[0:((1<<CW)-1)];
+	reg	[(BUSW-1):0]	cache	[0:CACHELEN-1];
 	reg	[(AW-CW-1):0]	cache_tags	[0:((1<<(LGLINES))-1)];
 	reg	[((1<<(LGLINES))-1):0]	valid_mask;
 

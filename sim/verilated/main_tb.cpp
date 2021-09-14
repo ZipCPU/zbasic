@@ -18,7 +18,7 @@
 // Copyright (C) 2017-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -66,7 +66,12 @@
 // might then control the simulation following.
 //
 #ifndef	VVAR
-#ifdef	NEW_VERILATOR
+#ifdef	ROOT_VERILATOR
+
+#include "Vmain___024root.h"
+#define	VVAR(A)	rootp->main__DOT_ ## A
+
+#elif	defined(NEW_VERILATOR)
 #define	VVAR(A)	main__DOT_ ## A
 #else
 #define	VVAR(A)	v__DOT_ ## A
@@ -84,7 +89,11 @@
 #define	cpu_gie		CPUVAR(_SET_GIE__DOT__r_gie)
 #define	cpu_iflags	CPUVAR(_w_iflags)
 #define	cpu_uflags	CPUVAR(_w_uflags)
+#ifdef	ROOT_VERILATOR
+#define	cpu_regs	CPUVAR(_regset.m_storage)
+#else
 #define	cpu_regs	CPUVAR(_regset)
+#endif
 #define	cpu_cmd_addr	VVAR(_swic__DOT__cmd_addr)
 #define	cpu_bus_err	CPUVAR(_bus_err)
 #define	cpu_ibus_err	CPUVAR(_ibus_err_flag)
@@ -239,6 +248,7 @@ public:
 		// SIM.TICK from zip
 #ifdef	INCLUDE_ZIPCPU
 		// ZipCPU Sim instruction support
+		// {{{
 		if ((m_core->cpu_sim)
 			&&(!m_core->cpu_new_pc)) {
 			//
@@ -253,6 +263,7 @@ public:
 			m_cpu_bombed++;
 			dump(m_core->cpu_regs);
 		}
+		// }}}
 #endif	// INCLUDE_ZIPCPU
 
 		// SIM.TICK from wbu
@@ -430,6 +441,8 @@ public:
 	// it will be pasated here.
 	//
 #ifdef	INCLUDE_ZIPCPU
+	// ZipCPU Access functions
+	// {{{
 	void	loadelf(const char *elfname) {
 		ELFSECTION	**secpp, *secp;
 		uint32_t	entry;
@@ -526,31 +539,31 @@ public:
 		if ((imm & 0x0fffff)==0x00100) {
 			// SIM Exit(0)
 			close();
-			exit(0);
+			// exit(0);
+			m_done = true;
 		} else if ((imm & 0x0ffff0)==0x00310) {
 			// SIM Exit(User-Reg)
-			int	rcode, rnum;
-			rnum  = (imm&0x0f)+16;
-			rcode = regp[rnum] & 0x0ff;
-			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				rcode = m_core->cpu_wr_gpreg;
+			// int	rnum;
+			// rnum  = (imm&0x0f)+16;
+			// rcode = regp[rnum] & 0x0ff;
+			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+			//	rcode = m_core->cpu_wr_gpreg;
 			close();
-			exit(rcode);
+			// exit(rcode);
 		} else if ((imm & 0x0ffff0)==0x00300) {
 			// SIM Exit(Reg)
-			int	rcode, rnum;
-			rnum  = (imm&0x0f)+rbase;
-			rcode = regp[rnum] & 0x0ff;
-			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				rcode = m_core->cpu_wr_gpreg;
+			// int	rnum;
+			// rnum  = (imm&0x0f)+rbase;
+			// rcode = regp[rnum] & 0x0ff;
+			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+			//	rcode = m_core->cpu_wr_gpreg;
 			close();
-			exit(rcode);
+			// exit(rcode);
 		} else if ((imm & 0x0fff00)==0x00100) {
 			// SIM Exit(Imm)
-			int	rcode;
-			rcode = imm & 0x0ff;
+			// rcode = imm & 0x0ff;
 			close();
-			exit(rcode);
+			// exit(rcode);
 		} else if ((imm & 0x0fffff)==0x002ff) {
 			// Full/unconditional dump
 			printf("SIM-DUMP\n");
@@ -582,7 +595,7 @@ public:
 				rcode = m_core->cpu_wr_gpreg;
 			printf("%c", rcode&0x0ff);
 		} else if ((imm & 0x0fffe0)==0x00220) {
-			// SOUT[User Reg]
+			// SOUT[Reg]
 			int	rcode, rnum;
 			rnum  = (imm&0x0f)+rbase;
 			rcode = regp[rnum];
@@ -602,6 +615,7 @@ public:
 				m_core->cpu_upc);
 		} fflush(stdout);
 	}
+	// }}}
 #endif // INCLUDE_ZIPCPU
 #ifdef	SDSPI_ACCESS
 	void	setsdcard(const char *fn) {

@@ -18,7 +18,7 @@
 // Copyright (C) 2017-2021, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of  the GNU General Public License as published
+// modify it under the terms of the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
 // your option) any later version.
 //
@@ -140,14 +140,6 @@ unsigned	addrdecode(const char *v) {
 		for(int i=0; i<NREGS; i++)
 			if (strcasecmp(v, bregs[i].m_name)==0)
 				return bregs[i].m_addr;
-#ifdef	R_ZIPCTRL
-		if (strcasecmp(v, "CPU")==0)
-			return R_ZIPCTRL;
-#endif	// R_ZIPCTRL
-#ifdef	R_ZIPDATA
-		if (strcasecmp(v, "CPUD")==0)
-			return R_ZIPDATA;
-#endif	// R_ZIPDATA
 		fprintf(stderr, "Unknown register: %s\n", v);
 		exit(-2);
 	} else

@@ -14,7 +14,7 @@
 ## Copyright (C) 2016-2021, Gisselquist Technology, LLC
 ## {{{
 ## This program is free software (firmware): you can redistribute it and/or
-## modify it under the terms of  the GNU General Public License as published
+## modify it under the terms of the GNU General Public License as published
 ## by the Free Software Foundation, either version 3 of the License, or (at
 ## your option) any later version.
 ##
@@ -51,7 +51,7 @@ SUBMAKE:= $(MAKE) --no-print-directory -C
 #
 #
 TTTT    := tttt
-SOURCES := hello.c sdtest.c cputest.c gpiotoggle.c contest.c
+SOURCES := hello.c sdtest.c cputest.c gpiotoggle.c contest.c rintftst.c
 HEADERS :=
 DUMPRTL := -fdump-rtl-all
 DUMPTREE:= -fdump-tree-all
@@ -109,6 +109,8 @@ contest: $(OBJDIR)/contest.o $(OBJDIR)/txfns.o board.ld $(LIB)
 
 $(OBJDIR)/hello.o: hello.c
 	$(CC) -O3 -c $< -o $@
+$(OBJDIR)/rintftst.o: rintftst.c
+	$(CC) $(CFLAGS) -O3 -c $< -o $@
 $(OBJDIR)/gettysburg.o: gettysburg.c
 	$(CC) -O3 -c $< -o $@
 $(OBJDIR)/gpiotoggle.o: gpiotoggle.c
@@ -116,6 +118,9 @@ $(OBJDIR)/gpiotoggle.o: gpiotoggle.c
 
 hello: $(OBJDIR)/hello.o board.ld $(LIB)
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
+
+rintftst: $(OBJDIR)/rintftst.o $(OBJDIR)/txfns.o board.ld $(LIB)
+	$(CC) $(CFLAGS) $(LFLAGS) $< $(OBJDIR)/txfns.o $(LIBS) -o $@
 
 sdtest: $(OBJDIR)/sdtest.o board.ld $(LIB)
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
