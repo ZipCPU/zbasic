@@ -57,7 +57,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype	none
 //
 `define	WBA_ALTERNATING
@@ -258,125 +257,7 @@ module	wbarbiter #(
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
-
-`ifdef	WBARBITER
-`define	ASSUME	assume
-`else
-`define	ASSUME	assert
-`endif
-
-	reg	f_past_valid;
-	initial	f_past_valid = 1'b0;
-	always @(posedge i_clk)
-		f_past_valid <= 1'b1;
-
-	initial	`ASSUME(!i_a_cyc);
-	initial	`ASSUME(!i_a_stb);
-
-	initial	`ASSUME(!i_b_cyc);
-	initial	`ASSUME(!i_b_stb);
-
-	initial	`ASSUME(!i_ack);
-	initial	`ASSUME(!i_err);
-
-	always @(*)
-	if (!f_past_valid)
-		`ASSUME(i_reset);
-
-	always @(posedge i_clk)
-	begin
-		if (o_cyc)
-			assert((i_a_cyc)||(i_b_cyc));
-		if ((f_past_valid)&&($past(o_cyc))&&(o_cyc))
-			assert($past(r_a_owner) == r_a_owner);
-	end
-
-	fwb_master #(
-		// {{{
-		.DW(DW), .AW(AW),
-		.F_MAX_STALL(F_MAX_STALL),
-		.F_LGDEPTH(F_LGDEPTH),
-		.F_MAX_ACK_DELAY(F_MAX_ACK_DELAY),
-		.F_OPT_RMW_BUS_OPTION(1),
-		.F_OPT_DISCONTINUOUS(1),
-		.F_OPT_CLK2FFLOGIC(1'b0)
-		// }}}
-	) f_wbm (
-		// {{{
-		i_clk, i_reset,
-		o_cyc, o_stb, o_we, o_adr, o_dat, o_sel,
-		i_ack, i_stall, 32'h0, i_err,
-		f_nreqs, f_nacks, f_outstanding
-		// }}}
-	);
-
-	fwb_slave  #(
-		// {{{
-		.DW(DW), .AW(AW),
-		.F_MAX_STALL(0),
-		.F_LGDEPTH(F_LGDEPTH),
-		.F_MAX_ACK_DELAY(0),
-		.F_OPT_RMW_BUS_OPTION(1),
-		.F_OPT_DISCONTINUOUS(1),
-		.F_OPT_CLK2FFLOGIC(1'b0)
-		// }}}
-	) f_wba (
-		// {{{
-		i_clk, i_reset,
-		i_a_cyc, i_a_stb, i_a_we, i_a_adr, i_a_dat, i_a_sel, 
-		o_a_ack, o_a_stall, 32'h0, o_a_err,
-		f_a_nreqs, f_a_nacks, f_a_outstanding
-		// }}}
-	);
-
-	fwb_slave  #(
-		// {{{
-		.DW(DW), .AW(AW),
-		.F_MAX_STALL(0),
-		.F_LGDEPTH(F_LGDEPTH),
-		.F_MAX_ACK_DELAY(0),
-		.F_OPT_RMW_BUS_OPTION(1),
-		.F_OPT_DISCONTINUOUS(1),
-		.F_OPT_CLK2FFLOGIC(1'b0)
-		// }}}
-	) f_wbb (
-		// {{{
-		i_clk, i_reset,
-		i_b_cyc, i_b_stb, i_b_we, i_b_adr, i_b_dat, i_b_sel,
-		o_b_ack, o_b_stall, 32'h0, o_b_err,
-		f_b_nreqs, f_b_nacks, f_b_outstanding
-		// }}}
-	);
-
-	// Induction properties, relating nreqs and nacks to r_a_owner
-	// {{{
-	always @(posedge i_clk)
-	if (r_a_owner)
-	begin
-		assert(f_b_nreqs == 0);
-		assert(f_b_nacks == 0);
-		assert(f_a_outstanding == f_outstanding);
-	end else begin
-		assert(f_a_nreqs == 0);
-		assert(f_a_nacks == 0);
-		assert(f_b_outstanding == f_outstanding);
-	end
-	// }}}
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))
-			&&($past(i_a_stb))&&(!$past(i_b_cyc)))
-		assert(r_a_owner);
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))
-			&&(!$past(i_a_cyc))&&($past(i_b_stb)))
-		assert(!r_a_owner);
-
-	always @(posedge i_clk)
-		if ((f_past_valid)&&(r_a_owner != $past(r_a_owner)))
-			assert(!$past(o_cyc));
-
+// The formal properties for this module are maintained elsewhere
 `endif
 // }}}
 endmodule

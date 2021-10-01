@@ -86,7 +86,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype	none
 // }}}
 `include "cpudefs.v"
@@ -598,7 +597,6 @@ module	zipsystem #(
 	else
 		cmd_reset <= ((dbg_cmd_write)&&(dbg_idata[RESET_BIT]));
 	// }}}
-	// }}}
 
 	// cmd_halt
 	// {{{
@@ -714,6 +712,8 @@ module	zipsystem #(
 
 	assign	cpu_gie = cpu_dbg_cc[1];
 
+	// cmd_write
+	// {{{
 	initial	cmd_write = 0;
 	always @(posedge i_clk)
 	if (i_reset || cpu_reset)
@@ -721,13 +721,17 @@ module	zipsystem #(
 	else if (!cmd_write || !cpu_dbg_stall)
 		cmd_write <= dbg_stb && dbg_we && (|i_dbg_sel)
 			&& (dbg_addr[6:5] == DBG_ADDR_CPU);
+	// }}}
 
+	// cmd_waddr, cmd_wdata
+	// {{{
 	always @(posedge i_clk)
 	if ((!cmd_write || !cpu_dbg_stall)&&(dbg_stb && dbg_we && !dbg_addr[5]))
 	begin
 		cmd_waddr <= dbg_addr[4:0];
 		cmd_wdata <= dbg_idata;
 	end
+	// }}}
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -1592,4 +1596,17 @@ module	zipsystem #(
 		pf_return_cachable, cpu_miss };
 	// verilator lint_on UNUSED
 	// }}}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//
+// Formal properties
+// {{{
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+`ifdef	FORMAL
+// Formal properties are maintained elsewhere
+`endif
+// }}}
 endmodule

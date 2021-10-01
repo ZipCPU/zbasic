@@ -46,7 +46,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype	none
 // }}}
 module	wbwatchdog #(
@@ -93,58 +92,7 @@ module	wbwatchdog #(
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
-	reg	f_past_valid;
-
-	initial	f_past_valid = 1'b0;
-	always @(posedge f_past_valid)
-		f_past_valid <= 1'b1;
-
-	////////////////////////////////////////////////////////////////////////
-	//
-	// Assumptions about our inputs
-	// {{{
-	////////////////////////////////////////////////////////////////////////
-	//
-	//
-	always @(*)
-		assume(i_timeout > 1);
-
-	always @(posedge i_clk)
-	if (f_past_valid)
-		assume(i_timeout == $past(i_timeout));
-	// }}}
-	////////////////////////////////////////////////////////////////////////
-	//
-	// Assertions about our internal state and our outputs
-	// {{{
-	////////////////////////////////////////////////////////////////////////
-	//
-	//
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&($past(o_int))&&(!$past(i_reset)))
-		assert(o_int);
-
-	always @(*)
-		assert(o_int == (r_value == 0));
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&(!$past(o_int)))
-	begin
-		assert(r_value == $past(r_value)-1'b1);
-	end
-
-	always @(posedge i_clk)
-	if ((!f_past_valid)||($past(i_reset)))
-	begin
-		if (!f_past_valid)
-		begin
-			assert(r_value == {(BW){1'b1}});
-		end else // if ($past(i_reset))
-			assert(r_value == $past(i_timeout));
-		assert(!o_int);
-	end
-	// }}}
+// Formal properties are maintained elsewhere
 `endif
 // }}}
 endmodule

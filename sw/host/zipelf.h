@@ -4,7 +4,9 @@
 // {{{
 // Project:	ZBasic, a generic toplevel impl using the full ZipCPU
 //
-// Purpose:	
+// Purpose:	The ZIPELF class is designed to simplify the representation
+// 		of the fields in an ELF file, for the purpose of loading a
+// 	computer from the sections within it.
 //
 //
 // Creator:	Dan Gisselquist, Ph.D.

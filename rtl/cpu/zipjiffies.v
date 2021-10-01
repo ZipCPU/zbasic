@@ -68,7 +68,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype	none
 // }}}
 module	zipjiffies #(
@@ -221,117 +220,7 @@ module	zipjiffies #(
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
-	reg	f_past_valid;
-	initial	f_past_valid = 1'b0;
-	always @(posedge i_clk)
-		f_past_valid <= 1'b1;
-
-	////////////////////////////////////////////////////////////////////////
-	//
-	// Assumptions about our inputs
-	// {{{
-	////////////////////////////////////////////////////////////////////////
-	//
-	//
-	// One basic WB assumtion
-
-	// Anytime the stb is high, the cycle line must also be high
-	always @(posedge i_clk)
-		assume((!i_wb_stb)||(i_wb_cyc));
-	// }}}
-	////////////////////////////////////////////////////////////////////////
-	//
-	// Assertions about our bus outputs
-	// {{{
-	////////////////////////////////////////////////////////////////////////
-	//
-	//
-
-	// We never stall the bus
-	always @(*)
-		assert(!o_wb_stall);
-
-	// We always ack every transaction on the following clock
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_wb_stb)))
-	begin
-		assert(o_wb_ack);
-	end else
-		assert(!o_wb_ack);
-	// }}}
-	///////////////////////////////////////////////////////////////////////
-	//
-	// Assumptions about our internal state and our outputs
-	// {{{
-	////////////////////////////////////////////////////////////////////////
-	//
-	//
-	always @(posedge i_clk)
-	if ((f_past_valid)&&($past(i_reset)))
-	begin
-		assert(!o_wb_ack);
-	end
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_wb_stb))
-			&&($past(i_wb_we)))
-		assert(new_when == $past(i_wb_data));
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_wb_stb))
-			&&($past(i_wb_we)))
-	begin
-		assert(new_set);
-	end else
-		assert(!new_set);
-
-	//
-	//
-	//
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&($past(i_reset)))
-		assert(!o_int);
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&($past(i_reset)))
-	begin
-		assert(!int_set);
-		assert(!new_set);
-	end
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(new_set))
-			&&(!$past(till_wb[BW-1]))
-			&&($past(till_wb) > 0))
-		assert(int_set);
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_ce))
-		&&($past(r_counter)==$past(int_when)))
-	begin
-		assert((o_int)||(!$past(int_set)));
-		// assert((!int_set)||($past(new_set)));	// !!!!!
-	end
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&(!$past(new_set))&&(!$past(int_set)))
-		assert(!int_set);
-
-	always @(posedge i_clk)
-	if ((!f_past_valid)||($past(i_reset)))
-	begin
-		assert(!o_int);
-	end else if (($past(new_set))&&($past(till_wb) < 0))
-		assert(o_int);
-
-	always @(posedge i_clk)
-	if ((f_past_valid)&&
-			((!$past(new_set))
-			||($past(till_wb[BW-1]))
-			||($past(till_wb == 0))))
-		assert(int_when == $past(int_when));
-	// }}}
+// Formal properties are maintained elsewhere
 `endif
 // }}}
 endmodule

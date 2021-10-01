@@ -36,7 +36,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype	none
 //
 `include "cpudefs.v"
@@ -392,38 +391,7 @@ module	zipbones #(
 	//
 	// The CPU itself
 	// {{{
-`ifdef	FORMAL
-	(* anyseq *)	reg	f_cpu_halted, f_cpu_data, f_cpu_stall,
-				f_cpu_break;
-	(* anyseq *) reg [2:0]	f_cpu_dbg_cc;
-	(* anyseq *) reg [31:0]	f_cpu_dbg_data;
 
-	assign	cpu_dbg_stall = f_cpu_stall;
-	assign	cpu_break     = f_cpu_break;
-	assign	cpu_dbg_cc    = f_cpu_dbg_cc;
-	assign	cpu_dbg_data  = f_cpu_dbg_data;
-
-	fdebug #(
-		// {{{
-		.OPT_DISTRIBUTED_RAM(1'b1)
-		// }}}
-	) fdbg (
-		// {{{
-		.i_clk(i_clk),
-		.i_reset(i_reset),
-		.i_cpu_reset(cpu_reset),
-		.i_halt(cpu_halt),
-		.i_halted(f_cpu_halted),
-		.i_clear_cache(cmd_clear_cache),
-		.i_dbg_we(cmd_write),
-		.i_dbg_reg(cmd_waddr),
-		.i_dbg_data(cmd_wdata),
-		.i_dbg_stall(cpu_dbg_stall),
-		.i_dbg_break(cpu_break),
-		.i_dbg_cc(cpu_dbg_cc)
-		// }}}
-	);
-`else
 	zipwb	#(
 		// {{{
 		.RESET_ADDRESS(RESET_ADDRESS),
@@ -476,7 +444,7 @@ module	zipbones #(
 `endif
 		// }}}
 	);
-`endif
+
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//

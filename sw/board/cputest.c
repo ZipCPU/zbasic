@@ -1445,17 +1445,21 @@ void entry(void) {
 		test_fails(start_time, &testlist[tnum]);
 	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #21
 
-	// MPY_TEST
-	testid("Multiply test"); MARKSTART;
-	if ((run_test(mpy_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
-		test_fails(start_time, &testlist[tnum]);
-	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #22
+	if ((zip_cc() & 0x40000000)==0) {
+		txstr("No multiply unit installed\r\n");
+	} else {
+		// MPY_TEST
+		testid("Multiply test"); MARKSTART;
+		if ((run_test(mpy_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+			test_fails(start_time, &testlist[tnum]);
+		txstr("Pass\r\n"); testlist[tnum++] = 0;	// #22
 
-	// MPYxHI_TEST
-	testid("Multiply HI-word test"); MARKSTART;
-	if ((run_test(mpyhi_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
-		test_fails(start_time, &testlist[tnum]);
-	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #23
+		// MPYxHI_TEST
+		testid("Multiply HI-word test"); MARKSTART;
+		if ((run_test(mpyhi_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+			test_fails(start_time, &testlist[tnum]);
+		txstr("Pass\r\n"); testlist[tnum++] = 0;	// #23
+	}
 
 	// DIV_TEST
 	testid("Divide test");

@@ -39,7 +39,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype	none
 // }}}
 module	slowmpy #(
@@ -172,99 +171,7 @@ module	slowmpy #(
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
-	// Declarations and reset
-	// {{{
-`define	ASSERT	assert
-`ifdef	SLOWMPY
-`define	ASSUME	assume
-`else
-`define	ASSUME	assert
-`endif
-
-	reg	f_past_valid;
-
-	initial	f_past_valid = 1'b0;
-	always @(posedge i_clk)
-		f_past_valid <= 1'b1;
-
-	initial	assume(i_reset);
-	always @(*)
-	if (!f_past_valid)
-		`ASSUME(i_reset);
-	// }}}
-
-	always @(posedge i_clk)
-	if ((!f_past_valid)||($past(i_reset)))
-	begin
-		`ASSERT(almost_done == 0);
-		`ASSERT(o_done == 0);
-		`ASSERT(o_busy == 0);
-		`ASSERT(aux == 0);
-	end
-
-	// Assumptions about our inputs
-	always @(posedge i_clk)
-	if ((f_past_valid)&&(!$past(i_reset))&&($past(i_stb))&&($past(o_busy)))
-	begin
-		`ASSUME(i_stb);
-		`ASSUME($stable(i_a));
-		`ASSUME($stable(i_b));
-	end
-
-	//
-	// For now, just formally verify our internal signaling
-	// {{{
-
-	always @(posedge i_clk)
-		`ASSERT(almost_done == (o_busy&&(&count)));
-
-	always @(*)
-		if (!(&count[LGNA-1:1])||(count[0]))
-			`ASSERT(!o_done);
-
-	always @(posedge i_clk)
-	if (o_done)
-		`ASSERT(!o_busy);
-	always @(posedge i_clk)
-	if (!o_busy)
-		`ASSERT(!almost_done);
-
-	reg	[NA-1:0]	f_a, f_b;
-	always @(posedge i_clk)
-	if ((i_stb)&&(!o_busy))
-	begin
-		f_a <= i_a;
-		f_b <= i_b;
-	end
-
-	always @(*)
-	if (o_done)
-	begin
-		if ((f_a == 0)||(f_b == 0))
-		begin
-			`ASSERT(o_p == 0);
-		end else
-			`ASSERT(o_p[NA+NB-1] == f_a[NA-1] ^ f_b[NA-1]);
-	end
-	// }}}
-	////////////////////////////////////////////////////////////////////////
-	//
-	// Cover properties
-	// {{{
-	////////////////////////////////////////////////////////////////////////
-	//
-	always @(posedge i_clk)
-		cover(o_done);
-
-	reg	cvr_past_done;
-	initial	cvr_past_done = 1'b0;
-	always @(posedge i_clk)
-	if (o_done)
-		cvr_past_done <= 1'b1;
-
-	always @(posedge i_clk)
-		cover((o_done)&&(cvr_past_done));
-	// }}}
+// Formal properties for this design are maintained elsewhere
 `endif
 // }}}
 endmodule

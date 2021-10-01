@@ -58,7 +58,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype	none
 // }}}
 module	pfcache #(
@@ -120,11 +119,6 @@ module	pfcache #(
 	// to zero just to set it to something.
 	assign	o_wb_we = 1'b0;
 	assign	o_wb_data = 0;
-
-`ifdef	FORMAL
-	assign	f_pc_wb = i_pc[AW+1:2];
-`endif
-
 
 	wire			r_v;
 	reg	[(BUSW-1):0]	cache	[0:CACHELEN-1];

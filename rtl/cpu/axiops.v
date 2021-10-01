@@ -222,7 +222,7 @@ module	axiops #(
 					swapped_wstrb_byte;
 	reg	[DW-1:0]		axi_wdata;
 	reg	[DW/8-1:0]		axi_wstrb;
-	reg				r_lock;
+	reg				axlock;
 	reg	[AXILSB-1:0]		swapaddr;
 	wire	[DW-1:0]		endian_swapped_rdata;
 	reg	[2*DW-1:0]		pre_result;
@@ -287,33 +287,38 @@ module	axiops #(
 	end
 	// }}}
 
-	// r_lock
+	// axlock
 	// {{{
-	initial	r_lock = 1'b0;
+	initial	axlock = 1'b0;
 	always @(posedge i_clk)
 	if (!OPT_LOCK || (!S_AXI_ARESETN && OPT_LOWPOWER))
 	begin
 		// {{{
-		r_lock <= 1'b0;
+		axlock <= 1'b0;
 		// }}}
 	end else if (M_AXI_BREADY || M_AXI_RREADY)
 	begin // Something is outstanding
 		// {{{
 		if (OPT_LOWPOWER && (M_AXI_BVALID || M_AXI_RVALID))
-			r_lock <= 1'b0;
+			axlock <= axlock && i_lock && M_AXI_RVALID;
 		// }}}
 	end else begin // New memory operation
 		// {{{
 		// Initiate a request
-		r_lock <= i_lock && i_stb;
+		if (!OPT_LOWPOWER)
+			axlock <= i_lock;
+		else begin
+			if (i_stb)
+				axlock <= i_lock;
 
-		if (OPT_LOWPOWER && (i_cpu_reset || o_err || w_misaligned))
-			r_lock <= 1'b0;
+			if (i_cpu_reset || o_err || w_misaligned)
+				axlock <= 1'b0;
+		end
 		// }}}
 	end
 
-	assign	M_AXI_AWLOCK = r_lock;
-	assign	M_AXI_ARLOCK = r_lock;
+	assign	M_AXI_AWLOCK = axlock;
+	assign	M_AXI_ARLOCK = axlock;
 	// }}}
 
 	// r_flushing
@@ -392,34 +397,34 @@ module	axiops #(
 
 	// M_AXI_AxSIZE
 	// {{{
-	reg	[2:0]	awsize;
+	reg	[2:0]	axsize;
 
-	initial	awsize = DSZ;
+	initial	axsize = DSZ;
 	always @(posedge i_clk)
 	if (!S_AXI_ARESETN)
-		awsize <= DSZ;
+		axsize <= DSZ;
 	else if (!M_AXI_BREADY && !M_AXI_RREADY && (!OPT_LOWPOWER || i_stb))
 	begin
 		casez(i_op[2:1])
 		2'b0?: begin
-			awsize <= 3'b010;	// Word
+			axsize <= 3'b010;	// Word
 			if ((|i_addr[1:0]) && !w_misaligned)
-				awsize <= AXILSB[2:0];
+				axsize <= AXILSB[2:0];
 			end
 		2'b10: begin
-			awsize <= 3'b001;	// Half-word
+			axsize <= 3'b001;	// Half-word
 			if (i_addr[0] && !w_misaligned)
-				awsize <= AXILSB[2:0];
+				axsize <= AXILSB[2:0];
 			end
-		2'b11: awsize <= 3'b000;	// Byte
+		2'b11: axsize <= 3'b000;	// Byte
 		endcase
 
 		if (SWAP_WSTRB)
-			awsize <= DSZ;
+			axsize <= DSZ;
 	end
 
-	assign	M_AXI_AWSIZE = awsize;
-	assign	M_AXI_ARSIZE  = M_AXI_AWSIZE;
+	assign	M_AXI_AWSIZE = axsize;
+	assign	M_AXI_ARSIZE = axsize;
 	// }}}
 
 	// AxOTHER
@@ -775,7 +780,7 @@ module	axiops #(
 	always @(posedge i_clk)
 	if (i_cpu_reset || r_flushing)
 		o_valid <= 1'b0;
-	else if (r_lock)
+	else if (axlock)
 		o_valid <= (M_AXI_RVALID && M_AXI_RRESP == EXOKAY)
 				|| (M_AXI_BVALID && M_AXI_BRESP == OKAY);
 	else
@@ -791,7 +796,7 @@ module	axiops #(
 		o_err <= 1'b0;
 	else if (i_stb && w_misalignment_err)
 		o_err <= 1'b1;
-	else if (r_lock)
+	else if (axlock)
 	begin
 		o_err <= (M_AXI_BVALID && M_AXI_BRESP[1])
 			 || (M_AXI_RVALID && M_AXI_RRESP != EXOKAY);
@@ -809,7 +814,7 @@ module	axiops #(
 	always @(*)
 	begin
 		o_busy   = M_AXI_BREADY || M_AXI_RREADY;
-		o_rdbusy = (M_AXI_BREADY && r_lock) || M_AXI_RREADY;
+		o_rdbusy = (M_AXI_BREADY && axlock) || M_AXI_RREADY;
 		if (r_flushing)
 			o_rdbusy = 1'b0;
 	end
@@ -900,7 +905,7 @@ module	axiops #(
 	else begin
 		// {{{
 		if (OPT_LOCK && M_AXI_BVALID && (!OPT_LOWPOWER
-					|| (r_lock && M_AXI_BRESP == OKAY)))
+					|| (axlock && M_AXI_BRESP == OKAY)))
 		begin
 			o_result <= 0;
 			o_result[AW-1:0] <= r_pc;
@@ -940,7 +945,7 @@ module	axiops #(
 
 			if (OPT_LOWPOWER && (M_AXI_RRESP[1] || pending_err
 					|| misaligned_response_pending
-					|| (r_lock && !M_AXI_RRESP[0])))
+					|| (axlock && !M_AXI_RRESP[0])))
 				o_result <= 0;
 			// }}}
 		end

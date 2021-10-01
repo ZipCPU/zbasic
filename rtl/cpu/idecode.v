@@ -43,11 +43,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype	none
 // }}}
-//
-//
 module	idecode #(
 		// {{{
 		parameter		ADDRESS_WIDTH=24,
@@ -876,6 +873,6 @@ module	idecode #(
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
 // Formal properties for this module are maintained elsewhere
-`endif
+`endif // FORMAL
 // }}}
 endmodule

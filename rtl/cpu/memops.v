@@ -43,7 +43,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
 `default_nettype	none
 // }}}
 module	memops #(
@@ -94,9 +93,6 @@ module	memops #(
 
 	// Declarations
 	// {{{
-`ifdef	FORMAL
-	wire	[(F_LGDEPTH-1):0]	f_nreqs, f_nacks, f_outstanding;
-`endif
 
 	reg		misaligned;
 	reg		r_wb_cyc_gbl, r_wb_cyc_lcl;

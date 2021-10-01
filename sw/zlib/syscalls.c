@@ -51,30 +51,26 @@
 #define	UARTTX	_uart->u_tx
 #endif
 
+#ifdef	_ZIP_HAS_WBUART
+#define	TXBUSY	((_uart->u_fifo & 0x010000)==0)
+#elif	defined(_ZIP_HAS_UARTTX)
+#define	TXBUSY	((UARTTX & 0x0100)!=0)
+#endif
+
 void
 _outbyte(char v) {
-#ifdef	_ZIP_HAS_WBUART
 	if (v == '\n') {
 		// Depend upon the WBUART, not the PIC
-		while((_uart->u_fifo & 0x010000)==0)
+		while(TXBUSY)
 			;
 		UARTTX = (unsigned)'\r';
 	}
 
 	// Depend upon the WBUART, not the PIC
-	while((_uart->u_fifo & 0x010000)==0)
+	while(TXBUSY)
 		;
 	uint8_t c = v;
 	UARTTX = (unsigned)c;
-#else
-#ifdef	_ZIP_HAS_UARTTX
-	// Depend upon the WBUART, not the PIC
-	while(UARTTX & 0x100)
-		;
-	uint8_t c = v;
-	UARTTX = (unsigned)c;
-#endif
-#endif
 }
 
 int
