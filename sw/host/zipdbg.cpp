@@ -101,10 +101,12 @@ class	ZIPPY : public DEVBUS {
 	DEVBUS	*m_fpga;
 	int	m_cursor;
 	ZIPSTATE	m_state;
-	bool	m_user_break, m_show_users_timers, m_show_cc;
+	bool	m_show_users_timers, m_show_cc, m_stopped_at_break;
 public:
-	ZIPPY(DEVBUS *fpga) : m_fpga(fpga), m_cursor(0), m_user_break(false),
-		m_show_users_timers(false), m_show_cc(false) {}
+	ZIPPY(DEVBUS *fpga) : m_fpga(fpga), m_cursor(0),
+		m_show_users_timers(false),
+		m_show_cc(false),
+		m_stopped_at_break(false) {}
 
 	void	read_raw_state(void) {
 		// {{{
@@ -130,8 +132,11 @@ public:
 		try {
 			m_state.m_imem[0].m_d = readio(m_state.m_imem[0].m_a);
 			m_state.m_imem[0].m_valid = true;
+
+			m_stopped_at_break = ((m_state.m_imem[0].m_d & 0xf7ffffff) == 0x77000000);
 		} catch(BUSERR be) {
 			m_state.m_imem[0].m_valid = false;
+			m_stopped_at_break = false;
 		}
 		m_state.m_imem[1].m_a = m_state.m_pc;
 		try {
@@ -215,7 +220,25 @@ public:
 	void	clear(void) { m_fpga->clear(); }
 
 	void	reset(void) { writeio(R_ZIPCTRL, CPU_RESET|CPU_HALT); }
-	void	step(void) { writeio(R_ZIPCTRL, CPU_STEP); m_state.step(); }
+	void	step(void) {
+		// {{{
+		if (m_stopped_at_break) {
+			unsigned break_insn, insn_addr;
+			const unsigned noop_insn = 0x77c00000;
+
+			insn_addr  = m_state.m_imem[0].m_a;
+			break_insn = m_state.m_imem[0].m_d;
+
+			writeio(insn_addr, noop_insn);
+			writeio(R_ZIPCTRL, CPU_CLRCACHE);
+			writeio(R_ZIPCTRL, CPU_STEP); m_state.step();
+			writeio(insn_addr, break_insn);
+			writeio(R_ZIPCTRL, CPU_CLRCACHE);
+		} else {
+			writeio(R_ZIPCTRL, CPU_STEP); m_state.step();
+		}
+		// }}}
+	}
 	void	go(void) { writeio(R_ZIPCTRL, CPU_GO); }
 	void	halt(void) {	writeio(R_ZIPCTRL, CPU_HALT); }
 	bool	stalled(void) { return ((readio(R_ZIPCTRL)&CPU_STALL)==0); }
