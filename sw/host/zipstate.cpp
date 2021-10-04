@@ -101,17 +101,25 @@ int main(int argc, char **argv) {
 		if (v & 0x0040) printf("RESET ");
 		if (v & 0x0080) printf("PINT ");
 		// if (v & 0x0100) printf("STEP "); // self resetting
-		if((v & 0x00200)==0) printf("HALTED ");
-		if (v & 0x00400) printf("HALT_REQ ");
+		// if (v & 0x00200) printf("DBG-STALL ");
+		if (v & 0x00400) {
+			if (v & 0x0200)
+				printf("DBG-HALTED ");
+			else
+				printf("HALT_REQ ");
+		}
 		// if (v & 0x0800) printf("CLR-CACHE ");
 		if((v & 0x03000)==0x01000) {
-			printf("SW-HALT");
+			printf("SW-HALTED");
 		} else {
 			if (v & 0x01000) printf("SLEEPING ");
 			if (v & 0x02000) printf("GIE(UsrMode) ");
 		}
 		if (v & 0x04000) printf("sBusErr ");
 		if (v & 0x08000) printf("BREAK-HALT");
+
+		if ((v & 0x0fc00) == 0)
+			printf("Running");
 		printf("\n");
 	} else {
 		unsigned	r[32];
