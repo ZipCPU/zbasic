@@ -36,7 +36,7 @@
 ##
 ## }}}
 .PHONY: all
-PROGRAMS := hello sdtest cputest gpiotoggle contest
+PROGRAMS := hello sdtest cputest gpiotoggle contest hellostep lockcheck
 all:	$(PROGRAMS)
 #
 #
@@ -127,6 +127,12 @@ sdtest: $(OBJDIR)/sdtest.o board.ld $(LIB)
 
 gpiotoggle: $(OBJDIR)/gpiotoggle.o bkram.ld $(LIB)
 	$(CC) $(CFLAGS) $(LFLAGS) $< $(LIBS) -o $@
+
+hellostep: $(OBJDIR)/hellostep.o bkram.ld $(OBJDIR)/txfns.o $(LIB)
+	$(CC) $(CFLAGS) $(LFLAGS) $< $(OBJDIR)/txfns.o $(LIBS) -o $@
+
+lockcheck: $(OBJDIR)/lockcheck.o $(OBJDIR)/txfns.o bkram.ld $(LIB)
+	$(CC) $(CFLAGS) $(LFLAGS) $< $(OBJDIR)/txfns.o $(LIBS) -o $@
 
 .PHONY: iftttt
 ifeq (,$(wildcard tttt/))
