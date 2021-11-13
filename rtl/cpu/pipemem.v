@@ -45,7 +45,7 @@
 module	pipemem #(
 		// {{{
 		parameter	ADDRESS_WIDTH=30,
-		parameter [0:0]	IMPLEMENT_LOCK=1'b1,
+		parameter [0:0]	OPT_LOCK=1'b1,
 				WITH_LOCAL_BUS=1'b1,
 				OPT_ZERO_ON_IDLE=1'b0,
 				// OPT_ALIGNMENT_ERR
@@ -90,7 +90,9 @@ module	pipemem #(
 
 	// Declarations
 	// {{{
+	// Verilator lint_off UNUSED
 	localparam	F_LGDEPTH=FLN+1;
+	// Verilator lint_on  UNUSED
 `ifdef	FORMAL
 	wire	[(F_LGDEPTH-1):0]	f_nreqs, f_nacks, f_outstanding;
 	reg	f_pc;
@@ -352,7 +354,7 @@ module	pipemem #(
 	// lock_gbl, lock_lcl
 	// {{{
 	generate
-	if (IMPLEMENT_LOCK != 0)
+	if (OPT_LOCK)
 	begin : LOCK_REGISTER
 		// {{{
 		reg	lock_gbl, lock_lcl;

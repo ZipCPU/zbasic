@@ -114,8 +114,9 @@ module	main(i_clk, i_reset,
 		// GPIO ports
 		i_gpio, o_gpio,
 		// The Universal QSPI Flash
-		o_qspi_cs_n, o_qspi_sck, o_qspi_dat, i_qspi_dat, o_qspi_mod	// }}}
-);
+		o_qspi_cs_n, o_qspi_sck, o_qspi_dat, i_qspi_dat, o_qspi_mod
+	// }}}
+	);
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Any parameter definitions
@@ -940,8 +941,8 @@ module	main(i_clk, i_reset,
 	zipsystem #(
 		// {{{
 		.RESET_ADDRESS(RESET_ADDRESS),
-		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH),
-		.LGICACHE(12),.LGDCACHE(12),
+		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH+2),
+		.OPT_LGICACHE(12), .OPT_LGDCACHE(12),
 		.START_HALTED(ZIP_START_HALTED),
 		.RESET_DURATION(20),
 		.EXTERNAL_INTERRUPTS(ZIP_INTS)
@@ -965,7 +966,9 @@ module	main(i_clk, i_reset,
 			zip_debug
 		// }}}
 	);
+
 	assign	zip_trigger = zip_debug[31];
+	// }}}
 	// }}}
 `else	// INCLUDE_ZIPCPU
 	// {{{

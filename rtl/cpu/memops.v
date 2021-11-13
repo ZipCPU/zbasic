@@ -48,13 +48,15 @@
 module	memops #(
 		// {{{
 		parameter	ADDRESS_WIDTH=30,
-		parameter [0:0]	IMPLEMENT_LOCK=1'b1,
+		parameter [0:0]	OPT_LOCK=1'b1,
 				WITH_LOCAL_BUS=1'b1,
 				OPT_ALIGNMENT_ERR=1'b1,
 				OPT_LOWPOWER=1'b0,
 				OPT_LITTLE_ENDIAN = 1'b0,
-		localparam	AW=ADDRESS_WIDTH,
-		parameter	F_LGDEPTH = 2
+		localparam	AW=ADDRESS_WIDTH
+`ifdef	FORMAL
+		, parameter	F_LGDEPTH = 2
+`endif
 		// }}}
 	) (
 		// {{{
@@ -318,7 +320,7 @@ module	memops #(
 	// lock_gbl and lock_lcl
 	// {{{
 	generate
-	if (IMPLEMENT_LOCK != 0)
+	if (OPT_LOCK)
 	begin
 		// {{{
 		initial	lock_gbl = 1'b0;

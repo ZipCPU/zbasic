@@ -690,9 +690,11 @@ int	main(int argc, char **argv) {
 			zip->read_state();
 		else
 			stall_screen();
+
 		while((!done)&&(!gbl_err)) {
 			chv = getch();
-			switch(chv) {
+			switch(chv) { // Process a received character
+			// {{{
 			case 'c': case 'C':
 				zip->toggle_cc();
 				break;
@@ -742,6 +744,7 @@ int	main(int argc, char **argv) {
 			default:
 				;
 			}
+			// }}}
 
 			if ((done)||(gbl_err))
 				break;

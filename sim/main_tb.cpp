@@ -112,9 +112,7 @@
 #else
 #define	cpu_alu_pc	CPUVAR(_op_pc)
 #endif
-#ifdef	OPT_CIS
 #define	cpu_alu_phase	CPUVAR(_GEN_ALU_PHASE__DOT__r_alu_phase)
-#endif
 #define	cpu_wr_ce	CPUVAR(_wr_reg_ce)
 #define	cpu_wr_reg_id	CPUVAR(_wr_reg_id)
 #define	cpu_wr_gpreg	CPUVAR(_wr_gpreg_vl)

@@ -255,9 +255,7 @@ module	axidcache #(
 	// Misalignment detection
 	// {{{
 	always @(*)
-	begin
 		misaligned = checklsb(i_op[2:1], i_addr[AXILSB-1:0]);
-	end
 
 	function checklsb;
 		input [1:0]	 op;
@@ -328,7 +326,7 @@ module	axidcache #(
 	// also means the address map is changing and therefore what is and
 	// isn't cachable.  etc.
 	iscachable chkaddress(
-		i_addr[AW-1:2], address_is_cachable
+		i_addr[AW-1:0], address_is_cachable
 	);
 	// }}}
 
@@ -593,11 +591,13 @@ module	axidcache #(
 			// }}}
 		end
 
-		if (OPT_LOWPOWER && (!r_cache_miss
-			&& (!i_pipe_stb || misaligned)))
+		if (OPT_LOWPOWER && (i_cpu_reset || (!w_cache_miss
+			&& (!i_pipe_stb || i_op[0] || misaligned
+						|| address_is_cachable))))
 		begin
 			// {{{
 			axi_araddr <= 0;
+			axi_arlen  <= 0;
 			axi_arsize <= 3'd2;
 			// }}}
 		end
@@ -647,7 +647,9 @@ module	axidcache #(
 			axi_awaddr[1:0] <= 0;
 		end
 
-		if (OPT_LOWPOWER && (!i_pipe_stb || !i_op[0] || misaligned))
+		if (OPT_LOWPOWER && (!i_pipe_stb || !i_op[0] || misaligned
+				|| i_cpu_reset || flushing
+				|| (M_AXI_BVALID && M_AXI_BRESP[1])))
 			axi_awaddr <= 0;
 	end
 
@@ -756,7 +758,7 @@ module	axidcache #(
 
 		// OPT_LOWPOWER: Clear if nothing is being used
 		// {{{
-		if (OPT_LOWPOWER && ((!i_pipe_stb || i_op[0] || misaligned)
+		if (OPT_LOWPOWER && ((!i_pipe_stb || !i_op[0] || misaligned)
 			|| (M_AXI_BVALID && M_AXI_BRESP[1])
 			|| (i_cpu_reset || flushing)))
 		begin
@@ -1009,9 +1011,11 @@ module	axidcache #(
 	generate if (OPT_DUAL_READ_PORT)
 	begin
 		always @(posedge S_AXI_ACLK)
+		if (!OPT_LOWPOWER || (i_pipe_stb && !i_op[0]))
 			cached_iword <= cache_mem[i_caddr];
 
 		always @(posedge S_AXI_ACLK)
+		if (!OPT_LOWPOWER || o_rdbusy)
 			cached_rword <= cache_mem[r_caddr];
 	end else begin
 

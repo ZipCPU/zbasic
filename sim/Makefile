@@ -45,14 +45,14 @@
 all:
 CXX	:= g++
 OBJDIR	:= obj-pc
-RTLD	:= ../../rtl
+RTLD	:= ../rtl
 VOBJDR	:= $(RTLD)/obj_dir
 VERILATOR_ROOT ?= $(shell bash -c 'verilator -V|grep VERILATOR_ROOT | head -1 | sed -e " s/^.*=\s*//"')
 VROOT	:= $(VERILATOR_ROOT)
 VDEFS   := $(shell ./vversion.sh)
 VINCD   := $(VROOT)/include
 VINC	:= -I$(VINCD) -I$(VINCD)/vltstd -I$(VOBJDR)
-INCS	:= -I../../sw/host -I$(RTLD) $(VINC)
+INCS	:= -I../sw/host -I$(RTLD) $(VINC)
 CFLAGS	:= -Og -g -Wall $(INCS)
 # CFLAGS	:= -Og -g -Wall $(INCS) -faligned-new
 #
@@ -95,7 +95,7 @@ sdcard.img:
 #
 .PHONY: test
 test:
-	./main_tb -d ../../sw/board/hello
+	./main_tb -d ../sw/board/hello
 
 #
 # The "clean" target, removing any and all remaining build products

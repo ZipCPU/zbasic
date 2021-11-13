@@ -39,6 +39,8 @@
 ## }}}
 .PHONY: all
 all:	check-install archive datestamp rtl sim sw
+AUTOD := auto-data
+SIMD  := sim
 #
 # Could also depend upon load, if desired, but not necessary
 BENCH := # `find bench -name Makefile` `find bench -name "*.cpp"` `find bench -name "*.h"`
@@ -117,18 +119,18 @@ archive:
 #
 .PHONY: autodata
 autodata: check-autofpga
-	$(SUBMAKE) auto-data
-	$(call copyif-changed,auto-data/toplevel.v,rtl/toplevel.v)
-	$(call copyif-changed,auto-data/main.v,rtl/main.v)
-	$(call copyif-changed,auto-data/iscachable.v,rtl/cpu/iscachable.v)
-	$(call copyif-changed,auto-data/regdefs.h,sw/host/regdefs.h)
-	$(call copyif-changed,auto-data/regdefs.cpp,sw/host/regdefs.cpp)
-	$(call copyif-changed,auto-data/board.h,sw/zlib/board.h)
-	$(call copyif-changed,auto-data/board.ld,sw/board/board.ld)
-	$(call copyif-changed,auto-data/bkram.ld,sw/board/bkram.ld)
-	$(call copyif-changed,auto-data/rtl.make.inc,rtl/make.inc)
-	$(call copyif-changed,auto-data/testb.h,sim/verilated/testb.h)
-	$(call copyif-changed,auto-data/main_tb.cpp,sim/verilated/main_tb.cpp)
+	$(SUBMAKE) $(AUTOD)
+	$(call copyif-changed,$(AUTOD)/toplevel.v,rtl/toplevel.v)
+	$(call copyif-changed,$(AUTOD)/main.v,rtl/main.v)
+	$(call copyif-changed,$(AUTOD)/iscachable.v,rtl/cpu/iscachable.v)
+	$(call copyif-changed,$(AUTOD)/regdefs.h,sw/host/regdefs.h)
+	$(call copyif-changed,$(AUTOD)/regdefs.cpp,sw/host/regdefs.cpp)
+	$(call copyif-changed,$(AUTOD)/board.h,sw/zlib/board.h)
+	$(call copyif-changed,$(AUTOD)/board.ld,sw/board/board.ld)
+	$(call copyif-changed,$(AUTOD)/bkram.ld,sw/board/bkram.ld)
+	$(call copyif-changed,$(AUTOD)/rtl.make.inc,rtl/make.inc)
+	$(call copyif-changed,$(AUTOD)/testb.h,$(SIMD)/testb.h)
+	$(call copyif-changed,$(AUTOD)/main_tb.cpp,$(SIMD)/main_tb.cpp)
 
 #
 #
@@ -148,7 +150,7 @@ rtl: verilated
 #
 .PHONY: sim
 sim: rtl check-gpp
-	+@$(SUBMAKE) sim/verilated
+	+@$(SUBMAKE) $(SIMD)
 
 #
 #
@@ -188,11 +190,11 @@ sw-board: sw-zlib check-zip-gcc
 #
 .PHONY: hello
 hello: sim sw
-	sim/verilated/main_tb sw/board/hello
+	sim/main_tb sw/board/hello
 
 .PHONY: sdtest
 sdtest: sim sw
-	sim/verilated/main_tb sw/board/sdtest
+	sim/main_tb sw/board/sdtest
 
 .PHONY: test
 test: hello
@@ -217,9 +219,9 @@ endef
 
 .PHONY: clean
 clean:
-	+$(SUBMAKE) auto-data     clean
-	+$(SUBMAKE) sim/verilated clean
-	+$(SUBMAKE) rtl           clean
-	+$(SUBMAKE) sw/zlib       clean
-	+$(SUBMAKE) sw/board      clean
-	+$(SUBMAKE) sw/host       clean
+	+$(SUBMAKE) auto-data	clean
+	+$(SUBMAKE) sim		clean
+	+$(SUBMAKE) rtl		clean
+	+$(SUBMAKE) sw/zlib	clean
+	+$(SUBMAKE) sw/board	clean
+	+$(SUBMAKE) sw/host	clean

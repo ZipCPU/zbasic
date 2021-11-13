@@ -73,6 +73,52 @@ _outbyte(char v) {
 	UARTTX = (unsigned)c;
 }
 
+void
+_outbytes(int nbytes, const char *buf) {
+#ifdef	_ZIP_HAS_WBUART
+	const	uint8_t	*ptr = buf;
+	int	fifosz;
+
+	// Get the size of the FIFO
+	fifosz = _uart->u_fifo >> 28;
+	fifosz = 1<<fifosz;
+
+	for(int i=0; i<nbytes;) {
+		int	available, ufifo;
+		unsigned v;
+
+		// Check how many positions of the FIFO are available
+		while(((ufifo = _uart->u_fifo) & 0x010000)==0)
+			;
+		available = ufifo >> 18;
+		available &= (fifosz-1);
+
+		// Don't check availability again: for each available
+		// position, simply output the desired character while
+		// doing LF -> CR/LF translation
+		for(int k=0; (k<available) && (i < nbytes); k++, i++) {
+			v = *ptr++;
+
+			// Output the desired character
+			UARTTX = v;
+			if (v == '\n') {
+				if (--available == 0) {
+					// Special case: What if we just
+					// used the last item in the FIFO?
+					// poll for the next available spot
+					while((_uart->u_fifo & 0x010000)==0)
+						;
+				} UARTTX = '\r';
+			}
+		}
+	}
+#else
+	for(int i=0; i<nbytes; i++)
+		_outbyte(buf[i]);
+	return nbytes;
+#endif
+}
+
 int
 _inbyte(void) {
 #ifdef	UARTRX
@@ -347,9 +393,12 @@ _times(struct tms *buf) {
 int
 _write_r(struct _reent * reent, int fd, const void *buf, size_t nbytes) {
 	if ((STDOUT_FILENO == fd)||(STDERR_FILENO == fd)) {
+		/*
 		const	char *cbuf = buf;
 		for(int i=0; i<nbytes; i++)
 			_outbyte(cbuf[i]);
+		*/
+		_outbytes(nbytes, buf);
 		return nbytes;
 	}
 #ifdef	_ZIP_HAS_SDCARD_NOTYET

@@ -109,8 +109,8 @@
 	zipsystem #(
 		// {{{
 		.RESET_ADDRESS(RESET_ADDRESS),
-		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH),
-		.LGICACHE(@$(LGICACHE)),.LGDCACHE(@$(LGDCACHE)),
+		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH+2),
+		.OPT_LGICACHE(@$(LGICACHE)), .OPT_LGDCACHE(@$(LGDCACHE)),
 		.START_HALTED(ZIP_START_HALTED),
 		.RESET_DURATION(20),
 		.EXTERNAL_INTERRUPTS(ZIP_INTS)
@@ -126,7 +126,9 @@
 			zip_debug
 		// }}}
 	);
+
 	assign	zip_trigger = zip_debug[31];
+	// }}}
 @BDEF.INCLUDE=
 #include <design.h>
 #include <cpudefs.h>
@@ -214,9 +216,7 @@
 #else
 #define	cpu_alu_pc	CPUVAR(_op_pc)
 #endif
-#ifdef	OPT_CIS
 #define	cpu_alu_phase	CPUVAR(_GEN_ALU_PHASE__DOT__r_alu_phase)
-#endif
 #define	cpu_wr_ce	CPUVAR(_wr_reg_ce)
 #define	cpu_wr_reg_id	CPUVAR(_wr_reg_id)
 #define	cpu_wr_gpreg	CPUVAR(_wr_gpreg_vl)

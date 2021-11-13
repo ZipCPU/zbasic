@@ -49,6 +49,7 @@ module	idecode #(
 		// {{{
 		parameter		ADDRESS_WIDTH=24,
 		parameter	[0:0]	OPT_MPY = 1'b1,
+		parameter	[0:0]	OPT_SHIFTS = 1'b1,
 		parameter	[0:0]	OPT_EARLY_BRANCHING = 1'b1,
 		parameter	[0:0]	OPT_PIPELINED = 1'b1,
 		parameter	[0:0]	OPT_DIVIDE = (OPT_PIPELINED),
@@ -58,7 +59,8 @@ module	idecode #(
 		parameter	[0:0]	OPT_OPIPE  = (OPT_PIPELINED),
 		parameter	[0:0]	OPT_SIM    = 1'b0,
 		parameter	[0:0]	OPT_SUPPRESS_NULL_BRANCHES = 1'b0,
-		parameter	[0:0]	OPT_NO_USERMODE = 1'b0,
+		parameter	[0:0]	OPT_USERMODE = 1'b1,
+		parameter	[0:0]	OPT_LOWPOWER = 1'b0,
 		localparam		AW = ADDRESS_WIDTH
 		// }}}
 	) (
@@ -89,7 +91,8 @@ module	idecode #(
 		output	reg	[22:0]	o_sim_immv /* verilator public_flat */
 `ifdef	FORMAL
 		, output	reg	[31:0]	f_insn_word,
-		output	reg		f_insn_gie
+		output	reg		f_insn_gie,
+		output	wire		f_insn_is_pipeable
 `endif
 		// }}}
 	);
@@ -125,8 +128,8 @@ module	idecode #(
 	wire		w_Iz;
 
 	reg	[1:0]	w_immsrc;
-	reg	r_valid, r_insn_is_pipeable;
-
+	reg		r_valid;
+	wire		insn_is_pipeable, illegal_shift;
 	// }}}
 
 	assign	pf_valid = (i_pf_valid)&&(!o_early_branch_stb);
@@ -239,7 +242,7 @@ module	idecode #(
 	// moves in iword[18] but only for the supervisor, and the other
 	// four bits encoded in the instruction.
 	//
-	assign	w_dcdR = { ((!iword[CISBIT])&&(!OPT_NO_USERMODE)&&(w_mov)&&(!i_gie))?iword[IMMSEL]:i_gie,
+	assign	w_dcdR = { ((!iword[CISBIT])&&(OPT_USERMODE)&&(w_mov)&&(!i_gie))?iword[IMMSEL]:i_gie,
 				iword[30:27] };
 
 	// 0 LUTs
@@ -254,7 +257,7 @@ module	idecode #(
 
 	// dcdB - What register is used in the opB?
 	// {{{
-	assign w_dcdB[4] = ((!iword[CISBIT])&&(w_mov)&&(!OPT_NO_USERMODE)&&(!i_gie))?iword[13]:i_gie;
+	assign w_dcdB[4] = ((!iword[CISBIT])&&(w_mov)&&(OPT_USERMODE)&&(!i_gie))?iword[13]:i_gie;
 	assign w_dcdB[3:0]= (iword[CISBIT])
 				? (((!iword[CISIMMSEL])&&(iword[26:25]==2'b10))
 					? CPU_SP_REG : iword[22:19])
@@ -429,6 +432,32 @@ module	idecode #(
 	end endgenerate
 	// }}}
 
+	// illegal_shift
+	// {{{
+	generate if (OPT_SHIFTS)
+	begin : LEGAL_SHIFTS
+		assign	illegal_shift = 1'b0;
+	end else begin : GEN_ILLEGAL_SHIFT
+		reg	r_illegal_shift;
+
+		always @(*)
+		begin
+			r_illegal_shift = 1'b1;
+			if (i_instruction[CISBIT])
+				r_illegal_shift = 1'b0;
+			else if ((i_instruction[26:22] != 5'h5)
+				&&(i_instruction[26:22] != 5'h6)
+				&&(i_instruction[26:22] != 5'h7))
+				r_illegal_shift = 1'b0;
+			else if (!i_instruction[18]
+					&& (i_instruction[17:0] == 18'h1))
+				r_illegal_shift = 1'b0;
+		end
+
+		assign	illegal_shift = r_illegal_shift;
+	end endgenerate
+	// }}}
+
 	// o_illegal
 	// {{{
 	initial	o_illegal = 1'b0;
@@ -449,6 +478,9 @@ module	idecode #(
 	begin
 		// {{{
 		o_illegal <= 1'b0;
+
+		if (illegal_shift)
+			o_illegal <= 1'b1;
 
 		if ((!OPT_CIS)&&(i_instruction[CISBIT]))
 			o_illegal <= 1'b1;
@@ -602,6 +634,8 @@ module	idecode #(
 			// Support the SIM instruction(s)
 			o_sim <= (w_sim)||(w_noop);
 			o_sim_immv <= iword[22:0];
+			if (OPT_LOWPOWER && !w_sim && !w_noop)
+				o_sim_immv <= 0;
 		end else begin
 			o_sim <= 1'b0;
 			o_sim_immv <= 0;
@@ -685,18 +719,27 @@ module	idecode #(
 
 		initial	r_branch_pc = 0;
 		always @(posedge i_clk)
-		if (i_ce)
+		if (OPT_LOWPOWER && i_reset)
+			r_branch_pc <= 0;
+		else if (i_ce)
 		begin
 			if (r_ljmp)
 				r_branch_pc <= { iword[(AW+1):2],
 						2'b00 };
-			else begin
-			// Add x,PC
-			r_branch_pc[AW+1:2] <= i_pc[AW+1:2]
-				+ {{(AW-15){iword[17]}},iword[16:2]}
-				+ {{(AW-1){1'b0}},1'b1};
-			r_branch_pc[1:0] <= 2'b00;
-			end
+			else if (!OPT_LOWPOWER
+				|| (!iword[CISBIT]&&(iword[30:27]==CPU_PC_REG)
+					&&w_cond[3]&& w_add && !iword[IMMSEL]))
+			begin
+				// Add x,PC
+				r_branch_pc[AW+1:2] <= i_pc[AW+1:2]
+					+ {{(AW-15){iword[17]}},iword[16:2]}
+					+ {{(AW-1){1'b0}},1'b1};
+				r_branch_pc[1:0] <= 2'b00;
+			end else if (OPT_LOWPOWER)
+				r_branch_pc <= 0;
+
+			if (OPT_LOWPOWER && !pf_valid)
+				r_branch_pc <= 0;
 		end
 
 		assign	w_ljmp_dly         = r_ljmp;
@@ -735,7 +778,7 @@ module	idecode #(
 	generate if (OPT_OPIPE)
 	begin : GEN_OPIPE
 		// {{{
-		reg	r_pipe;
+		reg	r_pipe, r_insn_is_pipeable;
 
 		// Pipeline logic is too extreme for a single clock.
 		// Let's break it into two clocks, using r_insn_is_pipeable
@@ -775,6 +818,7 @@ module	idecode #(
 		end // else
 			// The pipeline is stalled
 
+		assign	insn_is_pipeable = r_insn_is_pipeable;
 
 		initial	r_pipe = 1'b0;
 		always @(posedge i_clk)
@@ -811,13 +855,12 @@ module	idecode #(
 		// }}}
 	end else begin
 		// {{{
-		assign o_pipe = 1'b0;
-		always @(*)
-			r_insn_is_pipeable = 1'b0;
+		assign	o_pipe = 1'b0;
+		assign	insn_is_pipeable = 1'b0;
 
 		// verilator lint_off UNUSED
 		wire	unused_pipable;
-		assign	unused_pipable = r_insn_is_pipeable;
+		assign	unused_pipable = insn_is_pipeable;
 		// verilator lint_on  UNUSED
 		// }}}
 	end endgenerate
@@ -852,14 +895,14 @@ module	idecode #(
 	assign	o_valid = r_valid;
 	// }}}
 
-
 	assign	o_I = { {(32-22){r_I[22]}}, r_I[21:0] };
 
 	// Make Verilator happy across all our various options
 	// {{{
 	// verilator lint_off  UNUSED
-	wire	[5:0] possibly_unused;
-	assign	possibly_unused = { w_lock, w_ljmp, w_ljmp_dly, w_cis_ljmp, i_pc[1:0] };
+	wire	possibly_unused;
+	assign	possibly_unused = &{ 1'b0, w_lock, w_ljmp, w_ljmp_dly,
+			insn_is_pipeable, w_cis_ljmp, i_pc[1:0] };
 	// verilator lint_on  UNUSED
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////

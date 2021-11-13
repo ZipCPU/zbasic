@@ -46,7 +46,6 @@
 
 #include "verilated.h"
 #include "design.h"
-#include "cpudefs.h"
 
 #include "testb.h"
 // #include "twoc.h"
@@ -202,6 +201,21 @@ int	main(int argc, char **argv) {
 		tb->tick();
 		tb->m_core->cpu_cmd_halt = 0;
 		tb->m_core->VVAR(_swic__DOT__cmd_reset) = 0;
+		tb->tick();
+		tb->tick();
+		if (tb->m_core->cpu_cmd_halt) {
+			for(int k=0; k<50; k++)
+				tb->tick();
+			tb->m_core->VVAR(_swic__DOT__cmd_write) = 1;
+			tb->m_core->VVAR(_swic__DOT__cmd_waddr) = 15;
+			tb->m_core->VVAR(_swic__DOT__cmd_wdata) = entry;
+			tb->tick();
+			tb->tick();
+			tb->m_core->cpu_cmd_halt = 0;
+			tb->tick();
+			tb->m_core->cpu_cmd_halt = 0;
+			tb->tick();
+		}
 	}
 	// }}}
 
