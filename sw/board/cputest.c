@@ -8,13 +8,15 @@
 //		certain that it works.  This includes testing that each of the
 //	instructions works, as well as any strange instruction combinations.
 //
+//	This test does not check the LOCK instruction.  This capability is
+//	tested via the lockcheck program also found in the same directory.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
 //
 ///////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// Copyright (C) 2015-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -1075,6 +1077,136 @@ int	multiarg_test(void) {
 	return multiarg_subroutine(0,1,2,3,4,5,6);
 }
 
+int	step_alu_test(void);
+asm("\t.text\n\t.global\tstep_mpy_test\n"
+	"\t.type\tstep_alu_test,@function\n"
+"step_alu_test:\n"
+	"\tXOR	R1,R0\n"
+	"\tBREAK\n"
+);
+
+int	step_cis_test(void);
+asm("\t.text\n\t.global\tstep_cis_test\n"
+	"\t.type\tstep_cis_test,@function\n"
+"step_cis_test:\n"
+	"\tADD	1,R1\n"
+	"\tADD	1,R2\n"
+	"\tBREAK\n"
+);
+
+int	step_break_test(void);
+asm("\t.text\n\t.global\tstep_break_test\n"
+	"\t.type\tstep_break_test,@function\n"
+"step_break_test:\n"
+	"\tBREAK\n"
+	"\tSW	R1,(R1)\n"	// Should generate a bus error, if ever executed
+);
+
+int	step_mpy_test(void);
+asm("\t.text\n\t.global\tstep_mpy_test\n"
+	"\t.type\tstep_mpy_test,@function\n"
+"step_mpy_test:\n"
+	"\tMPY	R6,R7\n"
+	"\tBREAK\n"
+);
+
+int	step_div_test(void);
+asm("\t.text\n\t.global\tstep_div_test\n"
+	"\t.type\tstep_div_test,@function\n"
+"step_div_test:\n"
+	"\tDIVU	R6,R5\n"
+	"\tBREAK\n"
+);
+
+int	step_diverr_test(void);
+asm("\t.text\n\t.global\tstep_diverr_test\n"
+	"\t.type\tstep_diverr_test,@function\n"
+"step_diverr_test:\n"
+	"\tDIVU	R0,R5\n"
+	"\tBREAK\n"
+);
+
+int	step_lod_test(void);
+asm("\t.text\n\t.global\tstep_lod_test\n"
+	"\t.type\tstep_lod_test,@function\n"
+"step_lod_test:\n"
+	"\tLW	(R4),R0\n"
+	"\tBREAK\n"
+);
+
+
+int	step_sto_test(void);
+asm("\t.text\n\t.global\tstep_sto_test\n"
+	"\t.type\tstep_sto_test,@function\n"
+"step_sto_test:\n"
+	"\tSW	R0,(R4)\n"
+	"\tBREAK\n"
+);
+
+int	step_loderr_test(void);
+asm("\t.text\n\t.global\tstep_loderr_test\n"
+	"\t.type\tstep_loderr_test,@function\n"
+"step_loderr_test:\n"
+	"\tLW	(R1),R0\n"
+	"\tBREAK\n"
+);
+
+int	step_stoerr_test(void);
+asm("\t.text\n\t.global\tstep_stoerr_test\n"
+	"\t.type\tstep_stoerr_test,@function\n"
+"step_stoerr_test:\n"
+	"\tSW	R0,(R1)\n"
+	"\tBREAK\n"
+);
+
+int	step_word = 0;
+
+extern	int	step_test(void *pc, void *stack);
+asm("\t.text\n\t.global\tstep_test\n"
+	"\t.type\tstep_test,@function\n"
+"step_test:\n"
+	"\tCLR\tR3\n"
+	"\tMOV\tR3,uR0\n"
+	"\tMOV\tR3,uR1\n"
+	"\tMOV\tR3,uR2\n"
+	"\tMOV\tR3,uR3\n"
+	"\tMOV\tR3,uR5\n"
+	"\tMOV\tR3,uR6\n"
+	"\tMOV\tR3,uR7\n"
+	"\tMOV\tR3,uR8\n"
+	"\tMOV\tR3,uR9\n"
+	"\tMOV\tR3,uR10\n"
+	"\tMOV\tR3,uR11\n"
+	"\tMOV\tR3,uR12\n"
+	// Put a some useful multiply values into uR5, uR6, and uR7
+	// (Implied) CLR R3
+	"\tMOV\t15+R3,uR5\n"	// uR5 = 15
+	"\tMOV\t5+R3,uR6\n"	// uR6 = 5
+	"\tMOV\t3+R3,uR7\n"	// uR7 = 3
+	//
+	// Put a valid address into uR4
+	"\tLDI\tstep_word,R3\n"
+	"\tMOV\tR3,uR4\n"
+	//
+	"\tMOV\tR2,uSP\n"	// uSP = stack
+	"\tLDI\t0x60,R3\n"
+	"\tMOV\tR3,uCC\n"	// Set the STEP ang GIE bits of uCC
+	"\tMOV\tR1,uPC\n"	// uPC = pc
+	"\tRTU\n"
+	// Return from running "a single" instruction
+	"\tLDI\t0,R1\n"
+	// If we step more or less than one word, it's an error
+	"\tMOV\tuPC,R3\n"
+	"\tSUB\tR1,R3\n"
+	"\tCMP\t4,R3\n"
+	"\tLDI.NZ\t1,R3\n"
+	// If we hit break, it's an error
+	"\tMOV\tuCC,R2\n"
+	"\tTEST\t0x80,R2\n"
+	"\tOR.NZ\t2,R1\n"
+	//
+	"\tRTN\n");
+
 __attribute__((noinline))
 void	wait(unsigned int msk) {
 	PIC = 0x7fff0000|msk;
@@ -1439,11 +1571,91 @@ void entry(void) {
 		test_fails(start_time, &testlist[tnum]);
 	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #20
 
-	// Multiple argument test
+	// Multiple argument test testid("Multi-Arg test"); MARKSTART;
 	testid("Multi-Arg test"); MARKSTART;
 	if ((run_test(multiarg_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
 		test_fails(start_time, &testlist[tnum]);
 	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #21
+
+	// Step test: ALU
+	testid("Step ALU test"); MARKSTART;
+	if ((step_test(step_alu_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+		test_fails(start_time, &testlist[tnum]);
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #22
+
+	if (cis_insns!=0) {
+	// Step test: 2 CIS Add Insns
+	testid("Step CIS test"); MARKSTART;
+	if ((step_test(step_cis_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+		test_fails(start_time, &testlist[tnum]);
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #23
+	}
+
+	// Step test: BREAK
+	testid("Step BREAK test"); MARKSTART;
+	step_test(step_break_test, user_stack_ptr);	// Ignore the return
+	if ((zip_ucc()^CC_BREAK)&CC_EXCEPTION)
+		test_fails(start_time, &testlist[tnum]);
+	else {
+		unsigned	upc;
+		GETUREG(upc, "uPC");
+		upc = upc - (unsigned)step_break_test;
+		if (upc != 0)
+			test_fails(start_time, &testlist[tnum]);
+	}
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #22
+
+
+	if ((zip_cc() & 0x40000000)!=0) {
+	// Step test: MPY
+	testid("Step MPY test"); MARKSTART;
+	if ((step_test(step_mpy_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+		test_fails(start_time, &testlist[tnum]);
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #23
+	}
+
+	if ((zip_cc() & 0x20000000)!=0) {
+	// Step test: Divide
+	testid("Step DIV test"); MARKSTART;
+	if ((step_test(step_div_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+		test_fails(start_time, &testlist[tnum]);
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #24
+	}
+
+	// Step test: Divide by zero
+	if ((zip_cc() & 0x20000000)!=0) {
+	testid("Step DIVERR test"); MARKSTART;
+	if ((step_test(step_diverr_test, user_stack_ptr))
+					||((zip_ucc()^CC_DIVERR)&CC_EXCEPTION))
+		test_fails(start_time, &testlist[tnum]);
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #25
+	}
+
+	// Step test: Load
+	testid("Step LOD test"); MARKSTART;
+	if ((step_test(step_lod_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+		test_fails(start_time, &testlist[tnum]);
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #26
+
+	// Step test: Store
+	testid("Step STO test"); MARKSTART;
+	if ((step_test(step_sto_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
+		test_fails(start_time, &testlist[tnum]);
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #27
+
+	// Step test: Load, bus err
+	testid("Step LOD/ERR test"); MARKSTART;
+	if ((step_test(step_loderr_test, user_stack_ptr))
+					||((zip_ucc()^CC_BUSERR)&CC_EXCEPTION))
+		test_fails(start_time, &testlist[tnum]);
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #28
+
+	// Step test: Store, bus err
+	testid("Step STO/ERR test"); MARKSTART;
+	if ((step_test(step_stoerr_test, user_stack_ptr))
+					||((zip_ucc()^CC_BUSERR)&CC_EXCEPTION))
+		test_fails(start_time, &testlist[tnum]);
+	txstr("Pass\r\n"); testlist[tnum++] = 0;	// #29
 
 	if ((zip_cc() & 0x40000000)==0) {
 		txstr("No multiply unit installed\r\n");
@@ -1452,13 +1664,13 @@ void entry(void) {
 		testid("Multiply test"); MARKSTART;
 		if ((run_test(mpy_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
 			test_fails(start_time, &testlist[tnum]);
-		txstr("Pass\r\n"); testlist[tnum++] = 0;	// #22
+		txstr("Pass\r\n"); testlist[tnum++] = 0;	// #30
 
 		// MPYxHI_TEST
 		testid("Multiply HI-word test"); MARKSTART;
 		if ((run_test(mpyhi_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
 			test_fails(start_time, &testlist[tnum]);
-		txstr("Pass\r\n"); testlist[tnum++] = 0;	// #23
+		txstr("Pass\r\n"); testlist[tnum++] = 0;	// #31
 	}
 
 	// DIV_TEST
@@ -1468,7 +1680,7 @@ void entry(void) {
 	} else { MARKSTART;
 	if ((run_test(div_test, user_stack_ptr))||(zip_ucc()&CC_EXCEPTION))
 		test_fails(start_time, &testlist[tnum]);
-	} txstr("Pass\r\n"); testlist[tnum++] = 0;	// #24
+	} txstr("Pass\r\n"); testlist[tnum++] = 0;	// #32
 
 
 	txstr("\r\n");
