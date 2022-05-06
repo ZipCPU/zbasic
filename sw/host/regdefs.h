@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2017-2021, Gisselquist Technology, LLC
+// Copyright (C) 2017-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -143,6 +143,10 @@
 //
 // @REGDEFS.H.INSERT for masters
 // @REGDEFS.H.INSERT for peripherals
+////////////////////////////////////////////////////////////////////////////////
+//
+// ZipCPU register definitions
+// {{{
 
 #define	CPU_GO		0x0000
 #define	CPU_RESET	0x0040
@@ -162,6 +166,7 @@
 
 #define	RESET_ADDRESS	0x01400000
 
+// }}}
 // Flash control constants
 #define	QSPI_FLASH	// This core and hardware support a Quad SPI flash
 #define	SZPAGEB		256

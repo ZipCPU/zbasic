@@ -1,3 +1,44 @@
+////////////////////////////////////////////////////////////////////////////////
+//
+// Filename: 	lockcheck.c
+// {{{
+// Project:	ZBasic, a generic toplevel impl using the full ZipCPU
+//
+// Purpose:	This is a CPU test program designed to test the ZipCPU's LOCK
+//		instruction.  NUM_TASKS (=4) tasks are created, each trying
+//	to grab and set a shared resource and increment it.  If all goes
+//	well, the resource will be owned by the task and unchanged for the
+//	duration that the resource is owned by the task.
+//
+// Creator:	Dan Gisselquist, Ph.D.
+//		Gisselquist Technology, LLC
+//
+////////////////////////////////////////////////////////////////////////////////
+// }}}
+// Copyright (C) 2021-2022, Gisselquist Technology, LLC
+// {{{
+// This program is free software (firmware): you can redistribute it and/or
+// modify it under the terms of the GNU General Public License as published
+// by the Free Software Foundation, either version 3 of the License, or (at
+// your option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTIBILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+// for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
+// target there if the PDF file isn't present.)  If not, see
+// <http://www.gnu.org/licenses/> for a copy.
+//
+// License:	GPL, v3, as defined and found on www.gnu.org,
+//		http://www.gnu.org/licenses/gpl.html
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+//
+// }}}
 #include <stdio.h>
 #include <stdlib.h>
 #include "txfns.h"

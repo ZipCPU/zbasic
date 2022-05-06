@@ -23,7 +23,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// Copyright (C) 2015-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -940,7 +940,7 @@ module	zipaxil #(
 			gaten <= gatep;
 
 		assign	cpu_clock = S_AXI_ACLK && gaten;
-		assign	clk_gate = gaten;
+		assign	clk_gate = gatep;
 
 	end else begin : NO_CLOCK_GATE
 

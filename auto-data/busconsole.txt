@@ -16,7 +16,7 @@
 ##
 ################################################################################
 ## }}}
-## Copyright (C) 2017-2021, Gisselquist Technology, LLC
+## Copyright (C) 2017-2022, Gisselquist Technology, LLC
 ## {{{
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of the GNU General Public License as published
@@ -101,17 +101,32 @@
 `endif
 @MAIN.INSERT=
 	// The Host USB interface, to be used by the WB-UART bus
-	rxuartlite	#(.TIMER_BITS(@$(DEVID)BITS),
-				.CLOCKS_PER_BAUD(BUSUART[@$(DEVID)BITS-1:0]))
-		rcv(@$(CLOCK.WIRE), i_@$(PREFIX)_uart_rx,
-				@$(PREFIX)_rx_stb, @$(PREFIX)_rx_data);
-	txuartlite	#(.TIMING_BITS(@$(DEVID)BITS[4:0]),
-				.CLOCKS_PER_BAUD(BUSUART[@$(DEVID)BITS-1:0]))
-		txv(@$(CLOCK.WIRE),
-				@$(PREFIX)_tx_stb,
-				@$(PREFIX)_tx_data,
-				o_@$(PREFIX)_uart_tx,
-				@$(PREFIX)_tx_busy);
+	rxuartlite	#(
+		// {{{
+		.TIMER_BITS(@$(DEVID)BITS),
+		.CLOCKS_PER_BAUD(BUSUART[@$(DEVID)BITS-1:0])
+		// }}}
+	) rcv(
+		// {{{
+		@$(CLOCK.WIRE), i_@$(PREFIX)_uart_rx,
+		@$(PREFIX)_rx_stb, @$(PREFIX)_rx_data
+		// }}}
+	);
+
+	txuartlite	#(
+		// {{{
+		.TIMING_BITS(@$(DEVID)BITS[4:0]),
+			.CLOCKS_PER_BAUD(BUSUART[@$(DEVID)BITS-1:0])
+		// }}}
+	) txv(
+		// {{{
+		@$(CLOCK.WIRE),
+			@$(PREFIX)_tx_stb,
+			@$(PREFIX)_tx_data,
+			o_@$(PREFIX)_uart_tx,
+			@$(PREFIX)_tx_busy
+		// }}}
+	);
 
 `ifdef	INCLUDE_ZIPCPU
 `else

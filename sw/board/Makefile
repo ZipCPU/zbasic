@@ -36,7 +36,7 @@
 ##
 ## }}}
 .PHONY: all
-PROGRAMS := hello sdtest cputest gpiotoggle contest hellostep lockcheck
+PROGRAMS := hello sdtest cputest gpiotoggle contest hellostep lockcheck hellosim
 all:	$(PROGRAMS)
 #
 #
@@ -51,7 +51,7 @@ SUBMAKE:= $(MAKE) --no-print-directory -C
 #
 #
 TTTT    := tttt
-SOURCES := hello.c sdtest.c cputest.c gpiotoggle.c contest.c rintftst.c
+SOURCES := hello.c sdtest.c cputest.c gpiotoggle.c contest.c # rintftst.c
 HEADERS :=
 DUMPRTL := -fdump-rtl-all
 DUMPTREE:= -fdump-tree-all

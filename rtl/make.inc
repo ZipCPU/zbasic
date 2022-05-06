@@ -15,7 +15,7 @@
 ##
 ################################################################################
 ## }}}
-## Copyright (C) 2017-2021, Gisselquist Technology, LLC
+## Copyright (C) 2017-2022, Gisselquist Technology, LLC
 ## {{{
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of the GNU General Public License as published
@@ -40,7 +40,7 @@
 ##
 ## }}}
 ZIPCPUD := cpu
-ZIPCPU  := $(addprefix $(ZIPCPUD)/,zipsystem.v zipcore.v zipwb.v cpuops.v pfcache.v pipemem.v pfcache.v idecode.v wbpriarbiter.v zipsystem.v zipcounter.v zipjiffies.v ziptimer.v wbdmac.v icontrol.v wbwatchdog.v busdelay.v cpudefs.v)
+ZIPCPU  := $(addprefix $(ZIPCPUD)/,zipsystem.v zipcore.v zipwb.v cpuops.v pfcache.v pipemem.v pfcache.v idecode.v wbpriarbiter.v zipsystem.v zipcounter.v zipjiffies.v ziptimer.v wbdmac.v icontrol.v wbwatchdog.v busdelay.v)
 BKRAM := memdev.v
 
 WBUBUSD := wbubus

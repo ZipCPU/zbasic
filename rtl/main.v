@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2017-2021, Gisselquist Technology, LLC
+// Copyright (C) 2017-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -79,12 +79,14 @@
 // Any core with both an @ACCESS and a @DEPENDS tag will show up here.
 // The @DEPENDS tag will turn into a series of ifdef's, with the @ACCESS
 // being defined only if all of the ifdef's are true//
-`ifdef	RTC_ACCESS
-`define	RTCDATE_ACCESS
-`endif	// RTC_ACCESS
+// Deplist for @$(PREFIX)=flashcfg
 `ifdef	FLASH_ACCESS
 `define	FLASHCFG_ACCESS
 `endif	// FLASH_ACCESS
+// Deplist for @$(PREFIX)=rtcdate
+`ifdef	RTC_ACCESS
+`define	RTCDATE_ACCESS
+`endif	// RTC_ACCESS
 //
 // End of dependency list
 //
@@ -107,6 +109,8 @@
 module	main(i_clk, i_reset,
 	// {{{
 		i_cpu_reset,
+		i_sim_write, i_sim_addr, i_sim_data,
+		o_prof_stb, o_prof_addr, o_prof_ticks,
 		// UART/host to wishbone interface
 		i_wbu_uart_rx, o_wbu_uart_tx,
 		// The SD-Card wires
@@ -125,10 +129,10 @@ module	main(i_clk, i_reset,
 // As they aren't connected to the toplevel at all, it would
 // be best to use localparam over parameter, but here we don't
 // check
+	////////////////////////////////////////////////////////////////////////
 	//
-	//
-	// Variables/definitions needed by the ZipCPU BUS master
-	//
+	// Variables/definitions/parameters used by the ZipCPU bus master
+	// {{{
 	//
 	// A 32-bit address indicating where the ZipCPU should start running
 	// from
@@ -182,6 +186,12 @@ module	main(i_clk, i_reset,
 	input	wire		i_reset;
 	// verilator lint_on UNUSED
 	input	wire		i_cpu_reset;
+	input	wire		i_sim_write;
+	input	wire	[7-1:0]	i_sim_addr;
+	input	wire	[31:0]	i_sim_data;
+	output	wire		o_prof_stb;
+	output	wire	[23+1:0]	o_prof_addr;
+	output	wire	[31:0]	o_prof_ticks;
 	input	wire		i_wbu_uart_rx;
 	output	wire		o_wbu_uart_tx;
 	// SD-Card declarations
@@ -238,6 +248,7 @@ module	main(i_clk, i_reset,
 	wire	[31:0]	zip_debug;
 	wire		zip_trigger;
 	wire	[ZIP_INTS-1:0] zip_int_vector;
+	// }}}
 // BUILDTIME doesnt need to include builddate.v a second time
 // `include "builddate.v"
 	//
@@ -465,12 +476,12 @@ module	main(i_clk, i_reset,
 	// Verilator lint_on UNUSED
 	// Wishbone definitions for bus wbu, component zip
 	// Verilator lint_off UNUSED
-	wire		wbu_zip_cyc, wbu_zip_stb, wbu_zip_we;
-	wire	[23:0]	wbu_zip_addr;
-	wire	[31:0]	wbu_zip_data;
-	wire	[3:0]	wbu_zip_sel;
-	wire		wbu_zip_stall, wbu_zip_ack, wbu_zip_err;
-	wire	[31:0]	wbu_zip_idata;
+	wire		zip_dbg_cyc, zip_dbg_stb, zip_dbg_we;
+	wire	[23:0]	zip_dbg_addr;
+	wire	[31:0]	zip_dbg_data;
+	wire	[3:0]	zip_dbg_sel;
+	wire		zip_dbg_stall, zip_dbg_ack, zip_dbg_err;
+	wire	[31:0]	zip_dbg_idata;
 	// Verilator lint_on UNUSED
 	// }}}
 	// }}}
@@ -742,7 +753,7 @@ module	main(i_clk, i_reset,
 	//
 
 	// info: @ERROR.WIRE for wbu_arbiter matches the buses error name, wbu_wbu_arbiter_err
-	assign	wbu_zip_err= 1'b0;
+	assign	zip_dbg_err= 1'b0;
 	//
 	// Connect the wbu bus components together using the wbxbar()
 	//
@@ -798,43 +809,43 @@ module	main(i_clk, i_reset,
 		}),
 		// Slave connections
 		.o_scyc({
-			wbu_zip_cyc,
+			zip_dbg_cyc,
 			wbu_wbu_arbiter_cyc
 		}),
 		.o_sstb({
-			wbu_zip_stb,
+			zip_dbg_stb,
 			wbu_wbu_arbiter_stb
 		}),
 		.o_swe({
-			wbu_zip_we,
+			zip_dbg_we,
 			wbu_wbu_arbiter_we
 		}),
 		.o_saddr({
-			wbu_zip_addr,
+			zip_dbg_addr,
 			wbu_wbu_arbiter_addr
 		}),
 		.o_sdata({
-			wbu_zip_data,
+			zip_dbg_data,
 			wbu_wbu_arbiter_data
 		}),
 		.o_ssel({
-			wbu_zip_sel,
+			zip_dbg_sel,
 			wbu_wbu_arbiter_sel
 		}),
 		.i_sstall({
-			wbu_zip_stall,
+			zip_dbg_stall,
 			wbu_wbu_arbiter_stall
 		}),
 		.i_sack({
-			wbu_zip_ack,
+			zip_dbg_ack,
 			wbu_wbu_arbiter_ack
 		}),
 		.i_sdata({
-			wbu_zip_idata,
+			zip_dbg_idata,
 			wbu_wbu_arbiter_idata
 		}),
 		.i_serr({
-			wbu_zip_err,
+			zip_dbg_err,
 			wbu_wbu_arbiter_err
 		})
 		);
@@ -941,29 +952,39 @@ module	main(i_clk, i_reset,
 	zipsystem #(
 		// {{{
 		.RESET_ADDRESS(RESET_ADDRESS),
-		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH+2),
-		.OPT_LGICACHE(12), .OPT_LGDCACHE(12),
+		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH + $clog2(32/8)),
+		.OPT_LGICACHE(12),
+		.OPT_LGDCACHE(12),
 		.START_HALTED(ZIP_START_HALTED),
 		.RESET_DURATION(20),
+		.OPT_PIPELINED(1),
 		.EXTERNAL_INTERRUPTS(ZIP_INTS)
 		// }}}
 	) swic(
 		// {{{
-		i_clk, (i_reset)||(i_cpu_reset),
+		.i_clk(i_clk), .i_reset((i_reset)||(i_cpu_reset)),
+			.i_sim_write(i_sim_write),
+			.i_sim_addr(i_sim_addr),
+			.i_sim_data(i_sim_data),
 			// Zippys wishbone interface
-			wb_zip_cyc, wb_zip_stb, wb_zip_we,
-			wb_zip_addr[23-1:0],
-			wb_zip_data, // 32 bits wide
-			wb_zip_sel,  // 32/8 bits wide
-		wb_zip_stall, wb_zip_ack, wb_zip_idata,wb_zip_err,
-			zip_int_vector, zip_cpu_int,
+			// [o|i]_wb_*
+			.o_wb_cyc(wb_zip_cyc), .o_wb_stb(wb_zip_stb), .o_wb_we(wb_zip_we),
+			.o_wb_addr(wb_zip_addr[23-1:0]),
+			.o_wb_data(wb_zip_data), // 32 bits wide
+			.o_wb_sel(wb_zip_sel),  // 32/8 bits wide
+		.i_wb_stall(wb_zip_stall), .i_wb_ack(wb_zip_ack), .i_wb_data(wb_zip_idata), .i_wb_err(wb_zip_err),
+			.i_ext_int(zip_int_vector), .o_ext_int(zip_cpu_int),
 			// Debug wishbone interface
-			wbu_zip_cyc, wbu_zip_stb, wbu_zip_we,
-			wbu_zip_addr[7-1:0],
-			wbu_zip_data, // 32 bits wide
-			wbu_zip_sel,  // 32/8 bits wide
-		wbu_zip_stall, wbu_zip_ack, wbu_zip_idata,
-			zip_debug
+			// [o|i]_db g_*
+			.i_dbg_cyc(zip_dbg_cyc), .i_dbg_stb(zip_dbg_stb), .i_dbg_we(zip_dbg_we),
+			.i_dbg_addr(zip_dbg_addr[7-1:0]),
+			.i_dbg_data(zip_dbg_data), // 32 bits wide
+			.i_dbg_sel(zip_dbg_sel),  // 32/8 bits wide
+		.o_dbg_stall(zip_dbg_stall),.o_dbg_ack(zip_dbg_ack), .o_dbg_data(zip_dbg_idata),
+			.o_cpu_debug(zip_debug),
+			.o_prof_stb(o_prof_stb),
+			.o_prof_addr(o_prof_addr),
+			.o_prof_ticks(o_prof_ticks)
 		// }}}
 	);
 
@@ -979,12 +1000,12 @@ module	main(i_clk, i_reset,
 	// {{{
 
 	//
-	// In the case that there is no wbu_zip peripheral
+	// In the case that there is no zip_dbg peripheral
 	// responding on the wbu bus
-	assign	wbu_zip_ack   = 1'b0;
-	assign	wbu_zip_err   = (wbu_zip_stb);
-	assign	wbu_zip_stall = 0;
-	assign	wbu_zip_idata = 0;
+	assign	zip_dbg_ack   = 1'b0;
+	assign	zip_dbg_err   = (zip_dbg_stb);
+	assign	zip_dbg_stall = 0;
+	assign	zip_dbg_idata = 0;
 
 	// }}}
 	// Null interrupt definitions
@@ -1038,17 +1059,32 @@ module	main(i_clk, i_reset,
 `ifdef	WBUBUS_MASTER
 	// {{{
 	// The Host USB interface, to be used by the WB-UART bus
-	rxuartlite	#(.TIMER_BITS(DBGBUSBITS),
-				.CLOCKS_PER_BAUD(BUSUART[DBGBUSBITS-1:0]))
-		rcv(i_clk, i_wbu_uart_rx,
-				wbu_rx_stb, wbu_rx_data);
-	txuartlite	#(.TIMING_BITS(DBGBUSBITS[4:0]),
-				.CLOCKS_PER_BAUD(BUSUART[DBGBUSBITS-1:0]))
-		txv(i_clk,
-				wbu_tx_stb,
-				wbu_tx_data,
-				o_wbu_uart_tx,
-				wbu_tx_busy);
+	rxuartlite	#(
+		// {{{
+		.TIMER_BITS(DBGBUSBITS),
+		.CLOCKS_PER_BAUD(BUSUART[DBGBUSBITS-1:0])
+		// }}}
+	) rcv(
+		// {{{
+		i_clk, i_wbu_uart_rx,
+		wbu_rx_stb, wbu_rx_data
+		// }}}
+	);
+
+	txuartlite	#(
+		// {{{
+		.TIMING_BITS(DBGBUSBITS[4:0]),
+			.CLOCKS_PER_BAUD(BUSUART[DBGBUSBITS-1:0])
+		// }}}
+	) txv(
+		// {{{
+		i_clk,
+			wbu_tx_stb,
+			wbu_tx_data,
+			o_wbu_uart_tx,
+			wbu_tx_busy
+		// }}}
+	);
 
 `ifdef	INCLUDE_ZIPCPU
 `else

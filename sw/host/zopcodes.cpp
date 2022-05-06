@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// Copyright (C) 2017-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -296,9 +296,9 @@ static const ZOPCODE	zip_oplist_raw[] = {
 	// 1.rrrr.100.1.rrrrsss
 	{ "LW", 0x87800000, 0x84000000,  ZIP_REGFIELD(27), ZIP_OPUNUSED,     ZIP_SP,            ZIP_IMMFIELD(7,16), ZIP_OPUNUSED },
 	{ "LW", 0x87800000, 0x84800000,  ZIP_REGFIELD(27), ZIP_OPUNUSED,     ZIP_REGFIELD(19),  ZIP_IMMFIELD(3,16), ZIP_OPUNUSED },
-	// 1.rrrr.101.ssssssss
-	{ "SW", 0x87000000, 0x85000000,  ZIP_OPUNUSED,     ZIP_REGFIELD(27), ZIP_SP,            ZIP_IMMFIELD(7,16), ZIP_OPUNUSED },
-	// 1.rrrr.110.0.sssssss
+	// 1.rrrr.101.0sssssss
+	{ "SW", 0x87800000, 0x85000000,  ZIP_OPUNUSED,     ZIP_REGFIELD(27), ZIP_SP,            ZIP_IMMFIELD(7,16), ZIP_OPUNUSED },
+	// 1.rrrr.110.1.sssssss
 	{ "SW", 0x87800000, 0x85800000,  ZIP_OPUNUSED,     ZIP_REGFIELD(27), ZIP_REGFIELD(19),  ZIP_IMMFIELD(3,16), ZIP_OPUNUSED },
 	// 1.rrrr.110.iiiiiiii
 	{ "LDI", 0x87000000, 0x86000000, ZIP_REGFIELD(27), ZIP_OPUNUSED,     ZIP_OPUNUSED,      ZIP_IMMFIELD(8,16), ZIP_OPUNUSED },

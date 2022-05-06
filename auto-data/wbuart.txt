@@ -1,6 +1,6 @@
 ################################################################################
 ##
-## Filename: 	wbuart.txt
+## Filename:	wbuart.txt
 ## {{{
 ## Project:	AutoFPGA, a utility for composing FPGA designs from peripherals
 ##
@@ -11,7 +11,7 @@
 ##
 ################################################################################
 ## }}}
-## Copyright (C) 2017-2021, Gisselquist Technology, LLC
+## Copyright (C) 2017-2022, Gisselquist Technology, LLC
 ## {{{
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of the GNU General Public License as published
@@ -87,12 +87,19 @@
 	input	wire		i_@$(PREFIX)_rx, @$CTS;
 	output	wire		o_@$(PREFIX)_tx, @$RTS;
 @MAIN.INSERT=
-	wbuart #(.INITIAL_SETUP(@$.UARTSETUP))
- 		@$(PREFIX)_uart(i_clk, 1'b0,
-			@$(SLAVE.PORTLIST),
- 			i_@$(PREFIX)_rx, o_@$(PREFIX)_tx, @$CTS, @$RTS,
-			@$(PREFIX)rx_int, @$(PREFIX)tx_int,
-			@$(PREFIX)rxf_int, @$(PREFIX)txf_int);
+	wbuart #(
+		// {{{
+		.INITIAL_SETUP(@$.UARTSETUP)
+		// }}}
+	) @$(PREFIX)_uart(
+		// {{{
+		i_clk, 1'b0,
+		@$(SLAVE.PORTLIST),
+		i_@$(PREFIX)_rx, o_@$(PREFIX)_tx, @$CTS, @$RTS,
+		@$(PREFIX)rx_int, @$(PREFIX)tx_int,
+		@$(PREFIX)rxf_int, @$(PREFIX)txf_int
+		// }}}
+	);
 @MAIN.ALT=
 	assign	o_@$(PREFIX)_tx    = 1'b1;
 	assign	@$RTS = 1'b0;

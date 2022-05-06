@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2017-2021, Gisselquist Technology, LLC
+// Copyright (C) 2017-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -66,6 +66,56 @@ module	toplevel(i_clk,
 		i_gpio, o_gpio,
 		// Top level Quad-SPI I/O ports
 		o_qspi_cs_n, io_qspi_dat);
+	//
+	// Declaring any top level parameters.
+	//
+	// These declarations just copy data from the @TOP.PARAM key,
+	// or from the @MAIN.PARAM key if @TOP.PARAM is absent.  For
+	// those peripherals that don't do anything at the top level,
+	// the @MAIN.PARAM key should be sufficient, so the @TOP.PARAM
+	// key may be left undefined.
+	//
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Variables/definitions/parameters used by the ZipCPU bus master
+	// {{{
+	//
+	// A 32-bit address indicating where the ZipCPU should start running
+	// from
+	localparam	RESET_ADDRESS = 20971520;
+	//
+	// The number of valid bits on the bus
+	localparam	ZIP_ADDRESS_WIDTH = 23; // Zip-CPU address width
+	//
+	// Number of ZipCPU interrupts
+	localparam	ZIP_INTS = 16;
+	//
+	// ZIP_START_HALTED
+	//
+	// A boolean, indicating whether or not the ZipCPU be halted on startup?
+	localparam	ZIP_START_HALTED=1'b1;
+	//
+	// WBUBUS parameters
+	//
+	// Baudrate :   1000000
+	// Clock    : 100000000
+	localparam [23:0] BUSUART = 24'h64;	//   1000000 baud
+	localparam	DBGBUSBITS = $clog2(BUSUART);
+	//
+	// Maximum command is 6 bytes, where each byte takes 10 baud clocks
+	// and each baud clock requires DBGBUSBITS to represent.  Here,
+	// we'll add one more for good measure.
+	localparam	DBGBUSWATCHDOG_RAW = DBGBUSBITS + 9;
+	localparam	DBGBUSWATCHDOG = (DBGBUSWATCHDOG_RAW > 19)
+				? DBGBUSWATCHDOG_RAW : 19;
+	//
+	// Initial calendar DATE
+	//
+`ifdef	VERSION_ACCESS
+	parameter	INITIAL_DATE = `DATESTAMP;
+`else
+	parameter	INITIAL_DATE = 30'h20000101;
+`endif
 	//
 	// Declaring our input and output ports.  We listed these above,
 	// now we are declaring them here.

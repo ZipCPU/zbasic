@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2017-2021, Gisselquist Technology, LLC
+// Copyright (C) 2017-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -46,8 +46,11 @@
 // from within our main.v file, let's include:
 #include <design.h>
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// ZipCPU defines and macros
+// {{{
 #include <design.h>
-#include <cpudefs.h>
 
 #define	_HAVE_ZIPSYS
 #define	PIC	_zip->z_pic
@@ -60,6 +63,7 @@
 #define	_HAVE_ZIPSYS_PERFORMANCE_COUNTERS
 #endif	// INCLUDE_ACCOUNTING_COUNTERS
 #endif // INCLUDE_ZIPCPU
+// }}}
 
 
 #define	SYSPIC(A)	(1<<(A))

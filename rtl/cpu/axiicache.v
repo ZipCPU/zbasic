@@ -36,7 +36,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// Copyright (C) 2015-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -78,6 +78,7 @@ module	axiicache #(
 		parameter	C_AXI_ID_WIDTH = 1,
 		parameter	C_AXI_ADDR_WIDTH = 32,
 		parameter	C_AXI_DATA_WIDTH = 32,
+		parameter [0:0]	OPT_WRAP     = 1'b0,
 		parameter [0:0]	OPT_LOWPOWER = 1'b0,
 		//
 		// SWAP_ENDIANNESS
@@ -127,7 +128,7 @@ module	axiicache #(
 		input	wire		i_clear_cache,
 		input	wire		i_ready,
 		input	wire [AW-1:0]	i_pc,
-		output reg [INSN_WIDTH-1:0] o_insn,
+		output wire [INSN_WIDTH-1:0] o_insn,
 		output	reg [AW-1:0]	o_pc,
 		output	reg		o_valid,
 		output	reg		o_illegal
@@ -144,6 +145,8 @@ module	axiicache #(
 
 	// Register/local parameter declarations
 	// {{{
+	localparam	[1:0]	INCR = 2'b01, WRAP = 2'b10;
+
 	// localparam CACHELEN=(1<<LGCACHESZ); //Byte Size of our cache memory
 	// localparam CACHELENW = CACHELEN/(C_AXI_DATA_WIDTH/8); // Word sz
 	localparam	CWB=LGCACHESZ, // Short hand for LGCACHESZ
@@ -156,7 +159,7 @@ module	axiicache #(
 	reg	[((1<<(LGLINES))-1):0]	cache_valid;
 	reg	[DW-1:0]	cache_word;
 
-	reg			last_valid, void_access, from_pc, pc_valid,
+	reg			last_valid, from_pc, pc_valid,
 				illegal_valid, request_pending, bus_abort,
 				valid_line;
 	reg	[AW-1:LSB]	pc_tag, last_tag, illegal_tag;
@@ -164,6 +167,12 @@ module	axiicache #(
 	reg			axi_arvalid;
 	reg	[AW-1:0]	axi_araddr, last_pc;
 	reg			start_read;
+
+	wire			wrap_valid;
+
+	wire	[CWB-LSB-1:0]	axi_line, pc_line, last_line;
+	wire	[AW-CWB-1:0]	axi_tag;
+
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -173,19 +182,6 @@ module	axiicache #(
 	////////////////////////////////////////////////////////////////////////
 	//
 	//
-	// void_access
-	// {{{
-	initial	void_access = 1;
-	always @(posedge S_AXI_ACLK)
-	if (!S_AXI_ARESETN || i_cpu_reset || i_clear_cache)
-		void_access <= 1;
-	else if (i_new_pc && i_pc[AW-1:LSB] != o_pc[AW-1:LSB])
-		void_access <= 1;
-	else if (M_AXI_RVALID && M_AXI_RLAST)
-		void_access <= 1;
-	else
-		void_access <= 0;
-	// }}}
 
 	// from_pc
 	// {{{
@@ -202,13 +198,18 @@ module	axiicache #(
 		from_pc <= 0;
 	// }}}
 
+	assign	axi_line = axi_araddr[CWB-1:LSB];
+	assign	axi_tag  = axi_araddr[AW-1:CWB];
+	assign	pc_line  = i_pc[CWB-1:LSB];
+	assign	last_line= last_pc[CWB-1:LSB];
+
 	//
 	// From the PC
 	// pc_valid
 	// {{{
 	// True if the cache is valid at the address in the program counter
 	always @(posedge S_AXI_ACLK)
-		pc_valid <= cache_valid[i_pc[CWB-1:LSB]];
+		pc_valid <= cache_valid[pc_line];
 	// }}}
 
 	// pc_tag
@@ -216,7 +217,7 @@ module	axiicache #(
 	// Evaluates to the cache tag, at the program counter address for the
 	// incoming/requested program counter
 	always @(posedge S_AXI_ACLK)
-		pc_tag <= { cache_tags[i_pc[CWB-1:LSB]], i_pc[CWB-1:LSB] };
+		pc_tag <= { cache_tags[pc_line], i_pc[CWB-1:LSB] };
 	// }}}
 
 	//
@@ -234,27 +235,58 @@ module	axiicache #(
 	// last_valid
 	// {{{
 	always @(posedge S_AXI_ACLK)
-		last_valid <= cache_valid[last_pc[CWB-1:LSB]];
+		last_valid <= cache_valid[last_line];
 	// }}}
 
 	// last_tag
 	// {{{
 	always @(posedge S_AXI_ACLK)
-		last_tag <={cache_tags[last_pc[CWB-1:LSB]], last_pc[CWB-1:LSB]};
+		last_tag <={cache_tags[last_line], last_pc[CWB-1:LSB]};
 	// }}}
 
 	// valid_line --- are we serving a valid request line?
 	// {{{
 	always @(*)
 	begin
-		if (from_pc)
-			valid_line = pc_valid && (pc_tag == last_pc[AW-1:LSB]);
-		else
-			valid_line =last_valid&&(last_tag== last_pc[AW-1:LSB]);
-		if (illegal_valid && illegal_tag == last_pc[AW-1:LSB])
-			valid_line = 1;
-		if (void_access)
-			valid_line = 0;
+		valid_line = 1'b0;
+
+		// Zero delay lookup: New PC, but staying w/in same cache line
+		//   This only works if the entire line is full--so no requests
+		//   may be pending at this time.
+		if (i_new_pc)
+			valid_line = !request_pending && pc_valid
+					&& pc_tag == i_pc[AW-1:LSB];
+		else if (o_valid && i_ready)
+		begin
+			// Zero delay lookup, tag matches last lookup
+			valid_line = pc_valid && (i_pc[AW-1:LSB] == pc_tag[AW-1:LSB]);
+			if (wrap_valid && i_pc[AW-1:LSB] == axi_araddr[AW-1:LSB])
+				valid_line = 1;
+		end else begin
+			// Longer lookups.  Several possibilities here.
+
+			// 1. We might be working through recent reads from the
+			//    cache, for which the cache line isn't yet full
+			valid_line = wrap_valid;
+
+			// 2. One delay lookup.  Request was for an address with
+			//    a different tag.  Since it was different, we had
+			//    to do a memory read to look it up.  After lookup,
+			//    the tag now matches.
+			if (from_pc && pc_valid && pc_tag == last_pc[AW-1:LSB])
+				valid_line = 1'b1;
+
+			// 3. Many delay lookup.  The tag didn't match, so we
+			//    had to go search for it from memory.  The cache
+			//    line is now valid, so now we can use it.
+			if (!from_pc && last_valid
+					&& last_tag == last_pc[AW-1:LSB])
+				valid_line = 1'b1;
+
+			// 4. Illegal lookup.
+			if (!o_valid && illegal_valid && illegal_tag == last_pc[AW-1:LSB])
+				valid_line = 1;
+		end
 	end
 	// }}}
 
@@ -271,10 +303,21 @@ module	axiicache #(
 	// {{{
 	// Issue a bus transaction -- the cache line requested couldn't be
 	// found in the bus anywhere, so we need to go look for it
+	reg	wait_on_read;
+	initial	wait_on_read = 1;
+	always @(posedge S_AXI_ACLK)
+	if (!S_AXI_ARESETN)
+		wait_on_read <= 1;
+	else begin
+		wait_on_read <= request_pending; // M_AXI_RVALID && M_AXI_RLAST;
+		if (i_clear_cache || i_new_pc || i_cpu_reset)
+			wait_on_read <= 1;
+	end
+
 	always @(*)
 	begin
 		start_read = !valid_line && !o_valid;
-		if (i_clear_cache || i_new_pc || void_access)
+		if (i_clear_cache || i_new_pc || wait_on_read)
 			start_read = 0;
 		if (o_illegal)
 			start_read = 0;
@@ -330,7 +373,10 @@ module	axiicache #(
 	if ((!M_AXI_ARVALID || M_AXI_ARREADY) && !request_pending)
 	begin
 		axi_araddr <= last_pc;
-		axi_araddr[LSB-1:0] <= 0;
+		if (OPT_WRAP)
+			axi_araddr[ADDRLSB-1:0] <= 0;
+		else
+			axi_araddr[LSB-1:0] <= 0;
 
 		if (OPT_LOWPOWER && !start_read)
 			axi_araddr <= 0;
@@ -350,7 +396,7 @@ module	axiicache #(
 	// {{{
 	always @(posedge S_AXI_ACLK)
 	if (!request_pending)
-		write_posn <= 0;
+		write_posn <= (OPT_WRAP) ? last_pc[LSB-1:ADDRLSB] : 0;
 	else if (M_AXI_RVALID && M_AXI_RREADY)
 		write_posn <= write_posn + 1;
 	// }}}
@@ -394,7 +440,7 @@ module	axiicache #(
 	// {{{
 	always @(posedge S_AXI_ACLK)
 	if (request_pending)
-		cache_tags[axi_araddr[CWB-1:LSB]] <= axi_araddr[AW-1:CWB];
+		cache_tags[axi_line] <= axi_tag;
 	// }}}
 
 	// cache_valid--keep track of which cache entry has valid data w/in it
@@ -404,11 +450,122 @@ module	axiicache #(
 	if (i_cpu_reset || i_clear_cache)
 		cache_valid <= 0;
 	else if (request_pending)
-		cache_valid[axi_araddr[CWB-1:LSB]]
+		cache_valid[axi_line]
 			<= (M_AXI_RVALID && M_AXI_RREADY && M_AXI_RLAST
-				&& !M_AXI_RRESP[1] && !bus_abort);
+				&& !M_AXI_RRESP[1]);
 	// }}}
 
+	// wrap_valid
+	// {{{
+	generate if (OPT_WRAP)
+	begin : GEN_WRAP_VALID
+		reg			r_wrap, r_valid, r_poss;
+		reg	[(1<<LS):0]	r_count;
+
+		// r_wrap-- Can we keep continuing prior to the cache being vld?
+		// {{{
+		always @(posedge S_AXI_ACLK)
+		if (!S_AXI_ARESETN)
+			r_wrap <= 0;
+		else if (M_AXI_ARVALID)
+			r_wrap <= 1;
+		else if (M_AXI_RVALID && (&write_posn))
+			r_wrap <= 0;
+		// }}}
+
+		// r_poss, r_count
+		// {{{
+		always @(posedge S_AXI_ACLK)
+		if (!S_AXI_ARESETN)
+		begin
+			r_poss  <= 0;
+			r_count <= 0;
+		end else if (i_new_pc || i_clear_cache || i_cpu_reset
+			|| (M_AXI_RVALID && (M_AXI_RLAST||M_AXI_RRESP[1])))
+		begin
+			r_poss  <= 0;
+			r_count <= 0;
+		end else if (M_AXI_ARVALID && M_AXI_ARADDR[AW-1:ADDRLSB] == last_pc[AW-1:ADDRLSB])
+		begin
+			r_poss  <= !bus_abort;
+			r_count <= 0;
+		end else if (r_poss)
+		case({ (M_AXI_RVALID && M_AXI_RREADY && r_wrap),
+						(o_valid && i_ready)})
+		2'b01: begin
+			r_count <= r_count - 1;
+			r_poss  <= (r_count > 1) || r_wrap;
+			end
+		2'b10: r_count <= r_count + 1;
+		// 2'b00:
+		// 2'b11:
+		default: begin end
+		endcase
+		// }}}
+
+		// wrap_valid itself
+		// {{{
+		always @(posedge S_AXI_ACLK)
+		if (!S_AXI_ARESETN)
+			r_valid  <= 0;
+		else if (i_cpu_reset || i_new_pc || i_clear_cache || bus_abort
+				|| (M_AXI_RVALID && M_AXI_RRESP[1])
+				|| !r_poss)
+			r_valid  <= 0;
+		else if (!r_valid || !o_valid || i_ready)
+		begin
+			// We can be valid if there's one more in the buffer
+			// than we've read so far.
+			r_valid <=(r_count >
+				((r_valid&&(!o_valid||i_ready)) ? 1:0) 
+				+ (o_valid ? 1:0));
+			// We can also be valid if another one has just been
+			//   read--as long as it's not due to a bus error.
+			if (M_AXI_RVALID && r_wrap)
+				r_valid <= 1'b1;
+		end
+
+		assign	wrap_valid = r_valid;
+		// }}}
+
+`ifdef	FORMAL
+		// {{{
+		always @(*)
+		if (S_AXI_ARESETN && M_AXI_ARVALID)
+			assert(!r_valid && r_count == 0);
+
+		always @(*)
+		if (S_AXI_ARESETN && (!request_pending || bus_abort))
+			assert(!r_poss);
+
+		always @(*)
+		if (S_AXI_ARESETN && !r_poss)
+			assert(r_count == 0);
+
+		always @(*)
+		if (S_AXI_ARESETN && r_poss)
+		begin
+			if (!r_wrap)
+				assert(r_count < write_posn
+						- last_pc[LSB-1:ADDRLSB]);
+			else
+				assert(r_count <= (1<<LS) - last_pc[LSB-1:ADDRLSB]);
+		end
+
+		always @(*)
+		if (S_AXI_ARESETN && (r_poss || r_valid))
+			assert(last_pc[AW-1:LSB] == axi_araddr[AW-1:LSB]);
+
+		always @(*)
+		if (S_AXI_ARESETN && request_pending)
+			assert(r_valid == (r_count > (o_valid ? 1:0)));
+		// }}}
+`endif
+	end else begin
+		assign	wrap_valid = 1'b0;
+	end endgenerate
+	// }}}
+	
 	// }}}
 	////////////////////////////////////////////////////////////////////////
 	//
@@ -436,8 +593,7 @@ module	axiicache #(
 	generate if (C_AXI_DATA_WIDTH == INSN_WIDTH)
 	begin : NO_LINE_SHIFT
 
-		always @(*)
-			o_insn = cache_word[INSN_WIDTH-1:0];
+		assign	o_insn = cache_word;
 
 		// Make Verilator happy
 		// {{{
@@ -454,10 +610,9 @@ module	axiicache #(
 		reg	[C_AXI_DATA_WIDTH-1:0]	shifted;
 
 		always @(*)
-		begin
 			shifted=cache_word >> (INSN_WIDTH * o_pc[ADDRLSB-1:LGINSN]);
-			o_insn = shifted[INSN_WIDTH-1:0];
-		end
+
+		assign	o_insn = shifted[INSN_WIDTH-1:0];
 
 		// Make Verilator happy
 		// {{{
@@ -500,10 +655,8 @@ module	axiicache #(
 	begin
 		// Grab the next instruction--always ready on the same cycle
 		// if we stay within the same cache line
-		o_valid <= (i_pc[AW-1:LSB] == o_pc[AW-1:LSB]);
+		o_valid <= valid_line;
 		if (o_illegal)
-			o_valid <= 0;
-		if (!valid_line)
 			o_valid <= 0;
 	end else if (!o_valid && !i_new_pc)
 	begin
@@ -573,12 +726,12 @@ module	axiicache #(
 	assign	M_AXI_ARVALID= axi_arvalid;
 	assign	M_AXI_ARID   = AXI_ID;
 	assign	M_AXI_ARADDR = axi_araddr;
-	assign	M_AXI_ARLEN  = (1<<LGLINESZ)-1;
+	assign	M_AXI_ARLEN  = (1<<LS)-1;
 	assign	M_AXI_ARSIZE = ADDRLSB[2:0];
 	// ARBURST.  AXI supports a WRAP burst specifically for the purpose
 	// of a CPU.  Not all peripherals support it.  For compatibility and
 	// simplicities sake, we'll just use INCR here.
-	assign	M_AXI_ARBURST= 2'b01; // INCR
+	assign	M_AXI_ARBURST= (OPT_WRAP) ? WRAP : INCR;
 	assign	M_AXI_ARLOCK = 0;
 	assign	M_AXI_ARCACHE= 4'b0011;
 	// ARPROT = 3'b100 for an unprivileged, secure instruction access

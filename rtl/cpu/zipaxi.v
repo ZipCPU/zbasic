@@ -23,7 +23,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// Copyright (C) 2015-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -68,6 +68,7 @@ module	zipaxi #(
 		parameter	[0:0]	OPT_PIPELINED = 1'b1,
 		parameter [ADDRESS_WIDTH-1:0] RESET_ADDRESS=32'h010_0000,
 		parameter [0:0]	START_HALTED = 1'b0,
+		parameter [0:0]	OPT_WRAP   = 1'b1,
 		parameter [0:0]	SWAP_WSTRB = 1'b1,
 		parameter 	OPT_MPY    = 3,
 		parameter [0:0]	OPT_DIV    = 1'b1,
@@ -773,6 +774,7 @@ module	zipaxi #(
 			.AXI_ID(INSN_ID),
 			.LGCACHESZ(OPT_LGICACHE),
 			.LGLINESZ(LGILINESZ),
+			.OPT_WRAP(OPT_WRAP),
 			.OPT_LOWPOWER(OPT_LOWPOWER),
 			// Instruction fetches don't need subword access,
 			// so SWAPWSTRB doesn't make any sense here.
@@ -947,8 +949,9 @@ module	zipaxi #(
 			// .OPT_SIGN_EXTEND(OPT_SIGN_EXTEND),
 			.OPT_LOWPOWER(OPT_LOWPOWER),
 			// .OPT_LOCAL_BUS(WITH_LOCAL_BUS),
-			.OPT_PIPE(OPT_MEMPIPE)
-			// .OPT_LOCK(OPT_LOCK)
+			.OPT_WRAP(OPT_WRAP),
+			.OPT_PIPE(OPT_MEMPIPE),
+			.OPT_LOCK(OPT_LOCK)
 // `ifdef	FORMAL
 			// Used with OPT_PIPE, not yet enabled
 			// , .OPT_FIFO_DEPTH(2)
@@ -965,6 +968,7 @@ module	zipaxi #(
 			.i_lock(bus_lock),
 			.i_op(mem_op),
 			.i_addr(mem_cpu_addr[AW+1:0]),
+			.i_restart_pc(mem_lock_pc),
 			.i_data(mem_wdata),
 			.i_oreg(mem_reg),
 			.o_busy(mem_busy),
@@ -1241,7 +1245,7 @@ module	zipaxi #(
 			gaten <= gatep;
 
 		assign	cpu_clock = S_AXI_ACLK && gaten;
-		assign	clk_gate = gaten;
+		assign	clk_gate = gatep;
 
 	end else begin : NO_CLOCK_GATE
 

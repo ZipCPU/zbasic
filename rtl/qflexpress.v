@@ -33,7 +33,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2018-2021, Gisselquist Technology, LLC
+// Copyright (C) 2018-2022, Gisselquist Technology, LLC
 // {{{
 // This file is part of the set of Wishbone controlled SPI flash controllers
 // project

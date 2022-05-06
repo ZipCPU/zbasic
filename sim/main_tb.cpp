@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2017-2021, Gisselquist Technology, LLC
+// Copyright (C) 2017-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -65,6 +65,10 @@
 // This tag is useful fr pasting in any #define values that
 // might then control the simulation following.
 //
+////////////////////////////////////////////////////////////////////////////////
+//
+// ZipCPU simulation defines
+// {{{
 #ifndef	VVAR
 #ifdef	ROOT_VERILATOR
 
@@ -78,6 +82,7 @@
 #endif
 #endif
 
+#define	OPT_PIPELINED
 #define	CPUVAR(A)	VVAR(_swic__DOT__thecpu__DOT__core__DOT_ ## A)
 
 #define	cpu_reset	VVAR(_swic__DOT__cmd_reset)
@@ -110,13 +115,13 @@
 #ifdef	OPT_PIPELINED
 #define	cpu_alu_pc	CPUVAR(_GEN_ALU_PC__DOT__r_alu_pc)
 #else
-#define	cpu_alu_pc	CPUVAR(_op_pc)
+#define	cpu_alu_pc	CPUVAR(_SET_OP_PC__DOT__op_pc)
 #endif
 #define	cpu_alu_phase	CPUVAR(_GEN_ALU_PHASE__DOT__r_alu_phase)
 #define	cpu_wr_ce	CPUVAR(_wr_reg_ce)
 #define	cpu_wr_reg_id	CPUVAR(_wr_reg_id)
 #define	cpu_wr_gpreg	CPUVAR(_wr_gpreg_vl)
-
+// }}}
 #ifndef VVAR
 #ifdef  NEW_VERILATOR
 #define VVAR(A) main__DOT_ ## A
@@ -534,13 +539,14 @@ public:
 		if ((imm & 0x03fffff)==0)
 			return;
 		// fprintf(stderr, "SIM-INSN(0x%08x)\n", imm);
-		if ((imm & 0x0fffff)==0x00100) {
-			// SIM Exit(0)
+		if ((imm & 0x0fffff)==0x00100) { // SIM Exit(0)
+			// {{{
 			close();
 			// exit(0);
 			m_done = true;
-		} else if ((imm & 0x0ffff0)==0x00310) {
-			// SIM Exit(User-Reg)
+			// }}}
+		} else if ((imm & 0x0ffff0)==0x00310) { // SIM Exit(User-Reg)
+			// {{{
 			// int	rnum;
 			// rnum  = (imm&0x0f)+16;
 			// rcode = regp[rnum] & 0x0ff;
@@ -548,7 +554,9 @@ public:
 			//	rcode = m_core->cpu_wr_gpreg;
 			close();
 			// exit(rcode);
+			// }}}
 		} else if ((imm & 0x0ffff0)==0x00300) {
+			// {{{
 			// SIM Exit(Reg)
 			// int	rnum;
 			// rnum  = (imm&0x0f)+rbase;
@@ -557,52 +565,73 @@ public:
 			//	rcode = m_core->cpu_wr_gpreg;
 			close();
 			// exit(rcode);
+			// }}}
 		} else if ((imm & 0x0fff00)==0x00100) {
+			// {{{
 			// SIM Exit(Imm)
 			// rcode = imm & 0x0ff;
 			close();
 			// exit(rcode);
+			// }}}
 		} else if ((imm & 0x0fffff)==0x002ff) {
+			// {{{
 			// Full/unconditional dump
-			printf("SIM-DUMP\n");
-			dump(regp);
+			// Now handled via $write
+			// printf("SIM-DUMP\n");
+			// dump(regp);
+			// }}}
 		} else if ((imm & 0x0ffff0)==0x00200) {
+			// {{{
 			// Dump a register
-			int	rcode, rnum;
-			rnum  = (imm&0x0f)+rbase;
-			rcode = regp[rnum];
-			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				rcode = m_core->cpu_wr_gpreg;
-			printf("%8lu @%08x R[%2d] = 0x%08x\n", m_time_ps/1000,
-				m_core->cpu_ipc, rnum, rcode);
+			// Now handled via $write
+			// int	rcode, rnum;
+			// rnum  = (imm&0x0f)+rbase;
+			// rcode = regp[rnum];
+			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				// rcode = m_core->cpu_wr_gpreg;
+			// printf("%8lu @%08x R[%2d] = 0x%08x\n", m_time_ps/1000,
+				// m_core->cpu_ipc, rnum, rcode);
+			// }}}
 		} else if ((imm & 0x0ffff0)==0x00210) {
+			// {{{
 			// Dump a user register
-			int	rcode, rnum;
-			rnum  = (imm&0x0f)+16;
-			rcode = regp[rnum] & 0x0ff;
-			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				rcode = m_core->cpu_wr_gpreg;
-			printf("%8lu @%08x uR[%2d] = 0x%08x\n", m_time_ps/1000,
-				m_core->cpu_ipc, rnum, rcode);
+			// Now handled via $write
+			// int	rcode, rnum;
+			// rnum  = (imm&0x0f)+16;
+			// rcode = regp[rnum] & 0x0ff;
+			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				// rcode = m_core->cpu_wr_gpreg;
+			// printf("%8lu @%08x uR[%2d] = 0x%08x\n", m_time_ps/1000,
+				// m_core->cpu_ipc, rnum, rcode);
+			// }}}
 		} else if ((imm & 0x0ffff0)==0x00230) {
+			// {{{
 			// SOUT[User Reg]
-			int	rcode, rnum;
-			rnum  = (imm&0x0f)+16;
-			rcode = regp[rnum];
-			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				rcode = m_core->cpu_wr_gpreg;
-			printf("%c", rcode&0x0ff);
+			// Now handled via $write
+			// int	rcode, rnum;
+			// rnum  = (imm&0x0f)+16;
+			// rcode = regp[rnum];
+			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				// rcode = m_core->cpu_wr_gpreg;
+			// printf("%c", rcode&0x0ff);
+			// }}}
 		} else if ((imm & 0x0fffe0)==0x00220) {
+			// {{{
 			// SOUT[Reg]
-			int	rcode, rnum;
-			rnum  = (imm&0x0f)+rbase;
-			rcode = regp[rnum];
-			if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				rcode = m_core->cpu_wr_gpreg;
-			printf("%c", rcode&0x0ff);
+			// Now handled via $write
+			// int	rcode, rnum;
+			// rnum  = (imm&0x0f)+rbase;
+			// rcode = regp[rnum];
+			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
+				// rcode = m_core->cpu_wr_gpreg;
+			// printf("%c", rcode&0x0ff);
+			// }}}
 		} else if ((imm & 0x0fff00)==0x00400) {
+			// {{{
 			// SOUT[Imm]
-			printf("%c", imm&0x0ff);
+			// Now handled via $write
+			// printf("%c", imm&0x0ff);
+			// }}}
 		} else { // if ((insn & 0x0f7c00000)==0x77800000)
 			uint32_t	immv = imm & 0x03fffff;
 			// Simm instruction that we dont recognize
