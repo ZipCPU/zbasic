@@ -111,6 +111,8 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 	output	reg [(BW-1):0]	o_quotient;
 	output	wire	[3:0]	o_flags;
 
+	// Local declarations
+	// {{{
 	// r_busy is an internal busy register.  It will clear one clock
 	// before we are valid, so it can't be o_busy ...
 	//
@@ -120,14 +122,18 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 	wire	[(BW):0]	diff; // , xdiff[(BW-1):0];
 	assign	diff = r_dividend[2*BW-2:BW-1] - r_divisor;
 
-	reg		r_sign, pre_sign, r_z, r_c, last_bit;
+	reg			r_sign, pre_sign, r_z, r_c, last_bit;
 	reg	[(LGBW-1):0]	r_bit;
-	reg	zero_divisor;
+	reg			zero_divisor;
+	wire	w_n;
+	// }}}
 
+	// r_busy
+	// {{{
 	// The Divide logic begins with r_busy.  We use r_busy to determine
 	// whether or not the divide is in progress, vs being complete.
 	// Here, we clear r_busy on any reset and set it on i_wr (the request
-	// do to a divide).  The divide ends when we are on the last bit,
+	// to do a divide).  The divide ends when we are on the last bit,
 	// or equivalently when we discover we are dividing by zero.
 	initial	r_busy = 1'b0;
 	always @(posedge i_clk)
@@ -137,7 +143,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		r_busy <= 1'b1;
 	else if ((last_bit)||(zero_divisor))
 		r_busy <= 1'b0;
+	// }}}
 
+	// o_busy
+	// {{{
 	// o_busy is very similar to r_busy, save for some key differences.
 	// Primary among them is that o_busy needs to (possibly) be true
 	// for an extra clock after r_busy clears.  This would be that extra
@@ -154,11 +163,17 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		o_busy <= 1'b0;
 	else if (!r_busy)
 		o_busy <= 1'b0;
+	// }}}
 
+	// zero_divisor
+	// {{{
 	always @(posedge i_clk)
 	if (i_wr)
 		zero_divisor <= (i_denominator == 0);
+	// }}}
 
+	// o_valid
+	// {{{
 	// o_valid is part of the ZipCPU protocol.  It will be set to true
 	// anytime our answer is valid and may be used by the calling module.
 	// Indeed, the ZipCPU will halt (and ignore us) once the i_wr has been
@@ -183,7 +198,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		o_valid <= 1'b1;
 	end else
 		o_valid <= 1'b0;
+	// }}}
 
+	// o_err
+	// {{{
 	// Division by zero error reporting.  Anytime we detect a zero divisor,
 	// we set our output error, and then hold it until we are valid and
 	// everything clears.
@@ -195,9 +213,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		o_err <= 1'b1;
 	else
 		o_err <= 1'b0;
+	// }}}
 
 	// r_bit
-	//
+	// {{{
 	// Keep track of which "bit" of our divide we are on.  This number
 	// ranges from 31 down to zero.  On any write, we set ourselves to
 	// 5'h1f.  Otherwise, while we are busy (but not within the pre-sign
@@ -210,9 +229,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		r_bit <= r_bit + 1'b1;
 	else
 		r_bit <= 0;
+	// }}}
 
 	// last_bit
-	//
+	// {{{
 	// This logic replaces a lot of logic that was inside our giant state
 	// machine with ... something simpler.  In particular, we'll use this
 	// logic to determine if we are processing our last bit.  The only trick
@@ -227,9 +247,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		last_bit <= (r_bit == {(LGBW){1'b1}}-1'b1);
 	else
 		last_bit <= 1'b0;
+	// }}}
 
 	// pre_sign
-	//
+	// {{{
 	// This is part of the state machine.  pre_sign indicates that we need
 	// a extra clock to take the absolute value of our inputs.  It need only
 	// be true for the one clock, and then it must clear itself.
@@ -239,7 +260,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		pre_sign <= 1'b0;
 	else
 		pre_sign <= (i_wr)&&(i_signed)&&((i_numerator[BW-1])||(i_denominator[BW-1]));
+	// }}}
 
+	// r_z
+	// {{{
 	// As a result of our operation, we need to set the flags.  The most
 	// difficult of these is the "Z" flag indicating that the result is
 	// zero.  Here, we'll use the same logic that sets the low-order
@@ -250,8 +274,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		r_z <= 1'b1;
 	else if ((r_busy)&&(!pre_sign)&&(!diff[BW]))
 		r_z <= 1'b0;
+	// }}}
 
 	// r_dividend
+	// {{{
 	// This is initially the numerator.  On a signed divide, it then becomes
 	// the absolute value of the numerator.  We'll subtract from this value
 	// the divisor for every output bit we are looking for--just as with
@@ -263,8 +289,8 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		// absolute value of the dividend
 		if (r_dividend[BW-1])
 		begin
-			r_dividend[2*BW-2:0] <= {(2*BW-1){1'b1}};
-			r_dividend[BW-1:0] <= -r_dividend[BW-1:0];
+			r_dividend[2*BW-2:0] <= {(2*BW-1){1'b0}};
+			r_dividend[BW:0] <= -{ 1'b1, r_dividend[BW-1:0] };
 		end
 	end else if (r_busy)
 	begin
@@ -277,7 +303,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		// guarantees that, when i_wr is set, the new value
 		// is already set as desired.
 		r_dividend <=  { 31'h0, i_numerator };
+	// }}}
 
+	// r_divisor
+	// {{{
 	initial	r_divisor = 0;
 	always @(posedge i_clk)
 	if (i_reset)
@@ -288,8 +317,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 			r_divisor <= -r_divisor;
 	end else if (!r_busy)
 		r_divisor <= i_denominator;
+	// }}}
 
 	// r_sign
+	// {{{
 	// is a flag for our state machine control(s).  r_sign will be set to
 	// true any time we are doing a signed divide and the result must be
 	// negative.  In that case, we take a final logic stage at the end of
@@ -308,7 +339,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		r_sign <= (r_sign)&&(!zero_divisor);
 	else
 		r_sign <= 1'b0;
+	// }}}
 
+	// o_quotient
+	// {{{
 	initial	o_quotient = 0;
 	always @(posedge i_clk)
 	if (i_reset)
@@ -322,7 +356,10 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		o_quotient <= -o_quotient;
 	else
 		o_quotient <= 0;
+	// }}}
 
+	// r_c
+	// {{{
 	// Set Carry on an exact divide
 	// Perhaps nothing uses this, but ... well, I suppose we could remove
 	// this logic eventually, just ... not yet.
@@ -332,14 +369,17 @@ module	div(i_clk, i_reset, i_wr, i_signed, i_numerator, i_denominator,
 		r_c <= 1'b0;
 	else
 		r_c <= (r_busy)&&(diff == 0);
+	// }}}
 
+	// w_n
+	// {{{
 	// The last flag: Negative.  This flag is set assuming that the result
 	// of the divide was negative (i.e., the high order bit is set).  This
 	// will also be true of an unsigned divide--if the high order bit is
 	// ever set upon completion.  Indeed, you might argue that there's no
 	// logic involved.
-	wire	w_n;
 	assign w_n = o_quotient[(BW-1)];
+	// }}}
 
 	assign o_flags = { 1'b0, w_n, r_c, r_z };
 
