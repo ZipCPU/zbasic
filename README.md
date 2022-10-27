@@ -17,7 +17,17 @@ describing how to do so.
 
 # Status
 
-The ZBasic system can now be made using [autofpga](https://github.com/ZipCPU/autofpga), all the way from zero to Hello World successfully in Verilator testing.
+The ZBasic system can now be made using [autofpga](https://github.com/ZipCPU/autofpga), all the way from zero to Hello World successfully in Verilator testing.  Other tests have been added as well:
+
+- [sw/board/cputest.c](Bare CPU test)
+- [sw/board/lockcheck.c](Atomic access check)
+- [sw/board/hellostep.c](Stepping through hello world)
+
+That said, current ZipCPU development now supports a simulation checking
+environment that allows the CPU to be checked in multiple environments, with
+multiple different configurations.  This repository only tends to check a
+single configuration at a time.  It's still a useful testbed, but it is no
+longer the definitive one for the ZipCPU.
 
 # License
 

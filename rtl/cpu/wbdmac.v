@@ -47,7 +47,7 @@
 //				exactly where the controller is at mid-transfer.
 //	27..16	W	WriteProtect	When a 12'h3db is written to these
 //				bits, the write protect bit will be cleared.
-//				
+//
 //	15	R/W	on_dev_trigger	When set to '1', the controller will
 //				wait for an external interrupt before starting.
 //	14..10	R/W	device_id	This determines which external interrupt
@@ -64,7 +64,7 @@
 //	To use this, follow this checklist:
 //	1. Wait for any prior DMA operation to complete
 //		(Read address 0, wait 'till either top bit is set or cfg_len==0)
-//	2. Write values into length, source and destination address. 
+//	2. Write values into length, source and destination address.
 //		(writei(3, &vals) should be sufficient for this.)
 //	3. Enable the DMAC interrupt in whatever interrupt controller is present
 //		on the system.
@@ -114,7 +114,9 @@
 // }}}
 module wbdmac #(
 		// {{{
-		parameter	ADDRESS_WIDTH=30, LGMEMLEN = 10, DW=32,
+		parameter	ADDRESS_WIDTH=30, LGMEMLEN = 10,
+		parameter	SLV_WIDTH=32,
+		parameter	BUS_WIDTH=32,
 		localparam	AW=ADDRESS_WIDTH
 		// }}}
 	) (
@@ -125,26 +127,26 @@ module wbdmac #(
 		// Slave/control wishbone inputs
 		input	wire		i_swb_cyc, i_swb_stb, i_swb_we,
 		input	wire	[1:0]	i_swb_addr,
-		input	wire [(DW-1):0]	i_swb_data,
+		input	wire [(SLV_WIDTH-1):0]	i_swb_data,
 		// Slave/control wishbone outputs
 		output	wire		o_swb_stall,
 		output	reg		o_swb_ack,
-		output	reg [(DW-1):0]	o_swb_data,
+		output	reg [(SLV_WIDTH-1):0]	o_swb_data,
 		// }}}
 		// Master/DMA port
 		// {{{
-		output	wire		o_mwb_cyc, o_mwb_stb, o_mwb_we,
-		output	reg [(AW-1):0]	o_mwb_addr,
-		output	reg [(DW-1):0]	o_mwb_data,
+		output	wire			o_mwb_cyc, o_mwb_stb, o_mwb_we,
+		output	reg [(AW-1):0]		o_mwb_addr,
+		output	reg [(BUS_WIDTH-1):0]	o_mwb_data,
 		// Master/DMA wishbone responses from the bus
-		input	wire		i_mwb_stall, i_mwb_ack,
-		input	wire [(DW-1):0]	i_mwb_data,
-		input	wire		i_mwb_err,
+		input	wire			i_mwb_stall, i_mwb_ack,
+		input	wire [(BUS_WIDTH-1):0]	i_mwb_data,
+		input	wire			i_mwb_err,
 		// }}}
 		// The interrupt device interrupt lines
-		input	wire [(DW-1):0]	i_dev_ints,
+		input	wire [31:0]		i_dev_ints,
 		// An interrupt to be set upon completion
-		output	reg		o_interrupt
+		output	reg			o_interrupt
 		// }}}
 	);
 
@@ -159,9 +161,9 @@ module wbdmac #(
 				DMA_WRITE_REQ	= 3'b101,
 				DMA_WRITE_ACK	= 3'b110;
 
-	wire		s_cyc, s_stb, s_we;
-	wire	[1:0]	s_addr;
-	wire	[31:0]	s_data;
+	wire			s_cyc, s_stb, s_we;
+	wire	[1:0]		s_addr;
+	wire	[SLV_WIDTH-1:0]	s_data;
 
 	reg	[2:0]		dma_state;
 	reg			cfg_err, cfg_len_nonzero;
@@ -174,7 +176,7 @@ module wbdmac #(
 	// Single block operations: We'll read, then write, up to a single
 	// memory block here.
 
-	reg	[(DW-1):0]	dma_mem	[0:(((1<<LGMEMLEN))-1)];
+	reg	[BUS_WIDTH-1:0]	dma_mem	[0:(((1<<LGMEMLEN))-1)];
 	reg	[(LGMEMLEN):0]	nread, nwritten, nwacks, nracks;
 	wire	[(AW-1):0]	bus_nracks;
 
@@ -193,7 +195,7 @@ module wbdmac #(
 		// {{{
 		reg	r_s_cyc, r_s_stb, r_s_we;
 		reg	[1:0]	r_s_addr;
-		reg	[31:0]	r_s_data;
+		reg	[SLV_WIDTH-1:0]	r_s_data;
 
 		always @(posedge i_clk)
 			r_s_cyc <= i_swb_cyc;
@@ -249,7 +251,7 @@ module wbdmac #(
 		// {{{
 		o_mwb_addr <= cfg_raddr;
 
-		// When the slave wishbone writes, and we are in this 
+		// When the slave wishbone writes, and we are in this
 		// (ready) configuration, then allow the DMA to be controlled
 		// and thus to start.
 		if ((s_stb)&&(s_we))
@@ -270,8 +272,8 @@ module wbdmac #(
 				cfg_incd  <= !s_data[28];
 				end
 			2'b01: begin end // This is done elsewhere
-			2'b10: cfg_raddr <=  s_data[(AW+2-1):2];
-			2'b11: cfg_waddr <=  s_data[(AW+2-1):2];
+			2'b10: cfg_raddr <=  s_data[$clog2(BUS_WIDTH/8) +: AW];
+			2'b11: cfg_waddr <=  s_data[$clog2(BUS_WIDTH/8) +: AW];
 			endcase
 		end end
 		// }}}
@@ -561,7 +563,7 @@ module wbdmac #(
 
 	// rdaddr
 	// {{{
-	// This is tricky.  In order for Vivado to consider dma_mem to be a 
+	// This is tricky.  In order for Vivado to consider dma_mem to be a
 	// proper memory, it must have a simple address fed into it.  Hence
 	// the read_address (rdaddr) register.  The problem is that this
 	// register must always be one greater than the address we actually
@@ -606,9 +608,9 @@ module wbdmac #(
 					cfg_on_dev_trigger, cfg_dev_trigger,
 					cfg_blocklen_sub_one
 					};
-		2'b01: o_swb_data <= { {(DW-AW){1'b0}}, cfg_len  };
-		2'b10: o_swb_data <= { {(DW-2-AW){1'b0}}, cfg_raddr, 2'b00 };
-		2'b11: o_swb_data <= { {(DW-2-AW){1'b0}}, cfg_waddr, 2'b00 };
+		2'b01: o_swb_data <= { {(SLV_WIDTH-AW){1'b0}}, cfg_len  };
+		2'b10: o_swb_data <= { {(SLV_WIDTH-$clog2(BUS_WIDTH/8)-AW){1'b0}}, cfg_raddr, {($clog2(BUS_WIDTH/8)){1'b0}} };
+		2'b11: o_swb_data <= { {(SLV_WIDTH-$clog2(BUS_WIDTH/8)-AW){1'b0}}, cfg_waddr,  {($clog2(BUS_WIDTH/8)){1'b0}} };
 	endcase
 	// }}}
 

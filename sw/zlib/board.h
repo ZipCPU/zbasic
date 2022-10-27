@@ -69,6 +69,14 @@
 #define	SYSPIC(A)	(1<<(A))
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// SD SPI constants
+// {{{
+////////////////////////////////////////////////////////////////////////////////
+//
+//
+
 #define	SDSPI_SETAUX	0x0000ff
 #define	SDSPI_READAUX	0x0000bf
 #define	SDSPI_CMD		0x000040
@@ -92,6 +100,7 @@
 typedef	struct SDSPI_S {
 	unsigned	sd_ctrl, sd_data, sd_fifo[2];
 } SDSPI;
+// }}}
 
 
 #define	ALTPIC(A)	(1<<(A))

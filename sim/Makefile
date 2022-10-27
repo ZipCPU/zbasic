@@ -53,7 +53,7 @@ VDEFS   := $(shell ./vversion.sh)
 VINCD   := $(VROOT)/include
 VINC	:= -I$(VINCD) -I$(VINCD)/vltstd -I$(VOBJDR)
 INCS	:= -I../sw/host -I$(RTLD) $(VINC)
-CFLAGS	:= -Og -g -Wall $(INCS)
+CFLAGS	:= -Og -g -Wall -faligned-new -DVL_THREADED $(INCS)
 # CFLAGS	:= -Og -g -Wall $(INCS) -faligned-new
 #
 # A list of our sources and headers
@@ -61,7 +61,7 @@ CFLAGS	:= -Og -g -Wall $(INCS)
 SIMSOURCES:= flashsim.cpp sdspisim.cpp dbluartsim.cpp zipelf.cpp byteswap.cpp
 SIMOBJECTS:= $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(SIMSOURCES)))
 SIMHEADERS:= $(foreach header,$(subst .cpp,.h,$(SIMSOURCES)),$(wildcard $(header)))
-VOBJS   := $(OBJDIR)/verilated.o $(OBJDIR)/verilated_vcd_c.o
+VOBJS   := $(OBJDIR)/verilated.o $(OBJDIR)/verilated_vcd_c.o $(OBJDIR)/verilated_threads.o
 SIMOBJ := $(subst .cpp,.o,$(SIMSOURCES))
 SIMOBJS:= $(addprefix $(OBJDIR)/,$(SIMOBJ)) $(VOBJS)
 
@@ -83,7 +83,7 @@ $(OBJDIR)/%.o: $(VINCD)/%.cpp
 
 MAINOBJS := $(OBJDIR)/main_tb.o $(OBJDIR)/automaster_tb.o
 main_tb: $(MAINOBJS) $(SIMOBJECTS) $(VOBJS) $(VOBJDR)/Vmain__ALL.a
-	$(CXX) $(INCS) $(VDEFS) $^ $(VOBJDR)/Vmain__ALL.a -lelf -o $@
+	$(CXX) $(INCS) $(VDEFS) $^ $(VOBJDR)/Vmain__ALL.a -lelf -lpthread -o $@
 
 #
 # Build a 64M SD-card image file that we can use for testing

@@ -30,10 +30,10 @@
 // with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -93,15 +93,21 @@ module	axipipe #(
 		// {{{
 		output	reg			M_AXI_AWVALID,
 		input	wire			M_AXI_AWREADY,
+		// verilator coverage_off
 		output	wire	[IW-1:0]	M_AXI_AWID,
+		// verilator coverage_on
 		output	reg	[AW-1:0]	M_AXI_AWADDR,
-		output	wire	[7:0]		M_AXI_AWLEN,
+		// verilator coverage_off
+		output	wire	[7:0]		M_AXI_AWLEN,	// == 0
+		// verilator coverage_on
 		output	wire	[2:0]		M_AXI_AWSIZE,
 		output	wire	[1:0]		M_AXI_AWBURST,
 		output	wire			M_AXI_AWLOCK,
 		output	wire	[3:0]		M_AXI_AWCACHE,
+		// verilator coverage_off
 		output	wire	[2:0]		M_AXI_AWPROT,
 		output	wire	[3:0]		M_AXI_AWQOS,
+		// verilator coverage_on
 		//
 		output	reg			M_AXI_WVALID,
 		input	wire			M_AXI_WREADY,
@@ -110,7 +116,9 @@ module	axipipe #(
 		output	wire			M_AXI_WLAST,
 		//
 		input	wire			M_AXI_BVALID,
+		// verilator coverage_off
 		input	wire	[IW-1:0]	M_AXI_BID,
+		// verilator coverage_on
 		output	wire			M_AXI_BREADY,
 		input	wire [1:0]		M_AXI_BRESP,
 		// }}}
@@ -118,19 +126,27 @@ module	axipipe #(
 		// {{{
 		output	reg			M_AXI_ARVALID,
 		input	wire			M_AXI_ARREADY,
+		// verilator coverage_off
 		output	wire	[IW-1:0]	M_AXI_ARID,
+		// verilator coverage_on
 		output	reg	[AW-1:0]	M_AXI_ARADDR,
-		output	wire	[7:0]		M_AXI_ARLEN,
+		// verilator coverage_off
+		output	wire	[7:0]		M_AXI_ARLEN,	// == 0
+		// verilator coverage_on
 		output	wire	[2:0]		M_AXI_ARSIZE,
 		output	wire	[1:0]		M_AXI_ARBURST,
 		output	wire			M_AXI_ARLOCK,
 		output	wire	[3:0]		M_AXI_ARCACHE,
+		// verilator coverage_off
 		output	wire	[2:0]		M_AXI_ARPROT,
 		output	wire	[3:0]		M_AXI_ARQOS,
+		// verilator coverage_on
 		//
 		input	wire			M_AXI_RVALID,
 		output	wire			M_AXI_RREADY,
+		// verilator coverage_off
 		input	wire	[IW-1:0]	M_AXI_RID,
+		// verilator coverage_on
 		input	wire	[DW-1:0]	M_AXI_RDATA,
 		input	wire			M_AXI_RLAST,
 		input	wire	[1:0]		M_AXI_RRESP
@@ -181,6 +197,7 @@ module	axipipe #(
 	wire	[3:0]			fifo_return_reg;
 	wire	[AXILSB-1:0]		fifo_lsb;
 	reg [2*C_AXI_DATA_WIDTH-1:0]	wide_return, wide_wdata;
+	reg	[31:0]			pre_result;
 	reg [2*C_AXI_DATA_WIDTH/8-1:0]	wide_wstrb;
 	reg	[C_AXI_DATA_WIDTH-1:0]	misdata;
 
@@ -659,7 +676,7 @@ module	axipipe #(
 			= { {(2*C_AXI_DATA_WIDTH-8){1'b0}}, i_data[7:0] }
 					<< (8*i_addr[AXILSB-1:0]);
 		default: wide_wdata
-			= { {(C_AXI_DATA_WIDTH){1'b0}}, i_data }
+			= { {(2*C_AXI_DATA_WIDTH-32){1'b0}}, i_data }
 					<< (8*i_addr[AXILSB-1:0]);
 		endcase
 
@@ -739,7 +756,7 @@ module	axipipe #(
 		// }}}
 
 		// misaligned_aw_request
-		// {{{	
+		// {{{
 		initial	r_misaligned_aw_request = 0;
 		always @(posedge i_clk)
 		if (!S_AXI_ARESETN)
@@ -902,17 +919,6 @@ module	axipipe #(
 				wide_return = { M_AXI_RDATA, {(DW){1'b0}} }
 							<< (8*fifo_lsb);
 
-			casez(fifo_op[1:0])
-			2'b10: wide_return = { {(16){1'b0}},
-					wide_return[(2*DW)-1:(2*DW)-16],
-					{(2*DW-32){1'b0}} };
-			2'b11: wide_return = { {(24){1'b0}},
-						wide_return[(2*DW)-1:(2*DW)-8],
-					{(2*DW-32){1'b0}} };
-			default: begin end
-			endcase
-
-			wide_return[31:0] = wide_return[(2*DW-1):(2*DW-32)];
 		end else begin
 			if (fifo_misaligned && !OPT_ALIGNMENT_ERR)
 				wide_return = { M_AXI_RDATA, misdata } >> (8*fifo_lsb);
@@ -923,6 +929,24 @@ module	axipipe #(
 
 		if (OPT_LOWPOWER && (!M_AXI_RVALID || M_AXI_RRESP[1]))
 			wide_return = 0;
+	end
+
+	always @(*)
+	begin
+		if (SWAP_WSTRB)
+		begin
+
+			pre_result = 32'h0;
+			casez(fifo_op)
+			2'b10: pre_result[15:0] = {
+					wide_return[(2*DW)-1:(2*DW)-16] };
+			2'b11: pre_result[7:0] = {
+					wide_return[(2*DW)-1:(2*DW)-8] };
+			default: pre_result[31:0] = wide_return[(2*DW-1):(2*DW-32)];
+			endcase
+
+		end else
+			pre_result = wide_return[31:0];
 	end
 	// }}}
 
@@ -944,23 +968,29 @@ module	axipipe #(
 	// {{{
 	always @(posedge i_clk)
 	if (OPT_LOWPOWER && (!S_AXI_ARESETN || r_flushing || i_cpu_reset))
+	begin
 		o_result <= 0;
-	else if (OPT_LOCK && M_AXI_BVALID && (!OPT_LOWPOWER || (r_lock && M_AXI_BRESP == OKAY)))
+	end else if (OPT_LOCK && M_AXI_BVALID && (!OPT_LOWPOWER || (r_lock && M_AXI_BRESP == OKAY)))
 	begin
 		o_result <= 0;
 		o_result[AW-1:0] <= r_pc;
 	end else if (!OPT_LOWPOWER || M_AXI_RVALID)
 	begin
 
-		o_result <= wide_return[31:0];
+		o_result <= pre_result[31:0];
 
 		if (OPT_SIGN_EXTEND)
 		begin
 			// {{{
+			// verilator coverage_off
+			// Optionally sign extend the return result.
+			//   This would be contrary to the ZipCPU ISA
 			case(fifo_op)
-			2'b10: o_result[31:16] <= {(16){wide_return[15]}};
-			2'b11: o_result[31: 8] <= {(24){wide_return[ 7]}};
+			2'b10: o_result[31:16] <= {(16){pre_result[15]}};
+			2'b11: o_result[31: 8] <= {(24){pre_result[7]}};
+			default: begin end
 			endcase
+			// verilator coverage_on
 			// }}}
 		end else if (fifo_op[1])
 		begin
@@ -972,8 +1002,6 @@ module	axipipe #(
 			// }}}
 		end
 
-		if (OPT_LOWPOWER&&(i_cpu_reset || r_flushing))
-			o_result <= 0;
 	end
 	// }}}
 	// }}}
@@ -1006,15 +1034,31 @@ module	axipipe #(
 
 	// Make verilator happy
 	// {{{
+	// verilator coverage_off
 	// verilator lint_off UNUSED
 	wire	unused;
 	assign	unused = &{ 1'b0, M_AXI_RRESP[0], M_AXI_BRESP[0],
 			M_AXI_BID, M_AXI_RID, M_AXI_RLAST,
 			// i_addr[31:C_AXI_ADDR_WIDTH],
-			(&i_addr), wide_return[2*C_AXI_DATA_WIDTH-1:32],
+			(&i_addr),
+			// wide_return[2*C_AXI_DATA_WIDTH-1:32],
 			pending_err, fifo_read_op,
 			none_outstanding };
+
+	generate if (SWAP_WSTRB)
+	begin
+		wire	wide_unused;
+
+		if (SWAP_WSTRB)
+		begin
+			assign	wide_unused = &{ 1'b0,
+					wide_return[2*DW-32-1:0] };
+		end else begin
+			assign	wide_unused = &{ 1'b0, wide_return[2*DW-1:32] };
+		end
+	end endgenerate
 	// verilator lint_on  UNUSED
+	// verilator coverage_on
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

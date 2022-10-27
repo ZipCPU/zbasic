@@ -104,19 +104,25 @@ module	axiicache #(
 		// An instruction cache only needs to support cache reads
 		output	wire				M_AXI_ARVALID,
 		input	wire				M_AXI_ARREADY,
+		// verilator coverage_off
 		output	wire	[C_AXI_ID_WIDTH-1:0]	M_AXI_ARID,
+		// verilator coverage_on
 		output	wire	[C_AXI_ADDR_WIDTH-1:0]	M_AXI_ARADDR,
 		output	wire	[7:0]			M_AXI_ARLEN,
 		output	wire	[2:0]			M_AXI_ARSIZE,
 		output	wire	[1:0]			M_AXI_ARBURST,
-		output	wire				M_AXI_ARLOCK,
+		// verilator coverage_off
+		output	wire				M_AXI_ARLOCK,	// = 0
 		output	wire	[3:0]			M_AXI_ARCACHE,
 		output	wire	[2:0]			M_AXI_ARPROT,
 		output	wire	[3:0]			M_AXI_ARQOS,
+		// verilator coverage_on
 		//
 		input	wire				M_AXI_RVALID,
 		output	wire				M_AXI_RREADY,
+		// verilator coverage_off
 		input	wire	[C_AXI_ID_WIDTH-1:0]	M_AXI_RID,
+		// verilator coverage_on
 		input	wire	[C_AXI_DATA_WIDTH-1:0]	M_AXI_RDATA,
 		input	wire				M_AXI_RLAST,
 		input	wire	[1:0]			M_AXI_RRESP,
@@ -217,7 +223,7 @@ module	axiicache #(
 	// Evaluates to the cache tag, at the program counter address for the
 	// incoming/requested program counter
 	always @(posedge S_AXI_ACLK)
-		pc_tag <= { cache_tags[pc_line], i_pc[CWB-1:LSB] };
+		pc_tag <= { cache_tags[pc_line], pc_line };
 	// }}}
 
 	//
@@ -241,7 +247,7 @@ module	axiicache #(
 	// last_tag
 	// {{{
 	always @(posedge S_AXI_ACLK)
-		last_tag <={cache_tags[last_line], last_pc[CWB-1:LSB]};
+		last_tag <= { cache_tags[last_line], last_line };
 	// }}}
 
 	// valid_line --- are we serving a valid request line?
@@ -459,6 +465,7 @@ module	axiicache #(
 	// {{{
 	generate if (OPT_WRAP)
 	begin : GEN_WRAP_VALID
+		// {{{
 		reg			r_wrap, r_valid, r_poss;
 		reg	[(1<<LS):0]	r_count;
 
@@ -561,8 +568,18 @@ module	axiicache #(
 			assert(r_valid == (r_count > (o_valid ? 1:0)));
 		// }}}
 `endif
+		// }}}
 	end else begin
+		// {{{
 		assign	wrap_valid = 1'b0;
+
+		// verilator coverage_off
+		// verilator lint_off UNUSED
+		wire	unused_nowrap;
+		assign	unused_nowrap = &{ 1'b0, bus_abort };
+		// verilator lint_on UNUSED
+		// verilator coverage_on
+		// }}}
 	end endgenerate
 	// }}}
 	
@@ -744,10 +761,12 @@ module	axiicache #(
 
 	// Make Verilator happy
 	// {{{
+	// verilator coverage_off
 	// Verilator lint_off UNUSED
 	wire	unused;
 	assign	unused = &{ 1'b0, M_AXI_RID, M_AXI_RRESP[0] };
 	// Verilator lint_on  UNUSED
+	// verilator coverage_on
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

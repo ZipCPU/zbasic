@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// Copyright (C) 2015-2022, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -23,6 +23,11 @@
 // ANY WARRANTY; without even the implied warranty of MERCHANTIBILITY or
 // FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 // for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
+// target there if the PDF file isn't present.)  If not, see
+// <http://www.gnu.org/licenses/> for a copy.
 // }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
 // {{{
@@ -53,8 +58,12 @@
 
 #ifdef	_ZIP_HAS_WBUART
 #define	TXBUSY	((_uart->u_fifo & 0x010000)==0)
+#define	TXCLEAR	(((UARTTX & 0x100)==0)			\
+	&& (((_uart->u_fifo >> 18) & 0x3ff)		\
+		>= (1 << ((_uart->u_fifo>>28)&&15))-1))
 #elif	defined(_ZIP_HAS_UARTTX)
 #define	TXBUSY	((UARTTX & 0x0100)!=0)
+#define	TXCLEAR	TXBUSY
 #endif
 
 void
@@ -75,7 +84,8 @@ _outbyte(char v) {
 
 void
 _outbytes(int nbytes, const char *buf) {
-#ifdef	_ZIP_HAS_WBUART
+#ifdef	FIFO_ENABLED
+	// {{{
 	const	uint8_t	*ptr = buf;
 	int	fifosz;
 
@@ -112,16 +122,19 @@ _outbytes(int nbytes, const char *buf) {
 			}
 		}
 	}
+	// }}}
 #else
+	const	uint8_t	*ptr = buf;
+
 	for(int i=0; i<nbytes; i++)
-		_outbyte(buf[i]);
-	return nbytes;
+		_outbyte(*ptr++);
 #endif
 }
 
 int
 _inbyte(void) {
 #ifdef	UARTRX
+	// {{{
 	const	int	echo = 1, cr_into_nl = 1;
 	static	int	last_was_cr = 0;
 	int	rv;
@@ -149,6 +162,7 @@ _inbyte(void) {
 	if ((rv != -1)&&(echo))
 		_outbyte(rv);
 	return rv;
+	// }}}
 #else
 	return -1;
 #endif
@@ -431,7 +445,6 @@ __attribute__((__noreturn__))
 void	_exit(int rcode) {
 	extern void	_hw_shutdown(int rcode) _ATTRIBUTE((__noreturn__));
 
-#ifdef	_BOARD_HAS_BUSCONSOLE
 	// Problem: Once u_tx & 0x100 goes low, there may still be a character
 	// or two in the bus console's pipeline.  These may prevent a newline
 	// from completing before we issue the exit command.
@@ -442,23 +455,9 @@ void	_exit(int rcode) {
 	// received
 	_outbyte(' ');
 	_outbyte(' ');
-#endif
 
 	// Wait for any serial ports to flush their buffers
-#if	defined(_BOARD_HAS_WBUART)
-	while(_uart->u_tx & 0x0100)
+	while(!TXCLEAR)
 		;
-#elif	defined(_BOARD_HAS_BUSCONSOLE)
-	while(_uart->u_tx & 0x0100)
-		;
-#elif	defined(_ZIP_HAS_UARTTX)
-	// Depend upon the WBUART, not the PIC
-	while(UARTTX & 0x100)
-		;
-	uint8_t c = v;
-	UARTTX = (unsigned)c;
-#else
-// #error	"No console"
-#endif
 	_hw_shutdown(rcode);
 }

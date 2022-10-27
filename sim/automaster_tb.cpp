@@ -52,6 +52,9 @@
 
 #include "port.h"
 
+// #define	R_ZIPCTRL	0x000
+// #define	R_ZIPPC		0x0bc
+
 #include "main_tb.cpp"
 
 void	usage(void) {
@@ -180,42 +183,12 @@ int	main(int argc, char **argv) {
 
 		if (verbose_flag)
 			printf("Attempting to start ZipCPU from 0x%08x\n", entry);
-		tb->m_core->cpu_ipc = entry;
 
-		tb->m_core->cpu_cmd_halt = 0;
-		tb->m_core->cpu_reset    = 0;
-		tb->tick();
-
-		tb->m_core->cpu_ipc = entry;
-		tb->m_core->cpu_new_pc   = 1;
-		tb->m_core->cpu_pf_pc    = entry;
-		tb->m_core->cpu_cmd_halt = 1;
-		tb->m_core->cpu_reset    = 0;
-	//
-		// tb->m_core->alu_wR  = 1;
-		tb->m_core->CPUVAR(_alu_reg) = 15;
-		tb->m_core->CPUVAR(_dbgv)    = 1;
-		tb->m_core->CPUVAR(_dbg_val) = entry;
-		tb->m_core->CPUVAR(_dbg_clear_pipe) = 1;
-	//
-		tb->tick();
-		tb->m_core->cpu_cmd_halt = 0;
-		tb->m_core->VVAR(_swic__DOT__cmd_reset) = 0;
-		tb->tick();
-		tb->tick();
-		if (tb->m_core->cpu_cmd_halt) {
-			for(int k=0; k<50; k++)
-				tb->tick();
-			tb->m_core->VVAR(_swic__DOT__cmd_write) = 1;
-			tb->m_core->VVAR(_swic__DOT__cmd_waddr) = 15;
-			tb->m_core->VVAR(_swic__DOT__cmd_wdata) = entry;
-			tb->tick();
-			tb->tick();
-			tb->m_core->cpu_cmd_halt = 0;
-			tb->tick();
-			tb->m_core->cpu_cmd_halt = 0;
-			tb->tick();
-		}
+		tb->sim_write(R_ZIPCTRL, 0x11); tb->tick();
+		tb->sim_write(R_ZIPCTRL, 0x11); tb->tick();
+		tb->sim_write(R_ZIPPC,   entry); tb->tick();
+		tb->sim_write(R_ZIPCTRL, 0);	tb->tick();
+		tb->sim_write(R_ZIPCTRL, 0);	tb->tick();
 	}
 	// }}}
 
@@ -226,24 +199,15 @@ int	main(int argc, char **argv) {
 #else
 	if (profile_fp) { // Profile the ZipCPU
 		// {{{
-		unsigned long	last_instruction_tick = 0, now = 0;
 		while((!willexit)||(!tb->done())) {
-			unsigned long	iticks;
 			unsigned	buf[2];
 
-			now++;
 			tb->tick();
 
-			if (((tb->m_core->cpu_alu_pc_valid)
-					||(tb->m_core->cpu_mem_pc_valid))
-				&&(!tb->m_core->cpu_alu_phase)
-				&&(!tb->m_core->cpu_new_pc)) {
-				iticks = now - last_instruction_tick;
-				buf[0] = tb->m_core->cpu_alu_pc;
-				buf[1] = (unsigned)iticks;
+			if (tb->m_core->o_prof_stb) {
+				buf[0] = tb->m_core->o_prof_addr;
+				buf[1] = tb->m_core->o_prof_ticks;
 				fwrite(buf, sizeof(unsigned), 2, profile_fp);
-
-				last_instruction_tick = now;
 			}
 		}
 		// }}}

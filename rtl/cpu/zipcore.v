@@ -39,7 +39,7 @@
 module	zipcore #(
 		// {{{
 		parameter	ADDRESS_WIDTH=30,	// 32-b word addr width
-		parameter [ADDRESS_WIDTH+1:0] RESET_ADDRESS=32'h010_0000,
+		parameter [31:0] RESET_ADDRESS=32'h010_0000,
 		parameter	OPT_MPY = 0,
 		parameter [0:0]	OPT_SHIFTS = 1,
 		parameter [0:0]	OPT_DIV = 1,
@@ -100,7 +100,7 @@ module	zipcore #(
 		output	wire [2:0]	o_mem_op,
 		output	wire [31:0]	o_mem_addr,
 		output	wire [31:0]	o_mem_data,
-		output	wire [(AW+1):0]	o_mem_lock_pc,
+		output	wire [AW+1:0]	o_mem_lock_pc,
 		output	wire [4:0]	o_mem_reg,
 		input	wire 		i_mem_busy, i_mem_rdbusy,
 					i_mem_pipe_stalled, i_mem_valid,
@@ -131,7 +131,7 @@ module	zipcore #(
 	// {{{
 	// Verilator lint_off UNUSED
 	localparam	[0:0]	OPT_MEMPIPE = OPT_PIPELINED_BUS_ACCESS;
-	localparam [(AW-1):0]	RESET_BUS_ADDRESS = RESET_ADDRESS[(AW+1):2];
+	localparam [(AW-1):0]	RESET_BUS_ADDRESS = RESET_ADDRESS[AW+1:2];
 	localparam	[3:0]	CPU_CC_REG = 4'he,
 				CPU_PC_REG = 4'hf;
 	localparam	[3:0]	CPU_SUB_OP = 4'h0,// also a compare instruction
@@ -169,9 +169,10 @@ module	zipcore #(
 	// (BUS, TRAP,ILL,BREAKEN,STEP,GIE,SLEEP ), V, N, C, Z
 	reg	[3:0]	flags, iflags;
 	wire	[15:0]	w_uflags, w_iflags;
-	reg		break_en, step, sleep, r_halted;
+	reg		break_en, user_step, sleep, r_halted;
 	wire		break_pending, trap, gie, ubreak, pending_interrupt,
 			stepped;
+	wire		step;
 	wire		ill_err_u;
 	reg		ill_err_i;
 	reg		ibus_err_flag;
@@ -365,7 +366,7 @@ module	zipcore #(
 	////////////////////////////////////////////////////////////////////////
 	//
 	//
-	assign	master_ce = ((!i_halt)||(alu_phase))
+	assign	master_ce = (!i_halt || alu_phase)
 				&&(!cc_write_hold)&&(!o_break)&&(!sleep);
 	// }}}
 	////////////////////////////////////////////////////////////////////////
@@ -475,11 +476,13 @@ module	zipcore #(
 		assign	pending_sreg_write = 1'b0;
 		assign	cc_invalid_for_dcd = 1'b0;
 
+		// verilator coverage_off
 		// Verilator lint_off UNUSED
 		wire		pipe_unused;
 		assign		pipe_unused = &{ 1'b0, cc_invalid_for_dcd,
 					pending_sreg_write };
 		// Verilator lint_on UNUSED
+		// verilator coverage_on
 		// }}}
 	end endgenerate
 
@@ -514,9 +517,11 @@ module	zipcore #(
 		//	&&(!alu_sreg_stall);
 		assign	alu_ce = (adf_ce_unconditional)&&(op_valid_alu);
 
+		// verilator coverage_off
 		// Verilator lint_off unused
-		wire	unused_alu_stall = alu_stall;
+		wire	unused_alu_stall = &{ 1'b0, alu_stall };
 		// Verilator lint_on  unused
+		// verilator coverage_on
 		// }}}
 	end else begin : NO_ALU_STALLS
 		// alu_stall, alu_ce
@@ -527,9 +532,11 @@ module	zipcore #(
 		//			&&(!alu_stall);
 		assign	alu_ce = (adf_ce_unconditional)&&(op_valid_alu);
 
+		// verilator coverage_off
 		// Verilator lint_off unused
-		wire	unused_alu_stall = alu_stall;
+		wire	unused_alu_stall = &{ 1'b0, alu_stall };
 		// Verilator lint_on  unused
+		// verilator coverage_on
 		// }}}
 	end endgenerate
 	//
@@ -751,10 +758,12 @@ module	zipcore #(
 			assign	w_op_Bv = regset[dcd_B[3:0]];
 		end
 
+		// verilator coverage_off
 		// verilator lint_off UNUSED
 		wire	unused_prereg_addrs;
 		assign	unused_prereg_addrs = &{ 1'b0, dcd_preA, dcd_preB };
 		// verilator lint_on  UNUSED
+		// verilator coverage_on
 		// }}}
 	end else begin : GEN_BLOCKRAM
 		// {{{
@@ -767,24 +776,29 @@ module	zipcore #(
 			pre_rewrite_flag_A <= (wr_reg_ce)&&(dcd_preA == wr_reg_id);
 			pre_rewrite_flag_B <= (wr_reg_ce)&&(dcd_preB == wr_reg_id);
 			pre_rewrite_value  <= wr_gpreg_vl;
+		end else if (OPT_PIPELINED && dcd_valid)
+		begin
+			pre_rewrite_flag_A <= (wr_reg_ce)&&(dcd_A == wr_reg_id);
+			pre_rewrite_flag_B <= (wr_reg_ce)&&(dcd_B == wr_reg_id);
+			pre_rewrite_value  <= wr_gpreg_vl;
 		end
 
 		if (OPT_USERMODE)
 		begin : GEN_FULL_REGSET
 
 			always @(posedge i_clk)
-			if (dcd_ce)
+			if (dcd_ce || (OPT_PIPELINED && dcd_valid))
 			begin
-				pre_op_Av <= regset[dcd_preA];
-				pre_op_Bv <= regset[dcd_preB];
+				pre_op_Av <= regset[dcd_ce ? dcd_preA : dcd_A];
+				pre_op_Bv <= regset[dcd_ce ? dcd_preB : dcd_B];
 			end
 
 		end else begin : GEN_NO_USERREGS
 			always @(posedge i_clk)
-			if (dcd_ce)
+			if (dcd_ce || (OPT_PIPELINED && dcd_valid))
 			begin
-				pre_op_Av <= regset[dcd_preA[3:0]];
-				pre_op_Bv <= regset[dcd_preB[3:0]];
+				pre_op_Av <= regset[dcd_ce ? dcd_preA[3:0] : dcd_A[3:0]];
+				pre_op_Bv <= regset[dcd_ce ? dcd_preB[3:0] : dcd_B[3:0]];
 			end
 		end
 
@@ -1118,7 +1132,7 @@ module	zipcore #(
 	else if ((OPT_PIPELINED)&&(op_ce))
 		r_op_break <= (dcd_valid)&&(dcd_break)&&(!dcd_illegal);
 	else if ((!OPT_PIPELINED)&&(dcd_valid))
-		r_op_break <= (dcd_break)&&(!dcd_illegal)&&(!gie || !step || !stepped);
+		r_op_break <= (dcd_break)&&(!dcd_illegal)&&(!step || !stepped);
 
 	assign	op_break = r_op_break;
 `ifdef	FORMAL
@@ -1135,10 +1149,12 @@ module	zipcore #(
 
 		assign op_lock       = 1'b0;
 
+		// verilator coverage_off
 		// Verilator lint_off UNUSED
 		wire	dcd_lock_unused;
-		assign	dcd_lock_unused = dcd_lock;
+		assign	dcd_lock_unused = &{ 1'b0, dcd_lock };
 		// Verilator lint_on  UNUSED
+		// verilator coverage_on
 
 	end else // if (!OPT_LOCK)
 	begin : GEN_OPLOCK
@@ -1243,10 +1259,12 @@ module	zipcore #(
 		assign	op_sim = 0;
 		assign	op_sim_immv = 0;
 
+		// verilator coverage_off
 		// Verilator lint_off UNUSED
 		wire	op_sim_unused;
 		assign	op_sim_unused = &{ 1'b0, dcd_sim, dcd_sim_immv };
 		// Verilator lint_on  UNUSED
+		// verilator coverage_on
 	end endgenerate
 	// }}}
 
@@ -1522,10 +1540,12 @@ module	zipcore #(
 		assign	div_flags = 4'h0;
 
 		// Make verilator happy here
+		// verilator coverage_off
 		// verilator lint_off UNUSED
 		wire	unused_divide;
-		assign	unused_divide = div_ce;
+		assign	unused_divide = &{ 1'b0, div_ce };
 		// verilator lint_on  UNUSED
+		// verilator coverage_on
 		// }}}
 	end endgenerate
 	// }}}
@@ -1911,15 +1931,17 @@ module	zipcore #(
 			always @(posedge i_clk)
 			begin
 				if (!i_reset && !clear_pipeline
-						&& adf_ce_unconditional
-						&& op_sim && op_valid_alu)
+					&& adf_ce_unconditional && set_cond
+					&& op_sim && op_valid_alu
+					&&(!wr_reg_ce || !wr_write_pc
+						|| wr_reg_id[4] != alu_gie))
 				begin
 				// Execute simulation only instructions
 				// {{{
 				if ((op_sim_immv[19:10] == 10'h0)&&(op_sim_immv[8]))
 				begin // [N/S]EXIT
 					// {{{
-					// $finish;
+					$finish;
 
 					// if (op_sim_immv[19:4] == 16'h0031)
 						// Exit(User reg), code cpu_wr_gpreg
@@ -2059,15 +2081,17 @@ module	zipcore #(
 			always @(posedge i_clk)
 			begin
 				if (!i_reset && !clear_pipeline
-						&& adf_ce_unconditional
-						&& op_sim && op_valid_alu)
+					&& adf_ce_unconditional && set_cond
+					&& op_sim && op_valid_alu
+					&&(!wr_reg_ce || !wr_write_pc
+						|| wr_reg_id[4] != alu_gie))
 				begin
 				// Execute simulation only instructions
 				// {{{
 				if ((op_sim_immv[19:10] == 10'h0)&&(op_sim_immv[8]))
 				begin // [N/S]EXIT
 					// {{{
-					// $finish;
+					$finish;
 
 					// if (op_sim_immv[19:4] == 16'h0031)
 						// Exit(User reg), code cpu_wr_gpreg
@@ -2388,7 +2412,7 @@ module	zipcore #(
 	// {{{
 	assign	w_uflags = { 2'b00, uhalt_phase, ufpu_err_flag,
 			udiv_err_flag, ubus_err_flag, trap, ill_err_u,
-			ubreak, step, 1'b1, sleep,
+			ubreak, !gie && user_step, 1'b1, sleep,
 			(wr_flags_ce &&  alu_gie) ? wr_flags :  flags };
 	assign	w_iflags = { 2'b00, ihalt_phase, ifpu_err_flag,
 			idiv_err_flag, ibus_err_flag, trap, ill_err_i,
@@ -2463,7 +2487,7 @@ module	zipcore #(
 
 `ifdef	FORMAL
 		always @(*)
-		if (!gie && step && stepped)
+		if (!gie && user_step && stepped)
 			assert(!op_break);
 `endif
 	end endgenerate
@@ -2543,11 +2567,14 @@ module	zipcore #(
 
 	// step : debug single-step control
 	// {{{
+	initial	user_step = 1'b0;
 	always @(posedge i_clk)
 	if (i_reset || !OPT_USERMODE)
-		step <= 1'b0;
+		user_step <= 1'b0;
 	else if ((wr_reg_ce)&&(!alu_gie)&&(wr_write_ucc))
-		step <= wr_spreg_vl[CPU_STEP_BIT];
+		user_step <= wr_spreg_vl[CPU_STEP_BIT];
+
+	assign	step = user_step && gie;
 	// }}}
 
 	// o_clken
@@ -2625,7 +2652,7 @@ module	zipcore #(
 
 		initial	r_user_stepped = 1'b0;
 		always @(posedge i_clk)
-		if (i_reset || !gie || !step)
+		if (i_reset || !gie || !user_step)
 			r_user_stepped <= 1'b0;
 		// else if(w_switch_to_interrupt)
 		//	r_user_stepped <= 1'b0;
@@ -2639,7 +2666,7 @@ module	zipcore #(
 			r_pending_interrupt <= 1'b0;
 		else if (!gie || w_switch_to_interrupt)
 			r_pending_interrupt <= 1'b0;
-		else if (clear_pipeline && (!step || !stepped))
+		else if (clear_pipeline && (!user_step || !stepped))
 			r_pending_interrupt <= 1'b0;
 		else begin
 			if (i_interrupt)
@@ -2652,7 +2679,7 @@ module	zipcore #(
 				r_pending_interrupt <= 1'b1;
 
 			if (((!alu_busy && !i_mem_busy && !div_busy && !fpu_busy)
-				|| wr_reg_ce) && step && stepped)
+				|| wr_reg_ce) && user_step && stepped)
 				r_pending_interrupt <= 1'b1;
 		end
 
@@ -2690,11 +2717,11 @@ module	zipcore #(
 `ifdef	FORMAL
 		always @(posedge i_clk)
 		if (r_pending_interrupt && gie && !clear_pipeline)
-			assert(i_interrupt || step || alu_illegal
+			assert(i_interrupt || user_step || alu_illegal
 					|| ill_err_u || break_pending);
 
 		always @(posedge i_clk)
-		if (f_past_valid && $past(step && stepped && !o_bus_lock
+		if (f_past_valid && $past(user_step && stepped && !o_bus_lock
 							&& !o_dbg_stall))
 			assert(!gie || r_pending_interrupt);
 `endif
@@ -3122,7 +3149,7 @@ module	zipcore #(
 		last_write_to_cc <= 1'b0;
 	else
 		last_write_to_cc <= (wr_reg_ce)&&(wr_write_cc);
-	assign	cc_write_hold = (wr_reg_ce)&&(wr_write_cc)||(last_write_to_cc);
+	assign	cc_write_hold = (wr_reg_ce && wr_write_cc)||(last_write_to_cc);
 
 	// o_clear_icache
 	// {{{
@@ -3499,7 +3526,7 @@ module	zipcore #(
 		initial	prof_addr = 0;
 		always @(posedge i_clk)
 		if (i_reset || clear_pipeline)
-			prof_addr <= RESET_ADDRESS;
+			prof_addr <= RESET_ADDRESS[AW+1:0];
 		else if (alu_pc_valid || mem_pc_valid)
 			prof_addr <= alu_pc;
 
@@ -3519,9 +3546,112 @@ module	zipcore #(
 		assign	o_prof_ticks = 0;
 	end endgenerate
 	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// (Optional) Verilator $display simulation dumping support
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
+
+	// The following is somewhat useful for debugging under Icarus Verilog.
+	// In that case, the VCD file can tell you what's going on at any
+	// specific moment, but it doesn't put the register set into the VCD
+	// file, nor does it give you any insight into the current contents of
+	// the memory, or how they got that way.  The following is intended to
+	// be a first step towards that end.
+	//
+	// As currently envisioned, we track values written to the registers,
+	// and values read and written to memory.  The program counter offered
+	// is typically off by 4 from the actual instruction address being
+	// completed.  It may be off by more in the case of memory instructions.
+	// I haven't (yet) tried to make the PC given match the instruction
+	// address--so that may be an item to do later.
+	//
+	// You can activate (or de-activate) these instructions via the
+	// OPT_SIM_DEBUG flag below.  If set to one, the simulation debuggin
+	// statements will be output as the CPU executes.
+	localparam	OPT_SIM_DEBUG = 1'b0;
+	generate if (OPT_SIM_DEBUG)
+	begin : GEN_SIM_DEBUG
+
+		reg [31:0]	nstime;
+
+		initial	nstime = 0;
+		always @(posedge i_clk)
+			nstime <= nstime + 10;
+
+		always @(posedge i_clk)
+		if (!i_reset && o_mem_ce)
+		begin
+			if (o_mem_reg[4] && !o_mem_op[0])
+			begin
+				case(o_mem_op[2:1])
+				// 3'b000: 
+				// 3'b001: 
+				2'b01: $display("MEM: %8d LW uR%1d         <- @%08x", nstime, o_mem_reg[3:0], o_mem_addr);
+				2'b10: $display("MEM: %8d LH uR%1d         <- @%08x", nstime, o_mem_reg[3:0], o_mem_addr);
+				2'b11: $display("MEM: %8d LB uR%1d         <- @%08x", nstime, o_mem_reg[3:0], o_mem_addr);
+				default: $display("MEM: %8d Unknown MEM op: %d\n", nstime, o_mem_op);
+			endcase
+			end else case(o_mem_op[2:0])
+			// 3'b000: 
+			// 3'b001: 
+			3'b010: $display("MEM: %8d LW sR%1d         <- @%08x", nstime, o_mem_reg, o_mem_addr);
+			3'b011: $display("MEM: %8d SW 0x%08x -> @%08x", nstime, o_mem_data, o_mem_addr);
+			3'b100: $display("MEM: %8d LH sR%1d         <- @%08x", nstime, o_mem_reg, o_mem_addr);
+			3'b101: $display("MEM: %8d SH 0x%08x -> @%04x", nstime, o_mem_data[15:0], o_mem_addr);
+			3'b110: $display("MEM: %8d LB sR%1d         <- @%08x", nstime, o_mem_reg, o_mem_addr);
+			3'b111: $display("MEM: %8d SB 0x%08x -> @%02x", nstime, o_mem_data[7:0], o_mem_addr);
+			default: $display("MEM: %8d Unknown MEM op: %d\n", nstime, o_mem_op);
+			endcase
+		end
+
+		always @(posedge i_clk)
+		if (!i_reset && i_bus_err)
+		begin
+			$display("MEM: %8d BUS ERROR!!", nstime);
+		end
+
+		always @(posedge i_clk)
+		if (!i_reset && wr_reg_ce)
+		begin
+			if (i_mem_valid)
+			begin
+				if (i_mem_wreg[4])
+					$display("MEM: %8d Load 0x%08x -> uR%1d", nstime, i_mem_result, i_mem_wreg[3:0]);
+				else
+					$display("MEM: %8d Load 0x%08x -> sR%1d", nstime, i_mem_result, i_mem_wreg[3:0]);
+			end
+
+			if (wr_reg_id[4] && OPT_USERMODE)
+			begin
+				if (wr_reg_id[3:0] == CPU_PC_REG)
+					$display("REG: %8d   uPC          <- 0x%08x [0x%08x]", nstime, wr_spreg_vl, (gie) ? upc : ipc);
+				else if (wr_reg_id[3:0] == CPU_CC_REG)
+					$display("REG: %8d   uCC          <- 0x%08x [0x%08x]", nstime, wr_spreg_vl, (gie) ? upc : ipc);
+				else if (wr_reg_id == 4'hd)
+					$display("REG: %8d   uSP          <- 0x%08x [0x%08x]", nstime, wr_gpreg_vl, (gie) ? upc : ipc);
+				else
+					$display("REG: %8d   uR%1x          <- 0x%08x [0x%08x]", nstime, wr_reg_id[3:0], wr_gpreg_vl, (gie) ? upc : ipc);
+			end else begin
+
+				if (wr_reg_id[3:0] == CPU_PC_REG)
+					$display("REG: %8d   sPC          <- 0x%08x [0x%08x]", nstime, wr_spreg_vl, ipc);
+				else if (wr_reg_id[3:0] == CPU_CC_REG)
+					$display("REG: %8d   sCC          <- 0x%08x [0x%08x]", nstime, wr_spreg_vl, ipc);
+				else if (wr_reg_id[3:0] == 4'hd)
+					$display("REG: %8d   sSP          <- 0x%08x [0x%08x]", nstime, wr_gpreg_vl, ipc);
+				else
+					$display("REG: %8d   sR%1x          <- 0x%08x [0x%08x]", nstime, wr_reg_id[3:0], wr_gpreg_vl, ipc);
+			end
+		end
+	end endgenerate
+	// }}}
 
 	// Make verilator happy
 	// {{{
+	// verilator coverage_off
 	// verilator lint_off UNUSED
 	wire	unused;
 	assign	unused = &{ 1'b0, fpu_ce, wr_spreg_vl[1:0],
@@ -3541,6 +3671,7 @@ module	zipcore #(
 				i_dbg_rreg[4] };
 	end endgenerate
 	// verilator lint_on  UNUSED
+	// verilator coverage_on
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -3941,7 +4072,7 @@ module	zipcore #(
 		&&(!op_break)&&(!o_break)
 		&&(!w_switch_to_interrupt)
 		&&(!alu_illegal) && (!prelock_stall)
-		&&(!gie || !step || !stepped)
+		&&(!step || !stepped)
 		&&(!ibus_err_flag)&&(!ill_err_i)&&(!idiv_err_flag))
 		`ASSERT(adf_ce_unconditional | mem_ce);
 
@@ -4319,7 +4450,7 @@ module	zipcore #(
 				`ASSERT(f_op_zI == (fc_op_I == 0));
 				`ASSERT(fc_op_wF  == op_wF);
 				`ASSERT(fc_op_lock == op_lock);
-				if (!OPT_PIPELINED && gie && step && stepped)
+				if (!OPT_PIPELINED && step && stepped)
 				begin
 					`ASSERT(!op_break);
 				end else begin
@@ -5354,7 +5485,7 @@ module	zipcore #(
 	if (f_past_valid && !i_reset && !o_bus_lock && !$past(o_bus_lock)
 			&& !$past(o_dbg_stall) && !o_dbg_stall)
 	begin
-		if (!gie && step && !stepped)
+		if (step && !stepped)
 		begin
 			`ASSERT(!i_mem_rdbusy);
 			`ASSERT(!div_busy);
@@ -5363,7 +5494,7 @@ module	zipcore #(
 		end
 
 		if (wr_reg_ce || wr_flags_ce)
-			`ASSERT(!gie || !step || stepped);
+			`ASSERT(!step || stepped);
 	end
 
 	always @(posedge i_clk)
@@ -5548,7 +5679,7 @@ module	zipcore #(
 	always @(posedge i_clk)
 	begin
 		cover(!i_reset);
-		cover(!i_halt);		// !!!
+		cover(!i_halt);	
 		cover(!i_reset && !i_halt);
 	end
 
@@ -5597,9 +5728,9 @@ module	zipcore #(
 
 
 		cover(gie);
-		cover(gie && step);
-		cover(gie && step && w_switch_to_interrupt);
-		cover(gie && step && w_switch_to_interrupt && !i_interrupt);
+		cover(step);
+		cover(step && w_switch_to_interrupt);
+		cover(step && w_switch_to_interrupt && !i_interrupt);
 	end
 
 	always @(posedge i_clk)
@@ -5611,8 +5742,9 @@ module	zipcore #(
 		cover($past(step && !i_reset && !i_halt));
 		cover($past(step && !i_reset && !i_halt,2));
 		cover(!o_bus_lock && alu_ce && step);
-		cover(step && !gie);
-		cover(step && !gie && wr_reg_ce);
+		cover(user_step && !gie);
+		cover(user_step &&  gie);
+		cover(user_step &&  gie && wr_reg_ce);
 
 		// Cover a division by zero
 		cover(!OPT_DIV || div_busy);
@@ -5640,7 +5772,7 @@ module	zipcore #(
 				&& !$past(i_reset || clear_pipeline))
 		begin
 			cover($rose(o_bus_lock));
-			cover($fell(o_bus_lock));		// !!!!
+			cover($fell(o_bus_lock));
 			cover($fell(o_bus_lock)
 				&& !$past(i_bus_err || div_error || alu_illegal));
 		end
@@ -5666,13 +5798,13 @@ module	zipcore #(
 		// Cover the switch to interrupt
 		cover(i_interrupt);
 		cover(i_interrupt && !alu_phase);
-		cover(i_interrupt && !o_bus_lock);			// !!!
-		cover((i_interrupt)&&(!alu_phase)&&(!o_bus_lock));	// !!!
+		cover(i_interrupt && !o_bus_lock);
+		cover((i_interrupt)&&(!alu_phase)&&(!o_bus_lock));
 
 		// Cover a "step" instruction
 		//
 		cover(((alu_pc_valid)||(mem_pc_valid))
-				&&(step)&&(!alu_phase)&&(!o_bus_lock)); // !!!
+				&&(step)&&(!alu_phase)&&(!o_bus_lock));
 		// `ASSERT(!(((alu_pc_valid)||(mem_pc_valid))
 		//		&&(step)&&(!alu_phase)&&(!o_bus_lock)));
 

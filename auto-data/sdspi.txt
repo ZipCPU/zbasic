@@ -58,47 +58,56 @@
 		o_sd_sck, io_sd_cmd, io_sd, i_sd_cd
 @TOP.IODECL=
 	// SD Card
+	// {{{
 	output	wire		o_sd_sck;
 	inout	wire		io_sd_cmd;
 	inout	wire	[3:0]	io_sd;
 	input	wire		i_sd_cd;
+	// }}}
 @TOP.DEFNS=
+	// SD Card definitions
+	// {{{
 	wire		w_sd_cmd;
 	wire	[3:0]	w_sd_data;
 
 	wire		i_sd_cmd;
 	wire	[3:0]	i_sd;
+	// }}}
 @TOP.MAIN=
 		// SD Card
 		o_sd_sck, w_sd_cmd, w_sd_data, io_sd_cmd, io_sd, i_sd_cd
 @TOP.INSERT=
+	//////////////////////////////////////////////////////////////////////
+	//
+	// SD Card SPI Controller
+	// {{{
+	//////////////////////////////////////////////////////////////////////
 	//
 	//
+
 	// Wires for setting up the SD Card Controller
-	//
-	//
-	// assign io_sd_cmd = w_sd_cmd ? 1'bz:1'b0;
-	// assign io_sd[0] = w_sd_data[0]? 1'bz:1'b0;
+	// {{{
+	// This is how we'd set up for SDIO
+	// assign io_sd_cmd = w_sd_cmd ? 1'bz:1'b0;	// MOSI
+	// assign io_sd[0] = w_sd_data[0]? 1'bz:1'b0;	// MISO
 	// assign io_sd[1] = w_sd_data[1]? 1'bz:1'b0;
 	// assign io_sd[2] = w_sd_data[2]? 1'bz:1'b0;
-	// assign io_sd[3] = w_sd_data[3]? 1'bz:1'b0;
-
-
-	// IOBUF sd_cmd_buf(.T(w_sd_cmd),.O(i_sd_cmd), .I(1'b0), .IO(io_sd_cmd));
-	IOBUF sd_dat0_bf(.T(1'b1),.O(i_sd[0]),.I(1'b1),.IO(io_sd[0]));
+	// assign io_sd[3] = w_sd_data[3]? 1'bz:1'b0;	// CS_n
+	// }}}
+	IOBUF sd_cmd_bf(.T(1'b0),.O(i_sd_cmd),.I(w_sd_cmd),.IO(io_sd_cmd));// MISO
+	IOBUF sd_dat0_bf(.T(1'b1),.O(i_sd[0]),.I(1'b1),.IO(io_sd[0]));// MISO
 	IOBUF sd_dat1_bf(.T(1'b1),.O(i_sd[1]),.I(1'b1),.IO(io_sd[1]));
 	IOBUF sd_dat2_bf(.T(1'b1),.O(i_sd[2]),.I(1'b1),.IO(io_sd[2]));
-	// IOBUF sd_dat3_bf(.T(w_sd_data[3]),.O(i_sd[3]),.I(1'b0),.IO(io_sd[3]));
 
-	IOBUF sd_cmd_buf(.T(1'b0),.O(i_sd_cmd), .I(w_sd_cmd), .IO(io_sd_cmd));
-	IOBUF sd_dat3_bf(.T(1'b0),.O(i_sd[3]),.I(w_sd_data[3]),.IO(io_sd[3]));
-
-
+	// Implement an open-drain output
+	IOBUF sd_dat3_bf(.T(w_sd_data[3]),.O(i_sd[3]),.I(1'b0),.IO(io_sd[3]));
+	// }}}
 @MAIN.PORTLIST=
 		// The SD-Card wires
 		o_sd_sck, o_sd_cmd, o_sd_data, i_sd_cmd, i_sd_data, i_sd_detect
 @MAIN.IODECL=
 	// SD-Card declarations
+	// {{{
 	output	wire		o_sd_sck, o_sd_cmd;
 	output	wire	[3:0]	o_sd_data;
 	// verilator lint_off UNUSED
@@ -106,35 +115,40 @@
 	input	wire	[3:0]	i_sd_data;
 	// verilator lint_on  UNUSED
 	input	wire		i_sd_detect;
+	// }}}
 @MAIN.DEFNS=
-	wire[31:0]	sdspi_debug;
+	// SD SPI definitions
+	// Verilator lint_off UNUSED
+	wire	[31:0]	sdspi_debug;
+	// Verilator lint_on  UNUSED
+	wire		w_sd_cs_n, w_sd_mosi, w_sd_miso;
 @MAIN.INSERT=
-	// SPI mapping
-	wire	w_sd_cs_n, w_sd_mosi, w_sd_miso;
+	////////////////////////////////////////////////////////////////////////
+	//
+	// SD Card SPI handling
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
-	sdspi	@$(PREFIX)i(i_clk, sd_reset,
+	sdspi
+	@$(PREFIX)i(
+		// {{{
+		i_clk, sd_reset,
 		@$(SLAVE.PORTLIST),
 		w_sd_cs_n, o_sd_sck, w_sd_mosi, w_sd_miso, i_sd_detect,
-		@$(PREFIX)_int, 1'b1, sdspi_debug);
+		@$(PREFIX)_int, 1'b1, sdspi_debug
+		// }}}
+	);
 
 	assign	w_sd_miso = i_sd_data[0];
 	assign	o_sd_data = { w_sd_cs_n, 3'b111 };
 	assign	o_sd_cmd  = w_sd_mosi;
+	// }}}
 @MAIN.ALT=
 	assign	o_sd_sck   = 1'b1;
 	assign	o_sd_cmd   = 1'b1;
 	assign	o_sd_data  = 4'hf;
-@TOP.INSERT=
-	//
-	//
-	// Wires for setting up the SD Card Controller
-	//
-	//
-	assign io_sd_cmd = w_sd_cmd ? 1'bz:1'b0;
-	assign io_sd[0] = w_sd_data[0]? 1'bz:1'b0;
-	assign io_sd[1] = w_sd_data[1]? 1'bz:1'b0;
-	assign io_sd[2] = w_sd_data[2]? 1'bz:1'b0;
-	assign io_sd[3] = w_sd_data[3]? 1'bz:1'b0;
 @REGS.N=4
 @REGS.NOTE= // SD-SPI addresses
 @REGS.0= 0 R_@$(DEVID)_CTRL  	SDCARD
@@ -142,6 +156,14 @@
 @REGS.2= 2 R_@$(DEVID)_FIFOA	SDFIFOA, SDFIF0, SDFIFA
 @REGS.3= 3 R_@$(DEVID)_FIFOB	SDFIFOB, SDFIF1, SDFIFB
 @BDEF.DEFN=
+////////////////////////////////////////////////////////////////////////////////
+//
+// SD SPI constants
+// {{{
+////////////////////////////////////////////////////////////////////////////////
+//
+//
+
 #define	@$(DEVID)_SETAUX	0x0000ff
 #define	@$(DEVID)_READAUX	0x0000bf
 #define	@$(DEVID)_CMD		0x000040
@@ -165,6 +187,7 @@
 typedef	struct @$(DEVID)_S {
 	unsigned	sd_ctrl, sd_data, sd_fifo[2];
 } @$(DEVID);
+// }}}
 @BDEF.IONAME=_sdcard
 @BDEF.IOTYPE=@$(DEVID)
 @BDEF.OSDEF=_BOARD_HAS_@$(DEVID)
@@ -187,6 +210,8 @@ typedef	struct @$(DEVID)_S {
 	}
 #endif // @$(ACCESS)
 @SIM.TICK=
+		// SD Card simulation
+		// {{{
 #ifdef	@$(ACCESS)
 		m_core->i_sd_data = m_sdcard((m_core->o_sd_data&8)?1:0,
 				m_core->o_sd_sck, m_core->o_sd_cmd);
@@ -194,10 +219,24 @@ typedef	struct @$(DEVID)_S {
 		m_core->i_sd_data |= (m_core->o_sd_data&0x0e);
 		m_core->i_sd_detect = 1;
 #endif	// @$(ACCESS)
+		// }}}
 @SIM.DEFINES=
+////////////////////////////////////////////////////////////////////////////////
+//
+// SD SPI Defines
+// {{{
+////////////////////////////////////////////////////////////////////////////////
+//
+//
 
 #ifndef	VVAR
-#ifdef	NEW_VERILATOR
+#ifdef	ROOT_VERILATOR
+
+#include "Vmain___024root.h"
+#define	VVAR(A)	rootp->main__DOT_ ## A
+
+#elif	defined(NEW_VERILATOR)
+
 #define	VVAR(A)	main__DOT_ ## A
 #else
 #define	VVAR(A)	v__DOT_ ## A
@@ -231,61 +270,9 @@ typedef	struct @$(DEVID)_S {
 #define	sd_ll_fifo_wr_complete	VVAR(_@$(PREFIX)__DOT__ll_fifo_wr_complete)
 #define	sd_use_fifo	VVAR(_@$(PREFIX)__DOT__r_use_fifo)
 #define	sd_fifo_wr	VVAR(_@$(PREFIX)__DOT__r_fifo_wr)
-
-@SIM.DEBUG=
-			/*
-			printf(" SDSPI[%d,%d(%d),(%d)]",
-				m_core->sd_cmd_busy,
-				m_core->sd_clk,
-				m_core->sd_cmd_state,
-				m_core->sd_rsp_state);
-			printf(" LL[%d,%2x->CK=%d/%2x,%s,ST=%2d,TX=%2x,RX=%2x->%d,%2x] ",
-				m_core->sd_ll_cmd_stb,
-				m_core->sd_ll_cmd_dat,
-				m_core->sd_ll_z_counter,
-				// (m_core->sd_ll_clk_counter==0)?1:0,
-				m_core->sd_ll_clk_counter,
-				(m_core->sd_ll_idle)?"IDLE":"    ",
-				m_core->sd_ll_state,
-				m_core->sd_ll_byte,
-				m_core->sd_ll_ireg,
-				m_core->sd_ll_out_stb,
-				m_core->sd_ll_out_dat
-				);
-			printf(" CRC=%02x/%2d",
-				m_core->sd_cmd_crc,
-				m_core->sd_cmd_crc_cnt);
-			printf(" SPI(%d,%d,%d/%d,%d)->?",
-				m_core->o_sf_cs_n,
-				m_core->o_sd_cs_n,
-				m_core->o_spi_sck,
-				m_core->@$(VERILATOR_PREFIX)__DOT__sdcard_sck,
-				m_core->o_spi_mosi);
-
-			printf(" CK=%d,LN=%d",
-				m_core->sd_clk,
-				m_core->sd_lgblklen);
-
-
-			if (m_core->sd_use_fifo){
-				printf(" FIFO");
-				if (m_core->sd_fifo_wr)
-					printf("-WR(%04x,%d,%d,%d)",
-						m_core->sd_fifo_rd_crc,
-						m_core->sd_fifo_rd_crc_stb,
-						m_core->sd_ll_fifo_pkt_state,
-						m_core->sd_have_data_response_token);
-				else
-					printf("-RD(%04x,%d,%d,%d)",
-						m_core->sd_fifo_wr_crc,
-						m_core->sd_fifo_wr_crc_stb,
-						m_core->sd_ll_fifo_wr_state,
-						m_core->sd_ll_fifo_wr_complete
-						);
-			}
-			*/
+// }}}
 ##
-@RTL.MAKE.SUBD= sdspi
 @RTL.MAKE.GROUP= SDSPI
+@RTL.MAKE.SUBD=sdspi
 @RTL.MAKE.FILES= sdspi.v llsdspi.v spicmd.v spirxdata.v spitxdata.v
 ##

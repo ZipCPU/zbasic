@@ -15,7 +15,7 @@
 //		1. If 'A' or 'B' asserts the o_cyc line, a bus cycle will begin,
 //			with acccess granted to whomever requested it.
 //		2. If both 'A' and 'B' assert o_cyc at the same time, only 'A'
-//			will be granted the bus.  (If the alternating parameter 
+//			will be granted the bus.  (If the alternating parameter
 //			is set, A and B will alternate who gets the bus in
 //			this case.)
 //		3. The bus will remain owned by whomever the bus was granted to
@@ -242,10 +242,12 @@ module	wbarbiter #(
 
 	// Make Verilator happy
 	// {{{
+	// verilator coverage_off
 	// verilator lint_off UNUSED
 	wire	unused;
-	assign	unused = i_reset;
+	assign	unused = &{ 1'b0, i_reset };
 	// verilator lint_on  UNUSED
+	// verilator coverage_on
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

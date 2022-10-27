@@ -92,7 +92,7 @@
 	localparam	RESET_ADDRESS = @$RESET_ADDRESS;
 	//
 	// The number of valid bits on the bus
-	localparam	ZIP_ADDRESS_WIDTH = @$(BUS.AWID); // Zip-CPU address width
+	localparam	ZIP_ADDRESS_WIDTH = @$(MASTER.BUS.AWID); // Zip-CPU address width
 	//
 	// Number of ZipCPU interrupts
 	localparam	ZIP_INTS = 16;
@@ -118,7 +118,8 @@
 	zipsystem #(
 		// {{{
 		.RESET_ADDRESS(RESET_ADDRESS),
-		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH + $clog2(@$(SLAVE.BUS.WIDTH)/8)),
+		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH + $clog2(@$(MASTER.BUS.WIDTH)/8)),
+		.BUS_WIDTH(@$(MASTER.BUS.WIDTH)),
 		.OPT_LGICACHE(@$(LGICACHE)),
 		.OPT_LGDCACHE(@$(LGDCACHE)),
 		.START_HALTED(ZIP_START_HALTED),
@@ -148,6 +149,11 @@
 	);
 
 	assign	zip_trigger = zip_debug[31];
+	// Verilator lint_off UNUSED
+	wire	unused_@$(PREFIX);
+	assign	unused_@$(PREFIX) = &{ 1'b0, sys_int_vector[5:0],
+				alt_int_vector[7:0] };
+	// Verilator lint_on  UNUSED
 	// }}}
 @BDEF.INCLUDE=
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,12 +181,18 @@
 // {{{
 
 #define	CPU_GO		0x0000
-#define	CPU_RESET	0x0040
-#define	CPU_INT		0x0080
-#define	CPU_STEP	0x0100
-#define	CPU_STALL	0x0200
-#define	CPU_HALT	0x0400
-#define	CPU_CLRCACHE	0x0800
+#define	CPU_HALT	0x0001
+#define	CPU_STALL	0x0002
+#define	CPU_STEP	0x0004
+#define	CPU_RESET	0x0008
+#define	CPU_CLRCACHE	0x0010
+// (Reserved)		0x00e0
+#define	CPU_SLEEPING	0x0100
+#define	CPU_GIE		0x0200
+#define	CPU_INT		0x0400
+#define	CPU_BREAK	0x0800
+#define	CPU_EXINT	0xfffff000
+//
 #define	CPU_sR0		0x0000
 #define	CPU_sSP		0x000d
 #define	CPU_sCC		0x000e
@@ -191,7 +203,6 @@
 #define	CPU_uPC		0x001f
 
 #define	RESET_ADDRESS	@$[0x%08x](RESET_ADDRESS)
-
 // }}}
 @SIM.CLOCK=clk
 @SIM.INCLUDE=
@@ -218,42 +229,10 @@
 #define	OPT_PIPELINED
 #define	CPUVAR(A)	VVAR(_swic__DOT__thecpu__DOT__core__DOT_ ## A)
 
-#define	cpu_reset	VVAR(_swic__DOT__cmd_reset)
 #define	cpu_break 	VVAR(_swic__DOT__cpu_break)
-#define	cpu_cmd_halt	VVAR(_swic__DOT__cmd_halt)
-#define	cpu_ipc		CPUVAR(_ipc)
-#define	cpu_pf_pc	CPUVAR(_pf_pc)
-#define	cpu_upc		CPUVAR(_SET_USER_PC__DOT__r_upc)
+
 #define	cpu_gie		CPUVAR(_SET_GIE__DOT__r_gie)
-#define	cpu_iflags	CPUVAR(_w_iflags)
-#define	cpu_uflags	CPUVAR(_w_uflags)
-#ifdef	ROOT_VERILATOR
 #define	cpu_regs	CPUVAR(_regset.m_storage)
-#else
-#define	cpu_regs	CPUVAR(_regset)
-#endif
-#define	cpu_cmd_addr	VVAR(_swic__DOT__cmd_addr)
-#define	cpu_bus_err	CPUVAR(_bus_err)
-#define	cpu_ibus_err	CPUVAR(_ibus_err_flag)
-#define	cpu_ubus_err	CPUVAR(_r_ubus_err_flag)
-#define	cpu_mem_rdaddr	CPUVAR(_domem__DOT__rdaddr)
-#define	cpu_mem_wraddr	CPUVAR(_domem__DOT__wraddr)
-#define	cpu_sim		CPUVAR(_alu_sim)
-#define	cpu_op_valid	CPUVAR(_op_valid)
-#define	cpu_alu_ce	CPUVAR(_alu_ce)
-#define	cpu_new_pc	CPUVAR(_new_pc)
-#define	cpu_sim_immv	CPUVAR(_alu_sim_immv)
-#define	cpu_alu_pc_valid	CPUVAR(_alu_pc_valid)
-#define	cpu_mem_pc_valid	CPUVAR(_mem_pc_valid)
-#ifdef	OPT_PIPELINED
-#define	cpu_alu_pc	CPUVAR(_GEN_ALU_PC__DOT__r_alu_pc)
-#else
-#define	cpu_alu_pc	CPUVAR(_SET_OP_PC__DOT__op_pc)
-#endif
-#define	cpu_alu_phase	CPUVAR(_GEN_ALU_PHASE__DOT__r_alu_phase)
-#define	cpu_wr_ce	CPUVAR(_wr_reg_ce)
-#define	cpu_wr_reg_id	CPUVAR(_wr_reg_id)
-#define	cpu_wr_gpreg	CPUVAR(_wr_gpreg_vl)
 // }}}
 @SIM.DEFNS=
 	int	m_cpu_bombed;
@@ -268,6 +247,7 @@
 	// ZipCPU Access functions
 	// {{{
 	void	loadelf(const char *elfname) {
+		// {{{
 		ELFSECTION	**secpp, *secp;
 		uint32_t	entry;
 
@@ -288,13 +268,25 @@
 			}
 		} free(secpp);
 	}
+	// }}}
 
+
+	void	sim_write(unsigned addr, unsigned value) {
+		m_core->i_sim_write = 1;
+		m_core->i_sim_addr  = (addr >> 2) & 0x07f;
+		m_core->i_sim_data  = value;
+		tick();
+		m_core->i_sim_write = 0;
+		m_core->i_sim_addr  = 0;
+		m_core->i_sim_data  = 0;
+	}
 
 	bool	gie(void) {
 		return (m_core->cpu_gie);
 	}
 
 	void dump(const uint32_t *regp) {
+		// {{{
 		uint32_t	uccv, iccv, ipc, upc;
 		fflush(stderr);
 		fflush(stdout);
@@ -305,10 +297,15 @@
 			printf("Supervisor mode\n");
 		printf("\n");
 
-		iccv = m_core->cpu_iflags;
-		uccv = m_core->cpu_uflags;
-		ipc = m_core->cpu_ipc;
-		upc = m_core->cpu_upc;
+		iccv = 0;
+		uccv = 0;
+		ipc  = 0;
+		upc  = 0;
+
+		// iccv = m_core->cpu_iflags;
+		// uccv = m_core->cpu_uflags;
+		// ipc = m_core->cpu_ipc;
+		// upc = m_core->cpu_upc;
 
 		printf("sR0 : %08x ", regp[0]);
 		printf("sR1 : %08x ", regp[1]);
@@ -349,131 +346,15 @@
 		fflush(stderr);
 		fflush(stdout);
 	}
+	// }}}
 
-
-	void	execsim(const uint32_t imm) {
-		uint32_t	*regp = m_core->cpu_regs;
-		int		rbase;
-		rbase = (gie())?16:0;
-
-		fflush(stdout);
-		if ((imm & 0x03fffff)==0)
-			return;
-		// fprintf(stderr, "SIM-INSN(0x%08x)\n", imm);
-		if ((imm & 0x0fffff)==0x00100) { // SIM Exit(0)
-			// {{{
-			close();
-			// exit(0);
-			m_done = true;
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00310) { // SIM Exit(User-Reg)
-			// {{{
-			// int	rnum;
-			// rnum  = (imm&0x0f)+16;
-			// rcode = regp[rnum] & 0x0ff;
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-			//	rcode = m_core->cpu_wr_gpreg;
-			close();
-			// exit(rcode);
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00300) {
-			// {{{
-			// SIM Exit(Reg)
-			// int	rnum;
-			// rnum  = (imm&0x0f)+rbase;
-			// rcode = regp[rnum] & 0x0ff;
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-			//	rcode = m_core->cpu_wr_gpreg;
-			close();
-			// exit(rcode);
-			// }}}
-		} else if ((imm & 0x0fff00)==0x00100) {
-			// {{{
-			// SIM Exit(Imm)
-			// rcode = imm & 0x0ff;
-			close();
-			// exit(rcode);
-			// }}}
-		} else if ((imm & 0x0fffff)==0x002ff) {
-			// {{{
-			// Full/unconditional dump
-			// Now handled via $write
-			// printf("SIM-DUMP\n");
-			// dump(regp);
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00200) {
-			// {{{
-			// Dump a register
-			// Now handled via $write
-			// int	rcode, rnum;
-			// rnum  = (imm&0x0f)+rbase;
-			// rcode = regp[rnum];
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				// rcode = m_core->cpu_wr_gpreg;
-			// printf("%8lu @%08x R[%2d] = 0x%08x\n", m_time_ps/1000,
-				// m_core->cpu_ipc, rnum, rcode);
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00210) {
-			// {{{
-			// Dump a user register
-			// Now handled via $write
-			// int	rcode, rnum;
-			// rnum  = (imm&0x0f)+16;
-			// rcode = regp[rnum] & 0x0ff;
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				// rcode = m_core->cpu_wr_gpreg;
-			// printf("%8lu @%08x uR[%2d] = 0x%08x\n", m_time_ps/1000,
-				// m_core->cpu_ipc, rnum, rcode);
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00230) {
-			// {{{
-			// SOUT[User Reg]
-			// Now handled via $write
-			// int	rcode, rnum;
-			// rnum  = (imm&0x0f)+16;
-			// rcode = regp[rnum];
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				// rcode = m_core->cpu_wr_gpreg;
-			// printf("%c", rcode&0x0ff);
-			// }}}
-		} else if ((imm & 0x0fffe0)==0x00220) {
-			// {{{
-			// SOUT[Reg]
-			// Now handled via $write
-			// int	rcode, rnum;
-			// rnum  = (imm&0x0f)+rbase;
-			// rcode = regp[rnum];
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				// rcode = m_core->cpu_wr_gpreg;
-			// printf("%c", rcode&0x0ff);
-			// }}}
-		} else if ((imm & 0x0fff00)==0x00400) {
-			// {{{
-			// SOUT[Imm]
-			// Now handled via $write
-			// printf("%c", imm&0x0ff);
-			// }}}
-		} else { // if ((insn & 0x0f7c00000)==0x77800000)
-			uint32_t	immv = imm & 0x03fffff;
-			// Simm instruction that we dont recognize
-			// if (imm)
-			// printf("SIM 0x%08x\n", immv);
-			printf("SIM 0x%08x (ipc = %08x, upc = %08x)\n", immv,
-				m_core->cpu_ipc,
-				m_core->cpu_upc);
-		} fflush(stdout);
-	}
 	// }}}
 #endif // @$(ACCESS)
 @SIM.TICK=
 #ifdef	@$(ACCESS)
 		// ZipCPU Sim instruction support
 		// {{{
-		if ((m_core->cpu_sim)
-			&&(!m_core->cpu_new_pc)) {
-			//
-			execsim(m_core->cpu_sim_immv);
-		}
+		// Sim instructions are handled in Verilog
 
 		if (m_cpu_bombed) {
 			if (m_cpu_bombed++ > 12)
@@ -511,41 +392,41 @@
 @NADDR=128
 @REGS.N=36
 @REGS.NOTE=// ZipCPU control/debug registers
-@REGS.0=32   R_ZIPCTRL   CPU ZIPCTRL
-@REGS.1=0    R_ZIPREGS   ZIPREGS
-@REGS.2=0    R_ZIPS0     SR0
-@REGS.3=1    R_ZIPS1     SR1
-@REGS.4=2    R_ZIPS2     SR2
-@REGS.5=3    R_ZIPS3     SR3
-@REGS.6=4    R_ZIPS4     SR4
-@REGS.7=5    R_ZIPS5     SR5
-@REGS.8=6    R_ZIPS6     SR6
-@REGS.9=7    R_ZIPS7     SR7
-@REGS.10=8   R_ZIPS8     SR8
-@REGS.11=9   R_ZIPS9     SR9
-@REGS.12=10  R_ZIPS10    SR10
-@REGS.13=11  R_ZIPS11    SR11
-@REGS.14=12  R_ZIPS12    SR12
-@REGS.15=13  R_ZIPSSP    SSP SR13
-@REGS.16=14  R_ZIPCC     ZIPCC CC SCC SR14
-@REGS.17=15  R_ZIPPC     ZIPPC PC SPC SR15
-@REGS.18=16  R_ZIPUSER   ZIPUSER
-@REGS.19=16  R_ZIPU0     UR0
-@REGS.20=17  R_ZIPU1     UR1
-@REGS.21=18  R_ZIPU2     UR2
-@REGS.22=19  R_ZIPU3     UR3
-@REGS.23=20  R_ZIPU4     UR4
-@REGS.24=21  R_ZIPU5     UR5
-@REGS.25=22  R_ZIPU6     UR6
-@REGS.26=23  R_ZIPU7     UR7
-@REGS.27=24  R_ZIPU8     UR8
-@REGS.28=25  R_ZIPU9     UR9
-@REGS.29=26  R_ZIPU10    SR10
-@REGS.30=27  R_ZIPU11    SR11
-@REGS.31=28  R_ZIPU12    SR12
-@REGS.32=29  R_ZIPUSP    USP UR13
-@REGS.33=30  R_ZIPUCC    ZIPUCC UCC
-@REGS.34=31  R_ZIPUPC    ZIPUPC UPC
+@REGS.0=0   R_ZIPCTRL   CPU ZIPCTRL
+@REGS.1=32    R_ZIPREGS   ZIPREGS
+@REGS.2=32    R_ZIPS0     SR0
+@REGS.3=33    R_ZIPS1     SR1
+@REGS.4=34    R_ZIPS2     SR2
+@REGS.5=35    R_ZIPS3     SR3
+@REGS.6=36    R_ZIPS4     SR4
+@REGS.7=37    R_ZIPS5     SR5
+@REGS.8=38    R_ZIPS6     SR6
+@REGS.9=39    R_ZIPS7     SR7
+@REGS.10=40   R_ZIPS8     SR8
+@REGS.11=41   R_ZIPS9     SR9
+@REGS.12=42  R_ZIPS10    SR10
+@REGS.13=43  R_ZIPS11    SR11
+@REGS.14=44  R_ZIPS12    SR12
+@REGS.15=45  R_ZIPSSP    SSP SR13
+@REGS.16=46  R_ZIPCC     ZIPCC CC SCC SR14
+@REGS.17=47  R_ZIPPC     ZIPPC PC SPC SR15
+@REGS.18=48  R_ZIPUSER   ZIPUSER
+@REGS.19=48  R_ZIPU0     UR0
+@REGS.20=49  R_ZIPU1     UR1
+@REGS.21=50  R_ZIPU2     UR2
+@REGS.22=51  R_ZIPU3     UR3
+@REGS.23=52  R_ZIPU4     UR4
+@REGS.24=53  R_ZIPU5     UR5
+@REGS.25=54  R_ZIPU6     UR6
+@REGS.26=55  R_ZIPU7     UR7
+@REGS.27=56  R_ZIPU8     UR8
+@REGS.28=57  R_ZIPU9     UR9
+@REGS.29=58  R_ZIPU10    SR10
+@REGS.30=59  R_ZIPU11    SR11
+@REGS.31=60  R_ZIPU12    SR12
+@REGS.32=61  R_ZIPUSP    USP UR13
+@REGS.33=62  R_ZIPUCC    ZIPUCC UCC
+@REGS.34=63  R_ZIPUPC    ZIPUPC UPC
 @REGS.35=64  R_ZIPSYSTEM ZIPSYSTEM ZIPSYS
 ##
 ##

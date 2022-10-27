@@ -142,7 +142,9 @@ module	axilops #(
 		output	reg				M_AXI_AWVALID,
 		input	wire				M_AXI_AWREADY,
 		output	reg	[AW-1:0]		M_AXI_AWADDR,
+		// verilator coverage_off
 		output	wire	[2:0]			M_AXI_AWPROT,
+		// verilator coverage_on
 		//
 		output	reg				M_AXI_WVALID,
 		input	wire				M_AXI_WREADY,
@@ -158,7 +160,9 @@ module	axilops #(
 		output	reg				M_AXI_ARVALID,
 		input	wire				M_AXI_ARREADY,
 		output	reg	[AW-1:0]		M_AXI_ARADDR,
+		// verilator coverage_off
 		output	wire	[2:0]			M_AXI_ARPROT,
+		// verilator coverage_on
 		//
 		input	wire				M_AXI_RVALID,
 		output	reg				M_AXI_RREADY,
@@ -180,7 +184,7 @@ module	axilops #(
 	reg	[AXILSB+1:0]		r_op;
 	reg	[DW-1:0]		next_wdata;
 	reg	[DW/8-1:0]		next_wstrb;
-	reg	[31:0]			last_result;
+	reg	[DW-1:0]		last_result;
 	// reg	[31:0]			endian_swapped_wdata;
 	// reg	[31:0]			endian_swapped_result;
 	reg	[2*DW/8-1:0]		shifted_wstrb_word,
@@ -193,7 +197,8 @@ module	axilops #(
 	reg	[DW/8-1:0]		axi_wstrb;
 	reg	[AXILSB-1:0]		swapaddr;
 	wire	[DW-1:0]		endian_swapped_rdata;
-	reg	[2*DW-1:0]		pre_result;
+	reg	[31:0]			pre_result;
+	reg	[2*DW-1:0]		wide_return;
 
 	// }}}
 
@@ -304,11 +309,16 @@ module	axilops #(
 			M_AXI_AWADDR <= 0;
 
 		if (SWAP_ENDIANNESS || SWAP_WSTRB)
+		begin
 			// When adjusting endianness, reads (or writes) are
 			// always full words.  This is important since the
 			// the bytes at issues may (or may not) be in their
 			// expected locations
-			M_AXI_AWADDR[AXILSB-1:0] <= 0;
+			if (OPT_ALIGNMENT_ERR)
+				M_AXI_AWADDR[AXILSB-1:0] <= 0;
+			else
+				M_AXI_AWADDR[1:0] <= 0;
+		end
 		// }}}
 	end else if ((M_AXI_AWVALID && M_AXI_AWREADY)
 			||(M_AXI_ARVALID && M_AXI_ARREADY))
@@ -724,77 +734,93 @@ module	axilops #(
 		if (SWAP_WSTRB)
 		begin
 			if (misaligned_read && !OPT_ALIGNMENT_ERR)
-				pre_result={ last_result, endian_swapped_rdata }
+				wide_return={ last_result, endian_swapped_rdata }
 						<< (8*r_op[AXILSB-1:0]);
 			else
-				pre_result = { endian_swapped_rdata, {(DW){1'b0}} }
+				wide_return = { endian_swapped_rdata, {(DW){1'b0}} }
 						<< (8*r_op[AXILSB-1:0]);
-
-			casez(r_op[AXILSB +: 2])
-			2'b10: pre_result = { 16'h0,
-					pre_result[(2*DW)-1:(2*DW)-16],
-					{(DW){1'b0}} };
-			2'b11: pre_result = { 24'h0,
-					pre_result[(2*DW)-1:(2*DW)-8],
-					{(DW){1'b0}} };
-			default: begin end
-			endcase
-
-			pre_result[31:0] = pre_result[(2*DW-1):(2*DW-32)];
 
 		end else begin
 			if (misaligned_read && !OPT_ALIGNMENT_ERR)
-				pre_result={ endian_swapped_rdata, last_result }
+				wide_return={ endian_swapped_rdata, last_result }
 						>> (8*r_op[AXILSB-1:0]);
 			else
-				pre_result = { {(DW){1'b0}}, endian_swapped_rdata }
+				wide_return = { {(DW){1'b0}}, endian_swapped_rdata }
 						>> (8*r_op[AXILSB-1:0]);
 		end
 
 		if (OPT_LOWPOWER && (!M_AXI_RVALID || M_AXI_RRESP[1]))
+			wide_return = 0;
+	end
+
+	always @(*)
+	begin
+		if (SWAP_WSTRB)
+		begin
 			pre_result = 0;
+			casez(r_op[AXILSB +: 2])
+			2'b10: pre_result[15:0] = wide_return[(2*DW)-1:(2*DW)-16];
+			2'b11: pre_result[7:0] = wide_return[(2*DW)-1:(2*DW)-8];
+			default: pre_result[31:0] = wide_return[(2*DW-1):(2*DW-32)];
+			endcase
+
+		end else
+			pre_result = wide_return[31:0];
 	end
 
 	// }}}
 	// last_result, o_result
 	// {{{
 	always @(posedge i_clk)
-	if (OPT_LOWPOWER &&(!M_AXI_RREADY || !S_AXI_ARESETN || r_flushing || i_cpu_reset))
+	if (OPT_LOWPOWER &&(!M_AXI_RREADY
+			|| !S_AXI_ARESETN || r_flushing || i_cpu_reset))
 		{ last_result, o_result } <= 0;
-	else if (M_AXI_RVALID)
-	begin
+	else begin
 		// {{{
-		if ((M_AXI_RRESP[1] || !misaligned_response_pending) && OPT_LOWPOWER)
-			last_result <= 0;
-		else
-			last_result <= endian_swapped_rdata;
+		if (OPT_LOWPOWER)
+			o_result <= 0;
+
+		if (M_AXI_RVALID)
+		begin
+			// {{{
+			if (OPT_LOWPOWER && (M_AXI_RRESP[1] || !misaligned_response_pending))
+				last_result <= 0;
+			else
+				last_result <= endian_swapped_rdata;
+
+			o_result <= pre_result[31:0];
+
+			if (OPT_SIGN_EXTEND)
+			begin
+				// {{{
+				// verilator coverage_off
+				// Optionally sign extend the return result.
+				//   ... would violate ZipCPU ISA
+				casez(r_op[AXILSB +: 2])
+				2'b10: o_result[31:16] <= {(16){pre_result[15]}};
+				2'b11: o_result[31: 8] <= {(24){pre_result[7]}};
+				default: begin end
+				endcase
+				// verilator coverage_on
+				// }}}
+			end else begin
+				// Fill unused return bits with zeros
+				casez(r_op[AXILSB +: 2])
+				2'b10: o_result[31:16] <= 0;
+				2'b11: o_result[31: 8] <= 0;
+				default: begin end
+				endcase
+			end
+
+			if (OPT_LOWPOWER && M_AXI_RRESP[1])
+				o_result <= 0;
+			// }}}
+		end
 
 		if (OPT_ALIGNMENT_ERR)
 			last_result <= 0;
 
-		o_result <= pre_result[31:0];
-
-		if (OPT_SIGN_EXTEND)
-		begin
-			// {{{
-			// Optionally sign extend the return result.
-			casez(r_op[AXILSB +: 2])
-			2'b10: o_result[31:16] <= {(16){pre_result[15]}};
-			2'b11: o_result[31: 8] <= {(24){pre_result[7]}};
-			default: begin end
-			endcase
-			// }}}
-		end else begin
-			// Fill unused return bits with zeros
-			casez(r_op[AXILSB +: 2])
-			2'b10: o_result[31:16] <= 0;
-			2'b11: o_result[31: 8] <= 0;
-			default: begin end
-			endcase
-		end
-
-		if (OPT_LOWPOWER && (M_AXI_RRESP[1] || pending_err
-					|| misaligned_response_pending))
+		if (OPT_LOWPOWER && (pending_err || misaligned_response_pending))
 			o_result <= 0;
 		// }}}
 	end
@@ -802,11 +828,25 @@ module	axilops #(
 
 	// Make verilator happy
 	// {{{
+	// verilator coverage_off
 	// verilator lint_off UNUSED
 	wire	unused;
-	assign	unused = &{ 1'b0, i_lock, M_AXI_RRESP[0], M_AXI_BRESP[0],
-			pre_result[2*C_AXI_DATA_WIDTH-1:32] };
+	assign	unused = &{ 1'b0, i_lock, M_AXI_RRESP[0], M_AXI_BRESP[0] };
+
+	generate if (SWAP_WSTRB)
+	begin
+		wire	wide_unused;
+
+		if (SWAP_WSTRB)
+		begin
+			assign	wide_unused = &{ 1'b0,
+					wide_return[2*DW-32-1:0] };
+		end else begin
+			assign	wide_unused = &{ 1'b0, wide_return[2*DW-1:32] };
+		end
+	end endgenerate
 	// verilator lint_on  UNUSED
+	// verilator coverage_on
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

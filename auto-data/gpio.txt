@@ -46,19 +46,17 @@
 @INT.GPIO.WIRE=gpio_int
 @INT.GPIO.PIC=buspic
 @TOP.PORTLIST=
-		// GPIO ports
+		// @$(DEVID) ports
 		i_@$(PREFIX), o_@$(PREFIX)
 @TOP.IODECL=
-	// GPIO wires
-	localparam	NGPI = @$(NUMINPUT), NGPO=@$(NUMOUTPUT);
-	// GPIO ports
+	// @$(DEVID) ports
 	input	wire	[(@$(NUMINPUT)-1):0]	i_@$(PREFIX);
 	output	wire	[(@$(NUMOUTPUT)-1):0]	o_@$(PREFIX);
 @TOP.MAIN=
-		// GPIO wires
+		// @$(DEVID) wires
 		i_@$(PREFIX), o_@$(PREFIX)
 @MAIN.PORTLIST=
-		// GPIO ports
+		// @$(DEVID) ports
 		i_@$(PREFIX), o_@$(PREFIX)
 @MAIN.IODECL=
 	localparam	NGPI = @$(NUMINPUT), NGPO=@$(NUMOUTPUT);
@@ -68,19 +66,27 @@
 @MAIN.DEFNS=
 	wire	sd_reset;
 @MAIN.INSERT=
+	////////////////////////////////////////////////////////////////////////
 	//
 	// @$(DEVID)
+	// {{{
+	// This interface should allow us to control up to 16 @$(DEVID) inputs,
+	// and another 16 @$(DEVID) outputs.  The interrupt trips when any of
+	// the inputs changes.  (Sorry, which input isn't (yet) selectable.)
 	//
-	// This interface should allow us to control up to 16 @$(DEVID) inputs, and
-	// another 16 @$(DEVID) outputs.  The interrupt trips when any of the inputs
-	// changes.  (Sorry, which input isn't (yet) selectable.)
-	//
-	localparam	INITIAL_@$(DEVID) = @$(NUMOUTPUT)'h0;
-	wbgpio	#(NGPI, NGPO, INITIAL_@$(DEVID))
-		@$(PREFIX)i(i_clk, @$(SLAVE.PORTLIST),
-			i_@$(PREFIX), o_@$(PREFIX), @$(PREFIX)_int);
+	localparam	[NGPO-1:0] INITIAL_@$(DEVID) = @$(NUMOUTPUT)'h0;
+
+	wbgpio	#(
+		.NIN(NGPI), .NOUT(NGPO), .DEFAULT(INITIAL_@$(DEVID))
+	) @$(PREFIX)i(
+		// {{{
+		i_clk, @$(SLAVE.PORTLIST),
+		i_@$(PREFIX), o_@$(PREFIX), @$(PREFIX)_int
+		// }}}
+	);
 
 	assign	sd_reset = o_@$(PREFIX)[0];
+	// }}}
 @REGS.N=1
 @REGS.0= 0 R_@$(DEVID) @$(DEVID) GPI GPO
 @BDEF.DEFN=

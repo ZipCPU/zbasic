@@ -85,42 +85,10 @@
 #define	OPT_PIPELINED
 #define	CPUVAR(A)	VVAR(_swic__DOT__thecpu__DOT__core__DOT_ ## A)
 
-#define	cpu_reset	VVAR(_swic__DOT__cmd_reset)
 #define	cpu_break 	VVAR(_swic__DOT__cpu_break)
-#define	cpu_cmd_halt	VVAR(_swic__DOT__cmd_halt)
-#define	cpu_ipc		CPUVAR(_ipc)
-#define	cpu_pf_pc	CPUVAR(_pf_pc)
-#define	cpu_upc		CPUVAR(_SET_USER_PC__DOT__r_upc)
+
 #define	cpu_gie		CPUVAR(_SET_GIE__DOT__r_gie)
-#define	cpu_iflags	CPUVAR(_w_iflags)
-#define	cpu_uflags	CPUVAR(_w_uflags)
-#ifdef	ROOT_VERILATOR
 #define	cpu_regs	CPUVAR(_regset.m_storage)
-#else
-#define	cpu_regs	CPUVAR(_regset)
-#endif
-#define	cpu_cmd_addr	VVAR(_swic__DOT__cmd_addr)
-#define	cpu_bus_err	CPUVAR(_bus_err)
-#define	cpu_ibus_err	CPUVAR(_ibus_err_flag)
-#define	cpu_ubus_err	CPUVAR(_r_ubus_err_flag)
-#define	cpu_mem_rdaddr	CPUVAR(_domem__DOT__rdaddr)
-#define	cpu_mem_wraddr	CPUVAR(_domem__DOT__wraddr)
-#define	cpu_sim		CPUVAR(_alu_sim)
-#define	cpu_op_valid	CPUVAR(_op_valid)
-#define	cpu_alu_ce	CPUVAR(_alu_ce)
-#define	cpu_new_pc	CPUVAR(_new_pc)
-#define	cpu_sim_immv	CPUVAR(_alu_sim_immv)
-#define	cpu_alu_pc_valid	CPUVAR(_alu_pc_valid)
-#define	cpu_mem_pc_valid	CPUVAR(_mem_pc_valid)
-#ifdef	OPT_PIPELINED
-#define	cpu_alu_pc	CPUVAR(_GEN_ALU_PC__DOT__r_alu_pc)
-#else
-#define	cpu_alu_pc	CPUVAR(_SET_OP_PC__DOT__op_pc)
-#endif
-#define	cpu_alu_phase	CPUVAR(_GEN_ALU_PHASE__DOT__r_alu_phase)
-#define	cpu_wr_ce	CPUVAR(_wr_reg_ce)
-#define	cpu_wr_reg_id	CPUVAR(_wr_reg_id)
-#define	cpu_wr_gpreg	CPUVAR(_wr_gpreg_vl)
 // }}}
 #ifndef VVAR
 #ifdef  NEW_VERILATOR
@@ -130,10 +98,28 @@
 #endif
 #endif
 
+#ifdef	NEW_VERILATOR
+#define	block_ram	rootp->main__DOT__bkrami__DOT__mem.m_storage
+#else
 #define	block_ram	VVAR(_bkrami__DOT__mem)
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// SD SPI Defines
+// {{{
+////////////////////////////////////////////////////////////////////////////////
+//
+//
 
 #ifndef	VVAR
-#ifdef	NEW_VERILATOR
+#ifdef	ROOT_VERILATOR
+
+#include "Vmain___024root.h"
+#define	VVAR(A)	rootp->main__DOT_ ## A
+
+#elif	defined(NEW_VERILATOR)
+
 #define	VVAR(A)	main__DOT_ ## A
 #else
 #define	VVAR(A)	v__DOT_ ## A
@@ -167,7 +153,7 @@
 #define	sd_ll_fifo_wr_complete	VVAR(_sdcard__DOT__ll_fifo_wr_complete)
 #define	sd_use_fifo	VVAR(_sdcard__DOT__r_use_fifo)
 #define	sd_fifo_wr	VVAR(_sdcard__DOT__r_fifo_wr)
-
+// }}}
 class	MAINTB : public TESTB<Vmain> {
 public:
 		// SIM.DEFNS
@@ -243,8 +229,6 @@ public:
 	//   following any falling edge of clock clk
 	virtual	void	sim_clk_tick(void) {
 		// Default clock tick
-		bool	writeout;
-
 		//
 		// SIM.TICK tags go here for SIM.CLOCK=clk
 		//
@@ -252,11 +236,7 @@ public:
 #ifdef	INCLUDE_ZIPCPU
 		// ZipCPU Sim instruction support
 		// {{{
-		if ((m_core->cpu_sim)
-			&&(!m_core->cpu_new_pc)) {
-			//
-			execsim(m_core->cpu_sim_immv);
-		}
+		// Sim instructions are handled in Verilog
 
 		if (m_cpu_bombed) {
 			if (m_cpu_bombed++ > 12)
@@ -272,6 +252,8 @@ public:
 		// SIM.TICK from wbu
 		m_core->i_wbu_uart_rx = (*m_wbu)(m_core->o_wbu_uart_tx);
 		// SIM.TICK from sdcard
+		// SD Card simulation
+		// {{{
 #ifdef	SDSPI_ACCESS
 		m_core->i_sd_data = m_sdcard((m_core->o_sd_data&8)?1:0,
 				m_core->o_sd_sck, m_core->o_sd_cmd);
@@ -279,6 +261,7 @@ public:
 		m_core->i_sd_data |= (m_core->o_sd_data&0x0e);
 		m_core->i_sd_detect = 1;
 #endif	// SDSPI_ACCESS
+		// }}}
 		// SIM.TICK from flash
 #ifdef	FLASH_ACCESS
 		m_core->i_qspi_dat = m_flash->simtick(
@@ -287,72 +270,6 @@ public:
 			m_core->o_qspi_dat,
 			m_core->o_qspi_mod);
 #endif // FLASH_ACCESS
-		writeout = false;
-		//
-		// SIM.DBGCONDITION
-		// Set writeout to true here for debug by printf access
-		// to this routine
-		//
-		if (writeout) {
-			//
-			// SIM.DEBUG tags can print here, supporting
-			// any attempts to debug by printf.  Following any
-			// code you place here, a newline will close the
-			// debug section.
-			//
-			//    SIM.DEBUG from sdcard
-			/*
-			printf(" SDSPI[%d,%d(%d),(%d)]",
-				m_core->sd_cmd_busy,
-				m_core->sd_clk,
-				m_core->sd_cmd_state,
-				m_core->sd_rsp_state);
-			printf(" LL[%d,%2x->CK=%d/%2x,%s,ST=%2d,TX=%2x,RX=%2x->%d,%2x] ",
-				m_core->sd_ll_cmd_stb,
-				m_core->sd_ll_cmd_dat,
-				m_core->sd_ll_z_counter,
-				// (m_core->sd_ll_clk_counter==0)?1:0,
-				m_core->sd_ll_clk_counter,
-				(m_core->sd_ll_idle)?"IDLE":"    ",
-				m_core->sd_ll_state,
-				m_core->sd_ll_byte,
-				m_core->sd_ll_ireg,
-				m_core->sd_ll_out_stb,
-				m_core->sd_ll_out_dat
-				);
-			printf(" CRC=%02x/%2d",
-				m_core->sd_cmd_crc,
-				m_core->sd_cmd_crc_cnt);
-			printf(" SPI(%d,%d,%d/%d,%d)->?",
-				m_core->o_sf_cs_n,
-				m_core->o_sd_cs_n,
-				m_core->o_spi_sck,
-				m_core->v__DOT__sdcard_sck,
-				m_core->o_spi_mosi);
-
-			printf(" CK=%d,LN=%d",
-				m_core->sd_clk,
-				m_core->sd_lgblklen);
-
-
-			if (m_core->sd_use_fifo){
-				printf(" FIFO");
-				if (m_core->sd_fifo_wr)
-					printf("-WR(%04x,%d,%d,%d)",
-						m_core->sd_fifo_rd_crc,
-						m_core->sd_fifo_rd_crc_stb,
-						m_core->sd_ll_fifo_pkt_state,
-						m_core->sd_have_data_response_token);
-				else
-					printf("-RD(%04x,%d,%d,%d)",
-						m_core->sd_fifo_wr_crc,
-						m_core->sd_fifo_wr_crc_stb,
-						m_core->sd_ll_fifo_wr_state,
-						m_core->sd_ll_fifo_wr_complete
-						);
-			}
-			*/
-		}
 	}
 	inline	void	tick_clk(void) {	tick();	}
 
@@ -385,11 +302,30 @@ public:
 			wlen = (wlen+3)&(-4);
 
 			// Need to byte swap data to get it into the memory
-			char	*bswapd = new char[len+8];
-			memcpy(bswapd, &buf[offset], wlen);
-			byteswapbuf(len>>2, (uint32_t *)bswapd);
-			memcpy(&m_core->block_ram[start], bswapd, wlen);
-			delete	bswapd;
+			if (32 == 32) {
+				char	*bswapd = new char[len+8];
+				memcpy(bswapd, &buf[offset], wlen);
+				byteswapbuf(len>>2, (uint32_t *)bswapd);
+				memcpy(&m_core->block_ram[start], bswapd, wlen);
+				delete[] bswapd;
+			} else {
+				for(unsigned jk=0; jk<wlen; jk=jk+1) {
+					unsigned word_addr, subword_addr;
+					unsigned	*wp;
+					char		*cp;
+
+					word_addr = start+jk;
+					word_addr /= 32/8;
+					wp = &m_core->block_ram[word_addr];
+					cp = (char *)wp;
+
+					subword_addr = start+jk;
+					subword_addr = ~subword_addr;
+					subword_addr &= 32/8-1;
+					// subword_addr = 32/8-subword_addr;
+					cp[subword_addr] = buf[offset+jk];
+				}
+			}
 			// AUTOFPGA::Now clean up anything else
 			// Was there more to write than we wrote?
 			if (addr + len > base + adrln)
@@ -447,6 +383,7 @@ public:
 	// ZipCPU Access functions
 	// {{{
 	void	loadelf(const char *elfname) {
+		// {{{
 		ELFSECTION	**secpp, *secp;
 		uint32_t	entry;
 
@@ -467,13 +404,25 @@ public:
 			}
 		} free(secpp);
 	}
+	// }}}
 
+
+	void	sim_write(unsigned addr, unsigned value) {
+		m_core->i_sim_write = 1;
+		m_core->i_sim_addr  = (addr >> 2) & 0x07f;
+		m_core->i_sim_data  = value;
+		tick();
+		m_core->i_sim_write = 0;
+		m_core->i_sim_addr  = 0;
+		m_core->i_sim_data  = 0;
+	}
 
 	bool	gie(void) {
 		return (m_core->cpu_gie);
 	}
 
 	void dump(const uint32_t *regp) {
+		// {{{
 		uint32_t	uccv, iccv, ipc, upc;
 		fflush(stderr);
 		fflush(stdout);
@@ -484,10 +433,15 @@ public:
 			printf("Supervisor mode\n");
 		printf("\n");
 
-		iccv = m_core->cpu_iflags;
-		uccv = m_core->cpu_uflags;
-		ipc = m_core->cpu_ipc;
-		upc = m_core->cpu_upc;
+		iccv = 0;
+		uccv = 0;
+		ipc  = 0;
+		upc  = 0;
+
+		// iccv = m_core->cpu_iflags;
+		// uccv = m_core->cpu_uflags;
+		// ipc = m_core->cpu_ipc;
+		// upc = m_core->cpu_upc;
 
 		printf("sR0 : %08x ", regp[0]);
 		printf("sR1 : %08x ", regp[1]);
@@ -528,120 +482,8 @@ public:
 		fflush(stderr);
 		fflush(stdout);
 	}
+	// }}}
 
-
-	void	execsim(const uint32_t imm) {
-		uint32_t	*regp = m_core->cpu_regs;
-		int		rbase;
-		rbase = (gie())?16:0;
-
-		fflush(stdout);
-		if ((imm & 0x03fffff)==0)
-			return;
-		// fprintf(stderr, "SIM-INSN(0x%08x)\n", imm);
-		if ((imm & 0x0fffff)==0x00100) { // SIM Exit(0)
-			// {{{
-			close();
-			// exit(0);
-			m_done = true;
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00310) { // SIM Exit(User-Reg)
-			// {{{
-			// int	rnum;
-			// rnum  = (imm&0x0f)+16;
-			// rcode = regp[rnum] & 0x0ff;
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-			//	rcode = m_core->cpu_wr_gpreg;
-			close();
-			// exit(rcode);
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00300) {
-			// {{{
-			// SIM Exit(Reg)
-			// int	rnum;
-			// rnum  = (imm&0x0f)+rbase;
-			// rcode = regp[rnum] & 0x0ff;
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-			//	rcode = m_core->cpu_wr_gpreg;
-			close();
-			// exit(rcode);
-			// }}}
-		} else if ((imm & 0x0fff00)==0x00100) {
-			// {{{
-			// SIM Exit(Imm)
-			// rcode = imm & 0x0ff;
-			close();
-			// exit(rcode);
-			// }}}
-		} else if ((imm & 0x0fffff)==0x002ff) {
-			// {{{
-			// Full/unconditional dump
-			// Now handled via $write
-			// printf("SIM-DUMP\n");
-			// dump(regp);
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00200) {
-			// {{{
-			// Dump a register
-			// Now handled via $write
-			// int	rcode, rnum;
-			// rnum  = (imm&0x0f)+rbase;
-			// rcode = regp[rnum];
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				// rcode = m_core->cpu_wr_gpreg;
-			// printf("%8lu @%08x R[%2d] = 0x%08x\n", m_time_ps/1000,
-				// m_core->cpu_ipc, rnum, rcode);
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00210) {
-			// {{{
-			// Dump a user register
-			// Now handled via $write
-			// int	rcode, rnum;
-			// rnum  = (imm&0x0f)+16;
-			// rcode = regp[rnum] & 0x0ff;
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				// rcode = m_core->cpu_wr_gpreg;
-			// printf("%8lu @%08x uR[%2d] = 0x%08x\n", m_time_ps/1000,
-				// m_core->cpu_ipc, rnum, rcode);
-			// }}}
-		} else if ((imm & 0x0ffff0)==0x00230) {
-			// {{{
-			// SOUT[User Reg]
-			// Now handled via $write
-			// int	rcode, rnum;
-			// rnum  = (imm&0x0f)+16;
-			// rcode = regp[rnum];
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				// rcode = m_core->cpu_wr_gpreg;
-			// printf("%c", rcode&0x0ff);
-			// }}}
-		} else if ((imm & 0x0fffe0)==0x00220) {
-			// {{{
-			// SOUT[Reg]
-			// Now handled via $write
-			// int	rcode, rnum;
-			// rnum  = (imm&0x0f)+rbase;
-			// rcode = regp[rnum];
-			// if ((m_core->cpu_wr_ce)&&(m_core->cpu_wr_reg_id==rnum))
-				// rcode = m_core->cpu_wr_gpreg;
-			// printf("%c", rcode&0x0ff);
-			// }}}
-		} else if ((imm & 0x0fff00)==0x00400) {
-			// {{{
-			// SOUT[Imm]
-			// Now handled via $write
-			// printf("%c", imm&0x0ff);
-			// }}}
-		} else { // if ((insn & 0x0f7c00000)==0x77800000)
-			uint32_t	immv = imm & 0x03fffff;
-			// Simm instruction that we dont recognize
-			// if (imm)
-			// printf("SIM 0x%08x\n", immv);
-			printf("SIM 0x%08x (ipc = %08x, upc = %08x)\n", immv,
-				m_core->cpu_ipc,
-				m_core->cpu_upc);
-		} fflush(stdout);
-	}
 	// }}}
 #endif // INCLUDE_ZIPCPU
 #ifdef	SDSPI_ACCESS

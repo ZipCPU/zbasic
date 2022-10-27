@@ -195,6 +195,7 @@ module	main(i_clk, i_reset,
 	input	wire		i_wbu_uart_rx;
 	output	wire		o_wbu_uart_tx;
 	// SD-Card declarations
+	// {{{
 	output	wire		o_sd_sck, o_sd_cmd;
 	output	wire	[3:0]	o_sd_data;
 	// verilator lint_off UNUSED
@@ -202,6 +203,7 @@ module	main(i_clk, i_reset,
 	input	wire	[3:0]	i_sd_data;
 	// verilator lint_on  UNUSED
 	input	wire		i_sd_detect;
+	// }}}
 	localparam	NGPI = 11, NGPO=11;
 	// GPIO ports
 	input		[(NGPI-1):0]	i_gpio;
@@ -273,21 +275,31 @@ module	main(i_clk, i_reset,
 	wire		zip_dbg_stall, zip_dbg_ack;
 	wire	[31:0]	zip_dbg_data;
 `endif
-	wire[31:0]	sdspi_debug;
+	// SD SPI definitions
+	// Verilator lint_off UNUSED
+	wire	[31:0]	sdspi_debug;
+	// Verilator lint_on  UNUSED
+	wire		w_sd_cs_n, w_sd_mosi, w_sd_miso;
 	// This clock step is designed to match 100000000 Hz
 	localparam	[31:0]	RTC_CLKSTEP = 32'h002af31d;
 	wire	rtc_ppd;
+	// Verilator lint_off UNUSED
 	wire	ck_pps;
+	// Verilator lint_on  UNUSED
 	// Console definitions
 	wire		w_console_rx_stb, w_console_tx_stb, w_console_busy;
 	wire	[6:0]	w_console_rx_data, w_console_tx_data;
+	// Verilator lint_off UNUSED
 	wire	[31:0]	uart_debug;
+	// Verilator lint_on  UNUSED
 	reg	[24-1:0]	r_buserr_addr;
 	reg	[31:0]	r_pwrcount_data;
 	wire	sd_reset;
 	// Definitions for the flash debug port
+	// Verilator lint_off UNUSED
 	wire		flash_dbg_trigger;
 	wire	[31:0]	flash_debug;
+	// Verilator lint_on  UNUSED
 
 // }}}
 	////////////////////////////////////////////////////////////////////////
@@ -953,11 +965,13 @@ module	main(i_clk, i_reset,
 		// {{{
 		.RESET_ADDRESS(RESET_ADDRESS),
 		.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH + $clog2(32/8)),
+		.BUS_WIDTH(32),
 		.OPT_LGICACHE(12),
 		.OPT_LGDCACHE(12),
 		.START_HALTED(ZIP_START_HALTED),
 		.RESET_DURATION(20),
 		.OPT_PIPELINED(1),
+		.OPT_PROFILER(1),
 		.EXTERNAL_INTERRUPTS(ZIP_INTS)
 		// }}}
 	) swic(
@@ -989,6 +1003,11 @@ module	main(i_clk, i_reset,
 	);
 
 	assign	zip_trigger = zip_debug[31];
+	// Verilator lint_off UNUSED
+	wire	unused_zip;
+	assign	unused_zip = &{ 1'b0, sys_int_vector[5:0],
+				alt_int_vector[7:0] };
+	// Verilator lint_on  UNUSED
 	// }}}
 	// }}}
 `else	// INCLUDE_ZIPCPU
@@ -1020,13 +1039,17 @@ module	main(i_clk, i_reset,
 	assign	wb_buildtime_stall = 1'b0;
 `ifdef	BKRAM_ACCESS
 	// {{{
-	memdev #(.LGMEMSZ(20), .EXTRACLOCK(1))
-		bkrami(i_clk, i_reset,
-			wb_bkram_cyc, wb_bkram_stb, wb_bkram_we,
+	memdev #(
+		.LGMEMSZ(20), .EXTRACLOCK(1),
+		.DW(32)
+	) bkrami(
+		i_clk, i_reset,
+		wb_bkram_cyc, wb_bkram_stb, wb_bkram_we,
 			wb_bkram_addr[18-1:0],
 			wb_bkram_data, // 32 bits wide
 			wb_bkram_sel,  // 32/8 bits wide
-		wb_bkram_stall, wb_bkram_ack, wb_bkram_idata);
+		wb_bkram_stall, wb_bkram_ack, wb_bkram_idata
+	);
 	// }}}
 `else	// BKRAM_ACCESS
 	// {{{
@@ -1125,21 +1148,32 @@ module	main(i_clk, i_reset,
 
 `ifdef	SDSPI_ACCESS
 	// {{{
-	// SPI mapping
-	wire	w_sd_cs_n, w_sd_mosi, w_sd_miso;
+	////////////////////////////////////////////////////////////////////////
+	//
+	// SD Card SPI handling
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
-	sdspi	sdcardi(i_clk, sd_reset,
+	sdspi
+	sdcardi(
+		// {{{
+		i_clk, sd_reset,
 		wb_sdcard_cyc, wb_sdcard_stb, wb_sdcard_we,
 			wb_sdcard_addr[2-1:0],
 			wb_sdcard_data, // 32 bits wide
 			wb_sdcard_sel,  // 32/8 bits wide
 		wb_sdcard_stall, wb_sdcard_ack, wb_sdcard_idata,
 		w_sd_cs_n, o_sd_sck, w_sd_mosi, w_sd_miso, i_sd_detect,
-		sdcard_int, 1'b1, sdspi_debug);
+		sdcard_int, 1'b1, sdspi_debug
+		// }}}
+	);
 
 	assign	w_sd_miso = i_sd_data[0];
 	assign	o_sd_data = { w_sd_cs_n, 3'b111 };
 	assign	o_sd_cmd  = w_sd_mosi;
+	// }}}
 	// }}}
 `else	// SDSPI_ACCESS
 	// {{{
@@ -1167,17 +1201,27 @@ module	main(i_clk, i_reset,
 
 `ifdef	RTC_ACCESS
 	// {{{
-	rtclight #(.DEFAULT_SPEED(32'h2af31d),
+	rtclight #(
+		// {{{
+		.DEFAULT_SPEED(RTC_CLKSTEP),
 		.OPT_TIMER(1'b1),
 		.OPT_STOPWATCH(1'b1),
 		.OPT_ALARM(1'b0),
-		.OPT_FIXED_SPEED(1'b1))
-	thertc(i_clk, i_reset, wb_rtc_cyc, wb_rtc_stb, wb_rtc_we,
-			wb_rtc_addr[3-1:0],
-			wb_rtc_data, // 32 bits wide
-			wb_rtc_sel,  // 32/8 bits wide
-		wb_rtc_stall, wb_rtc_ack, wb_rtc_idata,
-		rtc_int, ck_pps, rtc_ppd);
+		.OPT_FIXED_SPEED(1'b1)
+		// }}}
+	) thertc(
+		// {{{
+		.i_clk(i_clk), .i_reset(i_reset),
+		.i_wb_cyc(wb_rtc_cyc), .i_wb_stb(wb_rtc_stb), .i_wb_we(wb_rtc_we),
+			.i_wb_addr(wb_rtc_addr[3-1:0]),
+			.i_wb_data(wb_rtc_data), // 32 bits wide
+			.i_wb_sel(wb_rtc_sel),  // 32/8 bits wide
+		.o_wb_stall(wb_rtc_stall),.o_wb_ack(wb_rtc_ack), .o_wb_data(wb_rtc_idata),
+		.o_interrupt(rtc_int),
+		.o_pps(ck_pps),
+		.o_ppd(rtc_ppd)
+		// }}}
+	);
 	// }}}
 `else	// RTC_ACCESS
 	// {{{
@@ -1203,16 +1247,25 @@ module	main(i_clk, i_reset,
 
 `ifdef	BUSCONSOLE_ACCESS
 	// {{{
-	wbconsole #(.LGFLEN(6)) console(i_clk, 1'b0,
-			wb_uart_cyc, wb_uart_stb, wb_uart_we,
-			wb_uart_addr[2-1:0],
-			wb_uart_data, // 32 bits wide
-			wb_uart_sel,  // 32/8 bits wide
-		wb_uart_stall, wb_uart_ack, wb_uart_idata,
-			w_console_tx_stb, w_console_tx_data, w_console_busy,
-			w_console_rx_stb, w_console_rx_data,
-			uartrx_int, uarttx_int, uartrxf_int, uarttxf_int,
-			uart_debug);
+	wbconsole #(
+		.LGFLEN(6)
+	) console(
+		// {{{
+		.i_clk(i_clk), .i_reset(1'b0),
+		.i_wb_cyc(wb_uart_cyc), .i_wb_stb(wb_uart_stb), .i_wb_we(wb_uart_we),
+			.i_wb_addr(wb_uart_addr[2-1:0]),
+			.i_wb_data(wb_uart_data), // 32 bits wide
+			.i_wb_sel(wb_uart_sel),  // 32/8 bits wide
+		.o_wb_stall(wb_uart_stall),.o_wb_ack(wb_uart_ack), .o_wb_data(wb_uart_idata),
+		.o_uart_stb(w_console_tx_stb), .o_uart_data(w_console_tx_data),
+		.i_uart_busy(w_console_busy),
+		.i_uart_stb(w_console_rx_stb), .i_uart_data(w_console_rx_data),
+		.o_uart_rx_int(uartrx_int), .o_uart_tx_int(uarttx_int),
+		.o_uart_rxfifo_int(uartrxf_int),
+		.o_uart_txfifo_int(uarttxf_int),
+		.o_debug(uart_debug)
+		// }}}
+	);
 	// }}}
 `else	// BUSCONSOLE_ACCESS
 	// {{{
@@ -1243,12 +1296,14 @@ module	main(i_clk, i_reset,
 	//
 	// The BUS Interrupt controller
 	//
-	icontrol #(15)	buspici(i_clk, 1'b0,
-			wb_buspic_cyc, wb_buspic_stb, wb_buspic_we,
+	icontrol #(15)
+	buspici(
+		i_clk, 1'b0,
+		wb_buspic_cyc, wb_buspic_stb, wb_buspic_we,
 			wb_buspic_data, // 32 bits wide
 			wb_buspic_sel,  // 32/8 bits wide
 		wb_buspic_stall, wb_buspic_ack, wb_buspic_idata,
-			bus_int_vector, w_bus_int);
+		bus_int_vector, w_bus_int);
 	// }}}
 `else	// BUSPIC_ACCESS
 	// {{{
@@ -1322,22 +1377,30 @@ module	main(i_clk, i_reset,
 
 `ifdef	GPIO_ACCESS
 	// {{{
+	////////////////////////////////////////////////////////////////////////
 	//
 	// GPIO
+	// {{{
+	// This interface should allow us to control up to 16 GPIO inputs,
+	// and another 16 GPIO outputs.  The interrupt trips when any of
+	// the inputs changes.  (Sorry, which input isn't (yet) selectable.)
 	//
-	// This interface should allow us to control up to 16 GPIO inputs, and
-	// another 16 GPIO outputs.  The interrupt trips when any of the inputs
-	// changes.  (Sorry, which input isn't (yet) selectable.)
-	//
-	localparam	INITIAL_GPIO = 11'h0;
-	wbgpio	#(NGPI, NGPO, INITIAL_GPIO)
-		gpioi(i_clk, wb_gpio_cyc, wb_gpio_stb, wb_gpio_we,
+	localparam	[NGPO-1:0] INITIAL_GPIO = 11'h0;
+
+	wbgpio	#(
+		.NIN(NGPI), .NOUT(NGPO), .DEFAULT(INITIAL_GPIO)
+	) gpioi(
+		// {{{
+		i_clk, wb_gpio_cyc, wb_gpio_stb, wb_gpio_we,
 			wb_gpio_data, // 32 bits wide
 			wb_gpio_sel,  // 32/8 bits wide
 		wb_gpio_stall, wb_gpio_ack, wb_gpio_idata,
-			i_gpio, o_gpio, gpio_int);
+		i_gpio, o_gpio, gpio_int
+		// }}}
+	);
 
 	assign	sd_reset = o_gpio[0];
+	// }}}
 	// }}}
 `else	// GPIO_ACCESS
 	// {{{
@@ -1372,7 +1435,13 @@ module	main(i_clk, i_reset,
 
 `ifdef	FLASH_ACCESS
 	// {{{
-	qflexpress #(.LGFLASHSZ(24), .OPT_CLKDIV(1),
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Flash controller
+	// {{{
+	qflexpress #(
+		// {{{
+		.LGFLASHSZ(24), .OPT_CLKDIV(1),
 		.OPT_ENDIANSWAP(0),
 		.NDUMMY(6), .RDDELAY(0),
 		.OPT_STARTUP_FILE("spansion.hex"),
@@ -1381,21 +1450,26 @@ module	main(i_clk, i_reset,
 `else
 		.OPT_CFG(1'b0)
 `endif
-		)
-		flashi(i_clk, i_reset,
-			// Primary memory reading inputs
-			wb_flash_cyc, wb_flash_stb, wb_flash_we,
+		// }}}
+	) flashi(
+		// {{{
+		i_clk, i_reset,
+		// Primary memory reading inputs
+		wb_flash_cyc, wb_flash_stb, wb_flash_we,
 			wb_flash_addr[22-1:0],
 			wb_flash_data, // 32 bits wide
 			wb_flash_sel,  // 32/8 bits wide
 		wb_flash_stall, wb_flash_ack, wb_flash_idata,
-			// Configuration bus ports
-			wb_flashcfg_cyc, wb_flashcfg_stb, wb_flashcfg_we,
+		// Configuration bus ports
+		wb_flashcfg_cyc, wb_flashcfg_stb, wb_flashcfg_we,
 			wb_flashcfg_data, // 32 bits wide
 			wb_flashcfg_sel,  // 32/8 bits wide
 		wb_flashcfg_stall, wb_flashcfg_ack, wb_flashcfg_idata,
-			o_qspi_sck, o_qspi_cs_n, o_qspi_mod, o_qspi_dat, i_qspi_dat,
-			flash_dbg_trigger, flash_debug);
+		o_qspi_sck, o_qspi_cs_n, o_qspi_mod, o_qspi_dat, i_qspi_dat,
+		flash_dbg_trigger, flash_debug
+		// }}}
+	);
+	// }}}
 	// }}}
 `else	// FLASH_ACCESS
 	// {{{

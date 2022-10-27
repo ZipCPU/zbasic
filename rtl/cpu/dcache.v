@@ -83,9 +83,11 @@
 module	dcache #(
 		// {{{
 		parameter	LGCACHELEN = 8,
-				ADDRESS_WIDTH=30,
+				BUS_WIDTH=32,
+				ADDRESS_WIDTH=32-$clog2(BUS_WIDTH/8),
 				LGNLINES=(LGCACHELEN-3), // Log of the number of separate cache lines
 				NAUX=5,	// # of aux d-wires to keep aligned w/memops
+		parameter	DATA_WIDTH=32, // CPU's register width
 		parameter [0:0]	OPT_LOCAL_BUS=1'b1,
 		parameter [0:0]	OPT_PIPE=1'b1,
 		parameter [0:0]	OPT_LOCK=1'b1,
@@ -95,8 +97,10 @@ module	dcache #(
 		localparam	CS = LGCACHELEN, // Number of bits in a cache address
 		localparam	LS = CS-LGNLINES, // Bits to spec position w/in cline
 		parameter [0:0]	OPT_LOWPOWER = 1'b0,
-		localparam	DW = 32, // Bus data width
+		// localparam	DW = 32, // Bus data width
 		localparam	DP = OPT_FIFO_DEPTH,
+		localparam	WBLSB = $clog2(BUS_WIDTH/8),
+		// localparam	DLSB = $clog2(DATA_WIDTH/8),
 		//
 		localparam [1:0]	DC_IDLE  = 2'b00, // Bus is idle
 		localparam [1:0]	DC_WRITE = 2'b01, // Write
@@ -110,15 +114,15 @@ module	dcache #(
 		// {{{
 		input	wire		i_pipe_stb, i_lock,
 		input	wire [2:0]	i_op,
-		input	wire [(DW-1):0]	i_addr,
-		input	wire [(DW-1):0]	i_data,
+		input	wire [DATA_WIDTH-1:0]	i_addr,
+		input	wire [DATA_WIDTH-1:0]	i_data,
 		input	wire [(NAUX-1):0] i_oreg, // Aux data, such as reg to write to
 		// Outputs, going back to the CPU
 		output	reg		o_busy, o_rdbusy,
 		output	reg		o_pipe_stalled,
 		output	reg		o_valid, o_err,
 		output reg [(NAUX-1):0]	o_wreg,
-		output	reg [(DW-1):0]	o_data,
+		output	reg [DATA_WIDTH-1:0]	o_data,
 		// }}}
 		// Wishbone bus master outputs
 		// {{{
@@ -126,17 +130,19 @@ module	dcache #(
 		output	reg		o_wb_stb_gbl, o_wb_stb_lcl,
 		output	reg		o_wb_we,
 		output	reg [(AW-1):0]	o_wb_addr,
-		output	reg [(DW-1):0]	o_wb_data,
-		output	wire [(DW/8-1):0] o_wb_sel,
+		output	reg [BUS_WIDTH-1:0]	o_wb_data,
+		output	wire [BUS_WIDTH/8-1:0]	o_wb_sel,
 		// Wishbone bus slave response inputs
 		input	wire			i_wb_stall, i_wb_ack, i_wb_err,
-		input	wire	[(DW-1):0]	i_wb_data
+		input	wire	[BUS_WIDTH-1:0]	i_wb_data
 		// }}}
 		// }}}
 	);
 
 	// Declarations
 	// {{{
+	localparam	FIF_WIDTH = (NAUX-1)+2+WBLSB;
+	integer			ik;
 	//
 	// output	reg	[31:0]		o_debug;
 
@@ -149,12 +155,11 @@ module	dcache #(
 
 	reg	[((1<<LGNLINES)-1):0] c_v;	// One bit per cache line, is it valid?
 	reg	[(AW-LS-1):0]	c_vtags	[0:((1<<LGNLINES)-1)];
-	reg	[(DW-1):0]	c_mem	[0:((1<<CS)-1)];
+	reg	[BUS_WIDTH-1:0]	c_mem	[0:((1<<CS)-1)];
 	reg			set_vflag;
 	reg	[1:0]		state;
 	reg	[(CS-1):0]	wr_addr;
-	reg	[(DW-1):0]	cached_idata, cached_rdata;
-	reg	[DW-1:0]	pre_data;
+	reg	[BUS_WIDTH-1:0]		cached_iword, cached_rword;
 	reg			lock_gbl, lock_lcl;
 
 
@@ -163,8 +168,8 @@ module	dcache #(
 	// clock to get there, and use these c_w... registers to capture the
 	// data in the meantime.
 	reg			c_wr;
-	reg	[(DW-1):0]	c_wdata;
-	reg	[(DW/8-1):0]	c_wsel;
+	reg	[BUS_WIDTH-1:0]	c_wdata;
+	reg [BUS_WIDTH/8-1:0]	c_wsel;
 	reg	[(CS-1):0]	c_waddr;
 
 	reg	[(AW-LS-1):0]	last_tag;
@@ -178,29 +183,29 @@ module	dcache #(
 	wire	raw_cachable_address;
 	reg	r_cachable, r_svalid, r_dvalid, r_rd, r_cache_miss,
 		r_rd_pending;
-	reg	[(AW-1):0]		r_addr;
+	reg	[AW-1:0]		r_addr;
 	wire	[(LGNLINES-1):0]	r_cline;
 	wire	[(CS-1):0]		r_caddr;
 	wire	[(AW-LS-1):0]		r_ctag;
 	reg	wr_cstb, r_iv, in_cache;
 	reg	[(AW-LS-1):0]	r_itag;
-	reg	[DW/8-1:0]	r_sel;
-	reg	[(NAUX+4-1):0]	req_data;
+	reg	[FIF_WIDTH:0]	req_data;
 	reg			gie;
+	reg	[BUS_WIDTH-1:0]	pre_data, pre_shifted;
 	// }}}
 
 	// Convenience assignments
 	// {{{
-	assign	i_cline = i_addr[(CS+1):LS+2];
-	assign	i_caddr = i_addr[(CS+1):2];
+	assign	i_cline = i_addr[WBLSB +LS +: (CS-LS)];
+	assign	i_caddr = i_addr[WBLSB +: CS];
 
 	assign	cache_miss_inow = (!last_tag_valid)
-					||(last_tag != i_addr[(AW+1):LS+2])
-					||(!c_v[i_cline]);
+				||(last_tag != i_addr[WBLSB+LS +: (AW-LS)])
+				||(!c_v[i_cline]);
 
-	assign	w_cachable = ((!OPT_LOCAL_BUS)||(i_addr[(DW-1):(DW-8)]!=8'hff))
+	assign	w_cachable = ((!OPT_LOCAL_BUS)
+				||(i_addr[DATA_WIDTH-1:DATA_WIDTH-8]!=8'hff))
 		&&((!i_lock)||(!OPT_LOCK))&&(raw_cachable_address);
-
 
 	assign	r_cline = r_addr[(CS-1):LS];
 	assign	r_caddr = r_addr[(CS-1):0];
@@ -209,7 +214,7 @@ module	dcache #(
 
 	// Cachability checking
 	// {{{
-	iscachable chkaddress(i_addr[AW+1:0], raw_cachable_address);
+	iscachable chkaddress(i_addr[0 +: AW+WBLSB], raw_cachable_address);
 	// }}}
 
 	// r_* values
@@ -239,7 +244,7 @@ module	dcache #(
 		// Some preliminaries that needed to be calculated on the first
 		// clock
 		if ((!o_pipe_stalled)&&(!r_rd_pending))
-			r_addr <= i_addr[(AW+1):2];
+			r_addr <= i_addr[WBLSB +: AW];
 		if ((!o_pipe_stalled)&&(!r_rd_pending))
 		begin
 			r_iv   <= c_v[i_cline];
@@ -266,7 +271,7 @@ module	dcache #(
 			last_tag_valid <= 1'b1;
 			last_tag <= r_ctag;
 		end else if ((state == DC_READC)
-				&&(last_tag[CS-LS-1:0]==o_wb_addr[CS-1:LS])
+				&&(last_tag[CS-LS-1:0]==r_addr[CS-1:LS])
 				&&((i_wb_ack)||(i_wb_err)))
 			last_tag_valid <= 1'b0;
 
@@ -306,64 +311,155 @@ module	dcache #(
 
 	// o_wb_sel, r_sel
 	// {{{
-	initial	r_sel = 4'hf;
-	always @(posedge i_clk)
-	if (i_reset)
-		r_sel <= 4'hf;
-	else if (!o_pipe_stalled && (!OPT_LOWPOWER  || i_pipe_stb))
-	begin
-		casez({i_op[2:1], i_addr[1:0]})
-		4'b0???: r_sel <= 4'b1111;
-		4'b100?: r_sel <= 4'b1100;
-		4'b101?: r_sel <= 4'b0011;
-		4'b1100: r_sel <= 4'b1000;
-		4'b1101: r_sel <= 4'b0100;
-		4'b1110: r_sel <= 4'b0010;
-		4'b1111: r_sel <= 4'b0001;
-		endcase
-	end else if (OPT_LOWPOWER && !i_wb_stall)
-		r_sel <= 4'h0;
+	generate if (DATA_WIDTH == BUS_WIDTH)
+	begin : COPY_SEL
+		// {{{
+		reg	[BUS_WIDTH/8-1:0]	r_sel;
 
-	assign	o_wb_sel = (state == DC_READC) ? 4'hf : r_sel;
+		initial	r_sel = 4'hf;
+		always @(posedge i_clk)
+		if (i_reset)
+			r_sel <= 4'hf;
+		else if (!o_pipe_stalled && (!OPT_LOWPOWER  || i_pipe_stb))
+		begin
+			casez({i_op[2:1], i_addr[1:0]})
+			4'b0???: r_sel <= 4'b1111;
+			4'b100?: r_sel <= 4'b1100;
+			4'b101?: r_sel <= 4'b0011;
+			4'b1100: r_sel <= 4'b1000;
+			4'b1101: r_sel <= 4'b0100;
+			4'b1110: r_sel <= 4'b0010;
+			4'b1111: r_sel <= 4'b0001;
+			endcase
+		end else if (OPT_LOWPOWER && !i_wb_stall)
+			r_sel <= 4'h0;
+
+		assign	o_wb_sel = (state == DC_READC) ? 4'hf : r_sel;
+		// }}}
+	end else begin : GEN_SEL
+		// {{{
+		reg	[DATA_WIDTH/8-1:0]	pre_sel;
+		reg	[BUS_WIDTH/8-1:0]	full_sel, r_wb_sel;
+
+		always @(*)
+		casez(i_op[2:1])
+		2'b0?: pre_sel = {(DATA_WIDTH/8){1'b1}};
+		2'b10: pre_sel = { 2'b11, {(DATA_WIDTH/8-2){1'b0}} };
+		2'b11: pre_sel = { 1'b1,  {(DATA_WIDTH/8-1){1'b0}} };
+		endcase
+
+		always @(*)
+		if (OPT_LOCAL_BUS && (&i_addr[31:24]))
+			full_sel = { {(BUS_WIDTH/8-4){1'b0}}, pre_sel }
+					>> (i_addr[1:0]);
+		else
+			full_sel = { pre_sel, {(BUS_WIDTH/8-4){1'b0}} }
+						>> (i_addr[WBLSB-1:0]);
+
+		initial	r_wb_sel = -1;
+		always @(posedge i_clk)
+		if (i_reset)
+			r_wb_sel <= -1;
+		else if (i_pipe_stb && (i_op[0] || !w_cachable))
+			r_wb_sel <= full_sel;
+		else if (!i_wb_stall)
+			r_wb_sel <= -1;
+
+		assign	o_wb_sel = r_wb_sel;
+		// }}}
+	end endgenerate
 	// }}}
 
 	// o_wb_data
 	// {{{
-	initial	o_wb_data = 0;
-	always @(posedge i_clk)
-	if (i_reset)
-		o_wb_data <= 0;
-	else if ((!o_busy || !i_wb_stall) && (!OPT_LOWPOWER || i_pipe_stb))
+	generate if (DATA_WIDTH == BUS_WIDTH)
 	begin
-		if (DW == 32)
+		// {{{
+		initial	o_wb_data = 0;
+		always @(posedge i_clk)
+		if (i_reset)
+			o_wb_data <= 0;
+		else if ((!o_busy || !i_wb_stall) && (!OPT_LOWPOWER || i_pipe_stb))
 		begin
-			if (OPT_LOWPOWER)
-			begin : ZERO_UNUSED_DATA_BITS
-				casez({ i_op[2:1], i_addr[1:0] })
-				4'b0???: o_wb_data <= i_data;
-				4'b100?: o_wb_data <= { i_data[15:0], 16'h0 };
-				4'b101?: o_wb_data <= { 16'h0, i_data[15:0] };
-				4'b1100: o_wb_data <= { i_data[7:0], 24'h0 };
-				4'b1101: o_wb_data <= {  8'h0, i_data[7:0], 16'h0 };
-				4'b1110: o_wb_data <= { 16'h0, i_data[7:0],  8'h0 };
-				4'b1111: o_wb_data <= { 24'h0, i_data[7:0] };
-				endcase
-			end else begin : DUPLICATE_UNUSED_DATA_BITS
+			if (DATA_WIDTH == 32)
+			begin
+				if (OPT_LOWPOWER)
+				begin : ZERO_UNUSED_DATA_BITS
+					casez({ i_op[2:1], i_addr[1:0] })
+					4'b0???: o_wb_data <= i_data;
+					4'b100?: o_wb_data <= { i_data[15:0], 16'h0 };
+					4'b101?: o_wb_data <= { 16'h0, i_data[15:0] };
+					4'b1100: o_wb_data <= { i_data[7:0], 24'h0 };
+					4'b1101: o_wb_data <= {  8'h0, i_data[7:0], 16'h0 };
+					4'b1110: o_wb_data <= { 16'h0, i_data[7:0],  8'h0 };
+					4'b1111: o_wb_data <= { 24'h0, i_data[7:0] };
+					endcase
+				end else begin : DUPLICATE_UNUSED_DATA_BITS
+					casez(i_op[2:1])
+					2'b0?: o_wb_data <= i_data;
+					2'b10: o_wb_data <= { (2){i_data[15:0]} };
+					2'b11: o_wb_data <= { (4){i_data[ 7:0]} };
+					endcase
+				end
+			end else begin
 				casez(i_op[2:1])
-				2'b0?: o_wb_data <= i_data;
-				2'b10: o_wb_data <= { (2){i_data[15:0]} };
-				2'b11: o_wb_data <= { (4){i_data[ 7:0]} };
+				2'b0?: o_wb_data <= i_data << (8*i_addr[$clog2(DATA_WIDTH)-1:0]);
+				2'b10: o_wb_data <= { 16'h0, i_data[15:0] } << (8*i_addr[$clog2(DATA_WIDTH)-1:0]);
+				2'b11: o_wb_data <= { 24'h0, i_data[7:0] } << (8*i_addr[$clog2(DATA_WIDTH)-1:0]);
 				endcase
 			end
-		end else begin
+		end else if (OPT_LOWPOWER && !i_wb_stall)
+			o_wb_data <= 0;
+		// }}}
+	end else begin
+		// {{{
+		reg	[DATA_WIDTH-1:0]	pre_shift;
+		reg	[BUS_WIDTH-1:0]		wide_preshift, shifted_data;
+
+		always @(*)
+		begin
 			casez(i_op[2:1])
-			2'b0?: o_wb_data <= i_data << (8*i_addr[$clog2(DW)-1:0]);
-			2'b10: o_wb_data <= { 16'h0, i_data[15:0] } << (8*i_addr[$clog2(DW)-1:0]);
-			2'b11: o_wb_data <= { 24'h0, i_data[7:0] } << (8*i_addr[$clog2(DW)-1:0]);
+			2'b0?: pre_shift = i_data;
+			2'b10: pre_shift = { i_data[15:0],
+						{(DATA_WIDTH-16){1'b0}} };
+			2'b11: pre_shift = { i_data[ 7:0],
+						{(DATA_WIDTH- 8){1'b0}} };
 			endcase
+
+			if (OPT_LOCAL_BUS && (&i_addr[DATA_WIDTH-1:DATA_WIDTH-8]))
+			begin
+				wide_preshift = { {(BUS_WIDTH-DATA_WIDTH){1'b0}}, pre_shift };
+
+				shifted_data = wide_preshift >> (8*i_addr[2-1:0]);
+			end else begin
+				wide_preshift = { pre_shift,
+						{(BUS_WIDTH-DATA_WIDTH){1'b0}} };
+
+				shifted_data = wide_preshift >> (8*i_addr[WBLSB-1:0]);
+			end
 		end
-	end else if (OPT_LOWPOWER && !i_wb_stall)
-		o_wb_data <= 0;
+
+		initial	o_wb_data = 0;
+		always @(posedge i_clk)
+		if (OPT_LOWPOWER && i_reset)
+			o_wb_data <= 0;
+		else if ((!o_busy || !i_wb_stall)
+			&& (!OPT_LOWPOWER || (i_pipe_stb && i_op[0])))
+		begin
+			if (!OPT_LOWPOWER)
+			begin
+				casez(i_op[2:1])
+				2'b0?: o_wb_data <= {(BUS_WIDTH/DATA_WIDTH){i_data}};
+				2'b10: o_wb_data <= {(BUS_WIDTH/16){i_data[15:0]}};
+				2'b11: o_wb_data <= {(BUS_WIDTH/ 8){i_data[ 7:0]}};
+				endcase
+			end else begin
+				o_wb_data <= shifted_data;
+			end
+		end else if (OPT_LOWPOWER && !i_wb_stall)
+			o_wb_data <= 0;
+		// }}}
+	end endgenerate
 	// }}}
 
 	// Register return FIFO
@@ -371,21 +467,21 @@ module	dcache #(
 	generate if (OPT_PIPE)
 	begin : OPT_PIPE_FIFO
 		// {{{
-		reg	[NAUX+4-2:0]	fifo_data [0:((1<<OPT_FIFO_DEPTH)-1)];
+		reg	[FIF_WIDTH-1:0]	fifo_data [0:((1<<OPT_FIFO_DEPTH)-1)];
 
 		reg	[DP:0]		wraddr, rdaddr;
 
 		always @(posedge i_clk)
 		if (i_pipe_stb)
 			fifo_data[wraddr[DP-1:0]]
-				<= { i_oreg[NAUX-2:0], i_op[2:1], i_addr[1:0] };
+				<= { i_oreg[NAUX-2:0], i_op[2:1], i_addr[WBLSB-1:0] };
 
 		always @(posedge i_clk)
 		if (i_pipe_stb)
 			gie <= i_oreg[NAUX-1];
 
 `ifdef	NO_BKRAM
-		reg	[NAUX+4-2:0]	r_req_data, r_last_data;
+		reg	[FIF_WIDTH-1:0]	r_req_data, r_last_data;
 		reg			single_write;
 
 		always @(posedge i_clk)
@@ -397,25 +493,25 @@ module	dcache #(
 		always @(posedge i_clk)
 		if (i_pipe_stb)
 			r_last_data <= { i_oreg[NAUX-2:0],
-						i_op[2:1], i_addr[1:0] };
+						i_op[2:1], i_addr[WBLSB-1:0] };
 
 		always @(*)
 		begin
 			req_data[NAUX+4-1] = gie;
 			// if ((r_svalid)||(state == DC_READ))
 			if (single_write)
-				req_data[NAUX+4-2:0] = r_last_data;
+				req_data[FIF_WIDTH-1:0] = r_last_data;
 			else
-				req_data[NAUX+4-2:0] = r_req_data;
+				req_data[FIF_WIDTH-1:0] = r_req_data;
 		end
 
 		always @(*)
 			`ASSERT(req_data == fifo_data[rdaddr[DP-1:0]]);
 `else
 		always @(*)
-			req_data[NAUX+4-2:0] = fifo_data[rdaddr[DP-1:0]];
+			req_data[FIF_WIDTH-1:0] = fifo_data[rdaddr[DP-1:0]];
 		always @(*)
-			req_data[NAUX+4-1] = gie;
+			req_data[FIF_WIDTH] = gie;
 `endif
 
 		initial	wraddr = 0;
@@ -437,23 +533,25 @@ module	dcache #(
 			rdaddr <= rdaddr + 1'b1;
 
 		always @(posedge i_clk)
-			o_wreg <= req_data[(NAUX+4-1):4];
+			o_wreg <= req_data[2+WBLSB +: NAUX];
 	// }}}
 	end else begin : NO_FIFO
 	// {{{
+		reg	[AW-1:0]	fr_last_addr;
+
 		always @(posedge i_clk)
 		if (i_pipe_stb)
-			req_data <= { i_oreg, i_op[2:1], i_addr[1:0] };
+			req_data <= { i_oreg, i_op[2:1], i_addr[WBLSB-1:0] };
 
 		always @(*)
-			o_wreg = req_data[(NAUX+4-1):4];
+			o_wreg = req_data[2+WBLSB +: NAUX];
 
 		always @(*)
 			gie = o_wreg[NAUX-1];
 
 		// verilator lint_off UNUSED
 		wire	unused_no_fifo;
-		assign	unused_no_fifo = { 1'b0, gie };
+		assign	unused_no_fifo = &{ 1'b0, gie };
 		// verilator lint_on  UNUSED
 		// }}}
 	end endgenerate
@@ -461,6 +559,7 @@ module	dcache #(
 
 	// BIG STATE machine: CYC, STB, c_v, state, etc
 	// {{{
+	initial	o_wb_addr    = 0;
 	initial	r_wb_cyc_gbl = 0;
 	initial	r_wb_cyc_lcl = 0;
 	initial	o_wb_stb_gbl = 0;
@@ -478,11 +577,12 @@ module	dcache #(
 		// {{{
 		c_v <= 0;
 		c_wr   <= 1'b0;
-		c_wsel <= 4'hf;
+		c_wsel  <= {(BUS_WIDTH/8){1'b1}};
 		r_wb_cyc_gbl <= 1'b0;
 		r_wb_cyc_lcl <= 1'b0;
 		o_wb_stb_gbl <= 0;
 		o_wb_stb_lcl <= 0;
+		o_wb_addr    <= 0;
 		wr_cstb <= 1'b0;
 		last_line_stb <= 1'b0;
 		end_of_line <= 1'b0;
@@ -499,7 +599,7 @@ module	dcache #(
 		c_wr <= 0;
 
 		set_vflag <= 1'b0;
-		if ((!cyc)&&(set_vflag))
+		if (!cyc && set_vflag)
 			c_v[c_waddr[(CS-1):LS]] <= 1'b1;
 
 		wr_cstb <= 1'b0;
@@ -523,13 +623,13 @@ module	dcache #(
 
 		// last_line_stb
 		// {{{
-		if (!cyc || (OPT_LOWPOWER && state != DC_READC))
+		if (!cyc || !stb || (OPT_LOWPOWER && state != DC_READC))
 			last_line_stb <= (LS <= 0);
-		else if ((stb)&&(!i_wb_stall)&&(LS <= 1))
+		else if (!i_wb_stall && (LS <= 1))
 			last_line_stb <= 1'b1;
-		else if ((stb)&&(!i_wb_stall))
+		else if (!i_wb_stall)
 			last_line_stb <= (o_wb_addr[(LS-1):1]=={(LS-1){1'b1}});
-		else if (stb)
+		else
 			last_line_stb <= (o_wb_addr[(LS-1):0]=={(LS){1'b1}});
 		// }}}
 
@@ -553,7 +653,11 @@ module	dcache #(
 			begin // Write  operation
 				// {{{
 				state <= DC_WRITE;
-				o_wb_addr <= i_addr[(AW+1):2];
+				if (OPT_LOCAL_BUS && (&i_addr[DATA_WIDTH-1:DATA_WIDTH-8]))
+					o_wb_addr <= i_addr[2 +: AW];
+				else
+					o_wb_addr <= i_addr[WBLSB +: AW];
+
 				o_wb_we <= 1'b1;
 
 				cyc <= 1'b1;
@@ -561,10 +665,10 @@ module	dcache #(
 
 				if (OPT_LOCAL_BUS)
 				begin
-				r_wb_cyc_gbl <= (i_addr[DW-1:DW-8]!=8'hff);
-				r_wb_cyc_lcl <= (i_addr[DW-1:DW-8]==8'hff);
-				o_wb_stb_gbl <= (i_addr[DW-1:DW-8]!=8'hff);
-				o_wb_stb_lcl <= (i_addr[DW-1:DW-8]==8'hff);
+				r_wb_cyc_gbl <= (i_addr[DATA_WIDTH-1:DATA_WIDTH-8]!=8'hff);
+				r_wb_cyc_lcl <= (i_addr[DATA_WIDTH-1:DATA_WIDTH-8]==8'hff);
+				o_wb_stb_gbl <= (i_addr[DATA_WIDTH-1:DATA_WIDTH-8]!=8'hff);
+				o_wb_stb_lcl <= (i_addr[DATA_WIDTH-1:DATA_WIDTH-8]==8'hff);
 				end else begin
 					r_wb_cyc_gbl <= 1'b1;
 					o_wb_stb_gbl <= 1'b1;
@@ -583,48 +687,55 @@ module	dcache #(
 			end else if ((i_pipe_stb)&&(!w_cachable))
 			begin // Read non-cachable memory area
 				state <= DC_READS;
-				o_wb_addr <= i_addr[(AW+1):2];
+
+				if (OPT_LOCAL_BUS && (&i_addr[DATA_WIDTH-1:DATA_WIDTH-8]))
+					o_wb_addr <= i_addr[2 +: AW];
+				else
+					o_wb_addr <= i_addr[WBLSB +: AW];
 
 				cyc <= 1'b1;
 				stb <= 1'b1;
 				if (OPT_LOCAL_BUS)
 				begin
-				r_wb_cyc_gbl <= (i_addr[DW-1:DW-8]!=8'hff);
-				r_wb_cyc_lcl <= (i_addr[DW-1:DW-8]==8'hff);
-				o_wb_stb_gbl <= (i_addr[DW-1:DW-8]!=8'hff);
-				o_wb_stb_lcl <= (i_addr[DW-1:DW-8]==8'hff);
+				r_wb_cyc_gbl <= (i_addr[DATA_WIDTH-1:DATA_WIDTH-8]!=8'hff);
+				r_wb_cyc_lcl <= (i_addr[DATA_WIDTH-1:DATA_WIDTH-8]==8'hff);
+				o_wb_stb_gbl <= (i_addr[DATA_WIDTH-1:DATA_WIDTH-8]!=8'hff);
+				o_wb_stb_lcl <= (i_addr[DATA_WIDTH-1:DATA_WIDTH-8]==8'hff);
 				end else begin
 				r_wb_cyc_gbl <= 1'b1;
 				o_wb_stb_gbl <= 1'b1;
 				end
 			end // else we stay idle
+			end
 			// }}}
-		end
 		DC_READC: begin
 			// {{{
 			// We enter here once we have committed to reading
 			// data into a cache line.
-			if ((stb)&&(!i_wb_stall))
+			if (stb && !i_wb_stall)
 			begin
 				stb <= (!last_line_stb);
 				o_wb_stb_gbl <= (!last_line_stb);
 				o_wb_addr[(LS-1):0] <= o_wb_addr[(LS-1):0]+1'b1;
+
+				if (OPT_LOWPOWER && last_line_stb)
+					o_wb_addr <= 0;
 			end
 
-			if ((i_wb_ack)&&(!end_of_line))
-				c_v[o_wb_addr[(CS-1):LS]] <= 1'b0;
+			if (i_wb_ack)
+				c_v[r_cline] <= 1'b0;
 
 			c_wr    <= (i_wb_ack);
 			c_wdata <= i_wb_data;
-			c_waddr <= ((i_wb_ack)?(c_waddr+1'b1):c_waddr);
-			c_wsel  <= 4'hf;
+			c_waddr <= c_waddr+(i_wb_ack ? 1:0);
+			c_wsel  <= {(BUS_WIDTH/8){1'b1}};
 
 			set_vflag <= !i_wb_err;
 			// if (i_wb_ack)
 			//	c_vtags[r_addr[(CS-1):LS]]
 			//			<= r_addr[(AW-1):LS];
 
-			if (((i_wb_ack)&&(end_of_line))||(i_wb_err))
+			if ((i_wb_ack && end_of_line)|| i_wb_err)
 			begin
 				state          <= DC_IDLE;
 				cyc <= 1'b0;
@@ -634,9 +745,10 @@ module	dcache #(
 				o_wb_stb_gbl <= 1'b0;
 				o_wb_stb_lcl <= 1'b0;
 				//
-			end
+				if (OPT_LOWPOWER)
+					o_wb_addr <= 0;
+			end end
 			// }}}
-		end
 		DC_READS: begin
 			// {{{
 			// We enter here once we have committed to reading
@@ -646,10 +758,17 @@ module	dcache #(
 				stb <= 1'b0;
 				o_wb_stb_gbl <= 1'b0;
 				o_wb_stb_lcl <= 1'b0;
+				if (OPT_LOWPOWER)
+					o_wb_addr <= 0;
 			end
 
 			if ((!i_wb_stall)&&(i_pipe_stb))
-				o_wb_addr <= i_addr[(AW+1):2];
+			begin
+				if (OPT_LOCAL_BUS && (&i_addr[DATA_WIDTH-1:DATA_WIDTH-8]))
+					o_wb_addr <= i_addr[2 +: AW];
+				else
+					o_wb_addr <= i_addr[WBLSB +: AW];
+			end
 
 			c_wr <= 1'b0;
 
@@ -662,12 +781,13 @@ module	dcache #(
 				r_wb_cyc_lcl <= 1'b0;
 				o_wb_stb_gbl <= 1'b0;
 				o_wb_stb_lcl <= 1'b0;
-			end
+				if (OPT_LOWPOWER)
+					o_wb_addr <= 0;
+			end end
 			// }}}
-		end
 		DC_WRITE: begin
 			// {{{
-			c_wr    <= stb && (c_v[o_wb_addr[CS-1:LS]])
+			c_wr    <= o_wb_stb_gbl && (c_v[o_wb_addr[CS-1:LS]])
 				// &&(c_vtags[o_wb_addr[CS-1:LS]]==o_wb_addr[AW-1:LS]);
 				&&(r_itag==o_wb_addr[AW-1:LS]);
 			c_wdata <= o_wb_data;
@@ -679,12 +799,19 @@ module	dcache #(
 				stb          <= 1'b0;
 				o_wb_stb_gbl <= 1'b0;
 				o_wb_stb_lcl <= 1'b0;
+				if (OPT_LOWPOWER)
+					o_wb_addr <= 0;
 			end
 
 			wr_cstb  <= (stb)&&(!i_wb_stall)&&(in_cache);
 
-			if ((stb)&&(!i_wb_stall))
-				o_wb_addr <= i_addr[(AW+1):2];
+			if (i_pipe_stb && !i_wb_stall)
+			begin
+				if (OPT_LOCAL_BUS && (&i_addr[DATA_WIDTH-1:DATA_WIDTH-8]))
+					o_wb_addr <= i_addr[2 +: AW];
+				else
+					o_wb_addr <= i_addr[WBLSB +: AW];
+			end
 
 			if (((i_wb_ack)&&(last_ack)
 						&&((!OPT_PIPE)||(!i_pipe_stb)))
@@ -697,9 +824,10 @@ module	dcache #(
 				r_wb_cyc_lcl <= 1'b0;
 				o_wb_stb_gbl <= 1'b0;
 				o_wb_stb_lcl <= 1'b0;
-			end
+				if (OPT_LOWPOWER)
+					o_wb_addr <= 0;
+			end end
 			// }}}
-		end
 		endcase
 
 		if (i_clear)
@@ -787,14 +915,9 @@ module	dcache #(
 	always @(posedge i_clk)
 	if (c_wr)
 	begin
-		if (c_wsel[0])
-			c_mem[c_waddr][7:0] <= c_wdata[7:0];
-		if (c_wsel[1])
-			c_mem[c_waddr][15:8] <= c_wdata[15:8];
-		if (c_wsel[2])
-			c_mem[c_waddr][23:16] <= c_wdata[23:16];
-		if (c_wsel[3])
-			c_mem[c_waddr][31:24] <= c_wdata[31:24];
+		for(ik=0; ik<BUS_WIDTH/8; ik=ik+1)
+		if (c_wsel[ik])
+			c_mem[c_waddr][ik *8 +: 8] <= c_wdata[ik * 8 +: 8];
 	end
 	// }}}
 
@@ -810,18 +933,18 @@ module	dcache #(
 	begin
 
 		always @(posedge i_clk)
-			cached_idata <= c_mem[i_caddr];
+			cached_iword <= c_mem[i_caddr];
 
 		always @(posedge i_clk)
-			cached_rdata <= c_mem[r_caddr];
+			cached_rword <= c_mem[r_caddr];
 
 	end else begin
 
 		always @(posedge i_clk)
-			cached_rdata <= c_mem[(o_busy) ? r_caddr : i_caddr];
+			cached_rword <= c_mem[(o_busy) ? r_caddr : i_caddr];
 
 		always @(*)
-			cached_idata = cached_rdata;
+			cached_iword = cached_rword;
 
 	end endgenerate
 	// }}}
@@ -833,24 +956,31 @@ module	dcache #(
 	// 2. The cache, second clock, assuming the data was in the cache at all
 	// 3. The cache, after filling the cache
 	// 4. The wishbone state machine, upon reading the value desired.
+
 	always @(*)
 	if (r_svalid)
-		pre_data = cached_idata;
+		pre_data = cached_iword;
 	else if (state == DC_READS)
 		pre_data = i_wb_data;
 	else
-		pre_data = cached_rdata;
+		pre_data = cached_rword;
+
+	always @(*)
+	if (o_wb_cyc_lcl)
+		pre_shifted = { i_wb_data[31:0], {(BUS_WIDTH-32){1'b0}} } << (8*req_data[2-1:0]);
+	else
+		pre_shifted = pre_data << (8*req_data[WBLSB-1:0]);
 
 	// o_data
+	initial	o_data = 0;
 	always @(posedge i_clk)
-	casez(req_data[3:0])
-	4'b100?: o_data <= { 16'h0, pre_data[31:16] };
-	4'b101?: o_data <= { 16'h0, pre_data[15: 0] };
-	4'b1100: o_data <= { 24'h0, pre_data[31:24] };
-	4'b1101: o_data <= { 24'h0, pre_data[23:16] };
-	4'b1110: o_data <= { 24'h0, pre_data[15: 8] };
-	4'b1111: o_data <= { 24'h0, pre_data[ 7: 0] };
-	default	o_data <= pre_data;
+	if (OPT_LOWPOWER && (i_reset
+		||(!r_svalid && (!i_wb_ack || state != DC_READS) && !r_dvalid)))
+		o_data <= 0;
+	else casez(req_data[WBLSB +: 2])
+	2'b10: o_data <= { 16'h0, pre_shifted[BUS_WIDTH-1:BUS_WIDTH-16] };
+	2'b11: o_data <= { 24'h0, pre_shifted[BUS_WIDTH-1:BUS_WIDTH- 8] };
+	default	o_data <= pre_shifted[BUS_WIDTH-1:BUS_WIDTH-32];
 	endcase
 	// }}}
 
@@ -930,13 +1060,29 @@ module	dcache #(
 	initial	lock_gbl = 0;
 	initial	lock_lcl = 0;
 	always @(posedge i_clk)
-	if (i_reset)
+	if (i_reset || !OPT_LOCK)
 	begin
 		lock_gbl <= 1'b0;
 		lock_lcl<= 1'b0;
 	end else begin
-		lock_gbl <= (OPT_LOCK)&&(i_lock)&&((r_wb_cyc_gbl)||(lock_gbl));
-		lock_lcl <= (OPT_LOCK)&&(i_lock)&&((r_wb_cyc_lcl)||(lock_lcl));
+		// lock_gbl <= (r_wb_cyc_gbl)||(lock_gbl);
+		// lock_lcl <= (r_wb_cyc_lcl)||(lock_lcl);
+		if (i_pipe_stb)
+		begin
+			lock_gbl <= (!OPT_LOCAL_BUS
+				|| i_addr[DATA_WIDTH-1:DATA_WIDTH-8] != 8'hff);
+			lock_lcl <=(i_addr[DATA_WIDTH-1:DATA_WIDTH-8] == 8'hff);
+		end
+
+		if (r_wb_cyc_gbl && i_wb_err)
+			lock_gbl <= 1'b0;
+		if (r_wb_cyc_lcl && i_wb_err)
+			lock_lcl <= 1'b0;
+
+		if (!i_lock)
+			{ lock_gbl, lock_lcl } <= 2'b00;
+		if (!OPT_LOCAL_BUS)
+			lock_lcl <= 1'b0;
 	end
 
 	assign	o_wb_cyc_gbl = (r_wb_cyc_gbl)||(lock_gbl);
@@ -944,14 +1090,16 @@ module	dcache #(
 
 	// Make Verilator happy
 	// {{{
-	generate if (AW+2 < DW)
+	// Verilator lint_off UNUSED
+	wire	unused;
+	assign	unused = &{ 1'b0, pre_shifted };
+	generate if (AW+WBLSB < DATA_WIDTH)
 	begin : UNUSED_BITS
 
-		// Verilator lint_off UNUSED
-		wire	[DW-AW-2:0]	unused;
-		assign	unused = i_addr[DW-1:AW+1];
-		// Verilator lint_on  UNUSED
+		wire	unused_aw;
+		assign	unused = &{ 1'b0, i_addr[DATA_WIDTH-1:AW+WBLSB] };
 	end endgenerate
+	// Verilator lint_on  UNUSED
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

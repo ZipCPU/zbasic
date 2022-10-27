@@ -13,26 +13,11 @@
 //
 // Written and distributed by Gisselquist Technology, LLC
 // }}}
-// This program is hereby granted to the public domain.
+// This design is hereby granted to the public domain.
 // {{{
-// This program is free software (firmware): you can redistribute it and/or
-// modify it under the terms of the GNU General Public License as published
-// by the Free Software Foundation, either version 3 of the License, or (at
-// your option) any later version.
-//
 // This program is distributed in the hope that it will be useful, but WITHOUT
 // ANY WARRANTY; without even the implied warranty of MERCHANTIBILITY or
-// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-// for more details.
-//
-// You should have received a copy of the GNU General Public License along
-// with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
-// target there if the PDF file isn't present.)  If not, see
-// <http://www.gnu.org/licenses/> for a copy.
-// }}}
-// License:	GPL, v3, as defined and found on www.gnu.org,
-// {{{
-//		http://www.gnu.org/licenses/gpl.html
+// FITNESS FOR A PARTICULAR PURPOSE.
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -227,10 +212,12 @@ module sfifo #(
 
 	// Make Verilator happy
 	// {{{
+	// verilator coverage_off
 	// verilator lint_off UNUSED
-	wire	[LGFLEN-1:0]	unused;
-	assign	unused = rd_next;
+	wire	unused;
+	assign	unused = &{ 1'b0, rd_next };
 	// verilator lint_on  UNUSED
+	// verilator coverage_on
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -475,6 +462,3 @@ module sfifo #(
 `endif // FORMAL
 // }}}
 endmodule
-`ifndef	YOSYS
-`default_nettype wire
-`endif

@@ -50,15 +50,27 @@
 	// This clock step is designed to match @$(CLOCK.FREQUENCY) Hz
 	localparam	[31:0]	RTC_CLKSTEP = @$[32'h%08x](CLKSTEP);
 	wire	@$(PREFIX)_ppd;
+	// Verilator lint_off UNUSED
 	wire	ck_pps;
+	// Verilator lint_on  UNUSED
 @MAIN.INSERT=
-	rtclight #(.DEFAULT_SPEED(@$[32'h%x](CLKSTEP)),
+	rtclight #(
+		// {{{
+		.DEFAULT_SPEED(RTC_CLKSTEP),
 		.OPT_TIMER(1'b1),
 		.OPT_STOPWATCH(1'b1),
 		.OPT_ALARM(1'b0),
-		.OPT_FIXED_SPEED(1'b1))
-	the@$(PREFIX)(i_clk, i_reset, @$(SLAVE.PORTLIST),
-		@$(PREFIX)_int, ck_pps, @$(PREFIX)_ppd);
+		.OPT_FIXED_SPEED(1'b1)
+		// }}}
+	) the@$(PREFIX)(
+		// {{{
+		.i_clk(i_clk), .i_reset(i_reset),
+		@$(SLAVE.ANSIPORTLIST),
+		.o_interrupt(@$(PREFIX)_int),
+		.o_pps(ck_pps),
+		.o_ppd(@$(PREFIX)_ppd)
+		// }}}
+	);
 @MAIN.ALT=
 	assign	ck_pps = 1'b0;
 @REGS.NOTE= // RTC clock registers

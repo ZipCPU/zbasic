@@ -26,7 +26,7 @@
 //	register return the current value of the counter.  Writes within
 //	the (N-1) bit space following the current time set an interrupt.
 //	Writes of values that occurred in the last 2^(N-1) ticks will be
-//	ignored.  The timer then interrupts when it's value equals that time. 
+//	ignored.  The timer then interrupts when its value equals that time.
 //	Multiple writes cause the jiffies timer to select the nearest possible
 //	interrupt.  Upon an interrupt, the next interrupt time/value is cleared
 //	and will need to be reset if the CPU wants to get notified again.  With
@@ -205,10 +205,12 @@ module	zipjiffies #(
 
 	// Make verilator happy
 	// {{{
+	// verilator coverage_off
 	// verilator lint_off UNUSED
 	wire	unused;
 	assign	unused = &{ 1'b0, i_wb_cyc, i_wb_sel };
 	// verilator lint_on  UNUSED
+	// verilator coverage_on
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

@@ -134,12 +134,12 @@ module	toplevel(i_clk,
 	input	wire		i_wbu_uart_rx;
 	output	wire		o_wbu_uart_tx;
 	// SD Card
+	// {{{
 	output	wire		o_sd_sck;
 	inout	wire		io_sd_cmd;
 	inout	wire	[3:0]	io_sd;
 	input	wire		i_sd_cd;
-	// GPIO wires
-	localparam	NGPI = 11, NGPO=11;
+	// }}}
 	// GPIO ports
 	input	wire	[(11-1):0]	i_gpio;
 	output	wire	[(11-1):0]	o_gpio;
@@ -154,11 +154,14 @@ module	toplevel(i_clk,
 	// These declarations just copy data from the @TOP.DEFNS key
 	// within the component data files.
 	//
+	// SD Card definitions
+	// {{{
 	wire		w_sd_cmd;
 	wire	[3:0]	w_sd_data;
 
 	wire		i_sd_cmd;
 	wire	[3:0]	i_sd;
+	// }}}
 	wire		s_clk, s_reset;
 	wire		w_qspi_sck, w_qspi_cs_n;
 	wire	[1:0]	qspi_bmod;
@@ -200,28 +203,31 @@ module	toplevel(i_clk,
 	//
 
 
+	//////////////////////////////////////////////////////////////////////
+	//
+	// SD Card SPI Controller
+	// {{{
+	//////////////////////////////////////////////////////////////////////
 	//
 	//
+
 	// Wires for setting up the SD Card Controller
-	//
-	//
-	// assign io_sd_cmd = w_sd_cmd ? 1'bz:1'b0;
-	// assign io_sd[0] = w_sd_data[0]? 1'bz:1'b0;
+	// {{{
+	// This is how we'd set up for SDIO
+	// assign io_sd_cmd = w_sd_cmd ? 1'bz:1'b0;	// MOSI
+	// assign io_sd[0] = w_sd_data[0]? 1'bz:1'b0;	// MISO
 	// assign io_sd[1] = w_sd_data[1]? 1'bz:1'b0;
 	// assign io_sd[2] = w_sd_data[2]? 1'bz:1'b0;
-	// assign io_sd[3] = w_sd_data[3]? 1'bz:1'b0;
-
-
-	// IOBUF sd_cmd_buf(.T(w_sd_cmd),.O(i_sd_cmd), .I(1'b0), .IO(io_sd_cmd));
-	IOBUF sd_dat0_bf(.T(1'b1),.O(i_sd[0]),.I(1'b1),.IO(io_sd[0]));
+	// assign io_sd[3] = w_sd_data[3]? 1'bz:1'b0;	// CS_n
+	// }}}
+	IOBUF sd_cmd_bf(.T(1'b0),.O(i_sd_cmd),.I(w_sd_cmd),.IO(io_sd_cmd));// MISO
+	IOBUF sd_dat0_bf(.T(1'b1),.O(i_sd[0]),.I(1'b1),.IO(io_sd[0]));// MISO
 	IOBUF sd_dat1_bf(.T(1'b1),.O(i_sd[1]),.I(1'b1),.IO(io_sd[1]));
 	IOBUF sd_dat2_bf(.T(1'b1),.O(i_sd[2]),.I(1'b1),.IO(io_sd[2]));
-	// IOBUF sd_dat3_bf(.T(w_sd_data[3]),.O(i_sd[3]),.I(1'b0),.IO(io_sd[3]));
 
-	IOBUF sd_cmd_buf(.T(1'b0),.O(i_sd_cmd), .I(w_sd_cmd), .IO(io_sd_cmd));
-	IOBUF sd_dat3_bf(.T(1'b0),.O(i_sd[3]),.I(w_sd_data[3]),.IO(io_sd[3]));
-
-
+	// Implement an open-drain output
+	IOBUF sd_dat3_bf(.T(w_sd_data[3]),.O(i_sd[3]),.I(1'b0),.IO(io_sd[3]));
+	// }}}
 
 	assign	s_clk = i_clk;
 	assign	s_reset = 1'b0; // This design requires local, not global resets

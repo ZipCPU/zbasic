@@ -82,41 +82,41 @@
 #define	R_BKRAM         	0x00c00000	// 00c00000, wbregs names: RAM
 #define	R_FLASH         	0x01000000	// 01000000, wbregs names: FLASH
 // ZipCPU control/debug registers
-#define	R_ZIPCTRL       	0x02000080	// 02000000, wbregs names: CPU, ZIPCTRL
-#define	R_ZIPREGS       	0x02000000	// 02000000, wbregs names: ZIPREGS
-#define	R_ZIPS0         	0x02000000	// 02000000, wbregs names: SR0
-#define	R_ZIPS1         	0x02000004	// 02000000, wbregs names: SR1
-#define	R_ZIPS2         	0x02000008	// 02000000, wbregs names: SR2
-#define	R_ZIPS3         	0x0200000c	// 02000000, wbregs names: SR3
-#define	R_ZIPS4         	0x02000010	// 02000000, wbregs names: SR4
-#define	R_ZIPS5         	0x02000014	// 02000000, wbregs names: SR5
-#define	R_ZIPS6         	0x02000018	// 02000000, wbregs names: SR6
-#define	R_ZIPS7         	0x0200001c	// 02000000, wbregs names: SR7
-#define	R_ZIPS8         	0x02000020	// 02000000, wbregs names: SR8
-#define	R_ZIPS9         	0x02000024	// 02000000, wbregs names: SR9
-#define	R_ZIPS10        	0x02000028	// 02000000, wbregs names: SR10
-#define	R_ZIPS11        	0x0200002c	// 02000000, wbregs names: SR11
-#define	R_ZIPS12        	0x02000030	// 02000000, wbregs names: SR12
-#define	R_ZIPSSP        	0x02000034	// 02000000, wbregs names: SSP, SR13
-#define	R_ZIPCC         	0x02000038	// 02000000, wbregs names: ZIPCC, CC, SCC, SR14
-#define	R_ZIPPC         	0x0200003c	// 02000000, wbregs names: ZIPPC, PC, SPC, SR15
-#define	R_ZIPUSER       	0x02000040	// 02000000, wbregs names: ZIPUSER
-#define	R_ZIPU0         	0x02000040	// 02000000, wbregs names: UR0
-#define	R_ZIPU1         	0x02000044	// 02000000, wbregs names: UR1
-#define	R_ZIPU2         	0x02000048	// 02000000, wbregs names: UR2
-#define	R_ZIPU3         	0x0200004c	// 02000000, wbregs names: UR3
-#define	R_ZIPU4         	0x02000050	// 02000000, wbregs names: UR4
-#define	R_ZIPU5         	0x02000054	// 02000000, wbregs names: UR5
-#define	R_ZIPU6         	0x02000058	// 02000000, wbregs names: UR6
-#define	R_ZIPU7         	0x0200005c	// 02000000, wbregs names: UR7
-#define	R_ZIPU8         	0x02000060	// 02000000, wbregs names: UR8
-#define	R_ZIPU9         	0x02000064	// 02000000, wbregs names: UR9
-#define	R_ZIPU10        	0x02000068	// 02000000, wbregs names: SR10
-#define	R_ZIPU11        	0x0200006c	// 02000000, wbregs names: SR11
-#define	R_ZIPU12        	0x02000070	// 02000000, wbregs names: SR12
-#define	R_ZIPUSP        	0x02000074	// 02000000, wbregs names: USP, UR13
-#define	R_ZIPUCC        	0x02000078	// 02000000, wbregs names: ZIPUCC, UCC
-#define	R_ZIPUPC        	0x0200007c	// 02000000, wbregs names: ZIPUPC, UPC
+#define	R_ZIPCTRL       	0x02000000	// 02000000, wbregs names: CPU, ZIPCTRL
+#define	R_ZIPREGS       	0x02000080	// 02000000, wbregs names: ZIPREGS
+#define	R_ZIPS0         	0x02000080	// 02000000, wbregs names: SR0
+#define	R_ZIPS1         	0x02000084	// 02000000, wbregs names: SR1
+#define	R_ZIPS2         	0x02000088	// 02000000, wbregs names: SR2
+#define	R_ZIPS3         	0x0200008c	// 02000000, wbregs names: SR3
+#define	R_ZIPS4         	0x02000090	// 02000000, wbregs names: SR4
+#define	R_ZIPS5         	0x02000094	// 02000000, wbregs names: SR5
+#define	R_ZIPS6         	0x02000098	// 02000000, wbregs names: SR6
+#define	R_ZIPS7         	0x0200009c	// 02000000, wbregs names: SR7
+#define	R_ZIPS8         	0x020000a0	// 02000000, wbregs names: SR8
+#define	R_ZIPS9         	0x020000a4	// 02000000, wbregs names: SR9
+#define	R_ZIPS10        	0x020000a8	// 02000000, wbregs names: SR10
+#define	R_ZIPS11        	0x020000ac	// 02000000, wbregs names: SR11
+#define	R_ZIPS12        	0x020000b0	// 02000000, wbregs names: SR12
+#define	R_ZIPSSP        	0x020000b4	// 02000000, wbregs names: SSP, SR13
+#define	R_ZIPCC         	0x020000b8	// 02000000, wbregs names: ZIPCC, CC, SCC, SR14
+#define	R_ZIPPC         	0x020000bc	// 02000000, wbregs names: ZIPPC, PC, SPC, SR15
+#define	R_ZIPUSER       	0x020000c0	// 02000000, wbregs names: ZIPUSER
+#define	R_ZIPU0         	0x020000c0	// 02000000, wbregs names: UR0
+#define	R_ZIPU1         	0x020000c4	// 02000000, wbregs names: UR1
+#define	R_ZIPU2         	0x020000c8	// 02000000, wbregs names: UR2
+#define	R_ZIPU3         	0x020000cc	// 02000000, wbregs names: UR3
+#define	R_ZIPU4         	0x020000d0	// 02000000, wbregs names: UR4
+#define	R_ZIPU5         	0x020000d4	// 02000000, wbregs names: UR5
+#define	R_ZIPU6         	0x020000d8	// 02000000, wbregs names: UR6
+#define	R_ZIPU7         	0x020000dc	// 02000000, wbregs names: UR7
+#define	R_ZIPU8         	0x020000e0	// 02000000, wbregs names: UR8
+#define	R_ZIPU9         	0x020000e4	// 02000000, wbregs names: UR9
+#define	R_ZIPU10        	0x020000e8	// 02000000, wbregs names: SR10
+#define	R_ZIPU11        	0x020000ec	// 02000000, wbregs names: SR11
+#define	R_ZIPU12        	0x020000f0	// 02000000, wbregs names: SR12
+#define	R_ZIPUSP        	0x020000f4	// 02000000, wbregs names: USP, UR13
+#define	R_ZIPUCC        	0x020000f8	// 02000000, wbregs names: ZIPUCC, UCC
+#define	R_ZIPUPC        	0x020000fc	// 02000000, wbregs names: ZIPUPC, UPC
 #define	R_ZIPSYSTEM     	0x02000100	// 02000000, wbregs names: ZIPSYSTEM, ZIPSYS
 
 
@@ -149,12 +149,18 @@
 // {{{
 
 #define	CPU_GO		0x0000
-#define	CPU_RESET	0x0040
-#define	CPU_INT		0x0080
-#define	CPU_STEP	0x0100
-#define	CPU_STALL	0x0200
-#define	CPU_HALT	0x0400
-#define	CPU_CLRCACHE	0x0800
+#define	CPU_HALT	0x0001
+#define	CPU_STALL	0x0002
+#define	CPU_STEP	0x0004
+#define	CPU_RESET	0x0008
+#define	CPU_CLRCACHE	0x0010
+// (Reserved)		0x00e0
+#define	CPU_SLEEPING	0x0100
+#define	CPU_GIE		0x0200
+#define	CPU_INT		0x0400
+#define	CPU_BREAK	0x0800
+#define	CPU_EXINT	0xfffff000
+//
 #define	CPU_sR0		0x0000
 #define	CPU_sSP		0x000d
 #define	CPU_sCC		0x000e
@@ -165,7 +171,6 @@
 #define	CPU_uPC		0x001f
 
 #define	RESET_ADDRESS	0x01400000
-
 // }}}
 // Flash control constants
 #define	QSPI_FLASH	// This core and hardware support a Quad SPI flash

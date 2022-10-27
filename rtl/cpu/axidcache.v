@@ -136,15 +136,21 @@ module	axidcache #(
 		// {{{
 		output	wire		M_AXI_AWVALID,
 		input	wire		M_AXI_AWREADY,
-		output	wire [IW-1:0]	M_AXI_AWID,
+		// verilator coverage_off
+		output	wire [IW-1:0]	M_AXI_AWID,	// = constant
+		// verilator coverage_on
 		output	wire [AW-1:0]	M_AXI_AWADDR,
-		output	wire [7:0]	M_AXI_AWLEN,
+		// verilator coverage_off
+		output	wire [7:0]	M_AXI_AWLEN,	// = const 0
+		// verilator coverage_on
 		output	wire [2:0]	M_AXI_AWSIZE,
 		output	wire [1:0]	M_AXI_AWBURST,
 		output	wire 		M_AXI_AWLOCK,
 		output	wire [3:0]	M_AXI_AWCACHE,
+		// verilator coverage_off
 		output	wire [2:0]	M_AXI_AWPROT,
 		output	wire [3:0]	M_AXI_AWQOS,
+		// verilator coverage_on
 		// }}}
 		// Write data
 		// {{{
@@ -158,28 +164,36 @@ module	axidcache #(
 		// {{{
 		input	wire		M_AXI_BVALID,
 		output	wire		M_AXI_BREADY,
+		// verilator coverage_off
 		input	wire [IW-1:0]	M_AXI_BID,
+		// verilator coverage_on
 		input	wire	[1:0]	M_AXI_BRESP,
 		// }}}
 		// Read address
 		// {{{
 		output	wire		M_AXI_ARVALID,
 		input	wire		M_AXI_ARREADY,
+		// verilator coverage_off
 		output	wire [IW-1:0]	M_AXI_ARID,
+		// verilator coverage_on
 		output	wire [AW-1:0]	M_AXI_ARADDR,
 		output	wire [7:0]	M_AXI_ARLEN,
 		output	wire [2:0]	M_AXI_ARSIZE,
 		output	wire [1:0]	M_AXI_ARBURST,
 		output	wire 		M_AXI_ARLOCK,
 		output	wire [3:0]	M_AXI_ARCACHE,
+		// verilator coverage_off
 		output	wire [2:0]	M_AXI_ARPROT,
 		output	wire [3:0]	M_AXI_ARQOS,
+		// verilator coverage_on
 		// }}}
 		// Read data returned
 		// {{{
 		input	wire		M_AXI_RVALID,
 		output	wire		M_AXI_RREADY,
+		// verilator coverage_off
 		input	wire [IW-1:0]	M_AXI_RID,
+		// verilator coverage_on
 		input	wire [DW-1:0]	M_AXI_RDATA,
 		input	wire		M_AXI_RLAST,
 		input	wire	[1:0]	M_AXI_RRESP
@@ -306,12 +320,12 @@ module	axidcache #(
 	// {{{
 	always @(*)
 	begin
-		misaligned = checklsb(i_op[2:1], i_addr[AXILSB-1:0]);
+		misaligned = checklsb(i_op[2:1], i_addr[1:0]);
 	end
 
 	function checklsb;
-		input	[1:0]		op;
-		input	[AXILSB-1:0]	addr;
+		input	[1:0]	op;
+		input	[1:0]	addr;
 
 		casez(op[1:0])
 		2'b0?:	checklsb = (addr[1:0] != 2'b00); // 32'bit words
@@ -657,7 +671,9 @@ module	axidcache #(
 	always @(posedge S_AXI_ACLK)
 		suppress_miss <= { suppress_miss[0] || set_vflag, set_vflag };
 	always @(*)
-		w_cache_miss = r_cache_miss && state == DC_IDLE && !r_dvalid && !o_err && wcache_strb == 0 && !suppress_miss[1];
+		w_cache_miss = r_cache_miss && state == DC_IDLE
+				&& !r_dvalid && !o_err
+				&& wcache_strb == 0 && !suppress_miss[1];
 
 	initial	axi_arvalid = 0;
 	always @(posedge S_AXI_ACLK)
@@ -713,7 +729,7 @@ module	axidcache #(
 			2'b0?: axi_arsize <= 3'd2;
 			2'b10: axi_arsize <= 3'd1;
 			2'b11: axi_arsize <= 3'd0;
-			default:  axi_arsize <= 3'd2;
+			// default:  axi_arsize <= 3'd2; (Messes w/ coverage)
 			endcase
 
 			if (SWAP_WSTRB)
@@ -815,7 +831,7 @@ module	axidcache #(
 		2'b0?: axi_awsize <= 3'd2;
 		2'b10: axi_awsize <= 3'd1;
 		2'b11: axi_awsize <= 3'd0;
-		default:  axi_awsize <= 3'd2;
+		// default:  axi_awsize <= 3'd2;	(Unused, messes w/ covr)
 		endcase
 
 
@@ -974,11 +990,13 @@ module	axidcache #(
 	always @(*)
 	begin
 		rev_addr = i_addr;
+		/*
 		if (SWAP_WSTRB && C_AXI_DATA_WIDTH != 32)
 		begin
 			rev_addr[AXILSB-1:0] = ~i_addr[AXILSB-1:0];
 			rev_addr[1:0] = i_addr[1:0];
 		end
+		*/
 	end
 
 	always @(posedge S_AXI_ACLK)
@@ -1400,11 +1418,14 @@ module	axidcache #(
 		o_data <= shifted_data[31:0];
 		if (OPT_SIGN_EXTEND)
 		begin
+			// verilator coverage_off
+			// Unused, would violate ZipCPU ISA
 			casez(req_op)
 			2'b10: o_data[31:16] <= {(16){shifted_data[15]}};
 			2'b11: o_data[31: 8] <= {(24){shifted_data[ 7]}};
 			default: begin end
 			endcase
+			// verilator coverage_on
 		end else begin
 			casez(req_op)
 			2'b10: o_data[31:16] <= 0;
@@ -1443,6 +1464,7 @@ module	axidcache #(
 
 	// Make Verilator happy
 	// {{{
+	// verilator coverage_off
 	// Verilator lint_off UNUSED
 	wire	unused;
 	assign	unused = &{ 1'b0, M_AXI_BID, M_AXI_RID, r_addr, M_AXI_RRESP[0],
@@ -1450,6 +1472,7 @@ module	axidcache #(
 				w_pipe_stalled, axi_tag, axi_line,
 				rev_addr[C_AXI_ADDR_WIDTH-1:AXILSB] };
 	// Verilator lint_on UNUSED
+	// verilator coverage_on
 	// }}}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

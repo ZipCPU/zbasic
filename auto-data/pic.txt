@@ -37,6 +37,7 @@
 ## }}}
 @PREFIX=buspic
 @DEVID=BUSPIC
+@ACCESS=BUSPIC_ACCESS
 @NADDR=1
 @BUSP=wb
 @ACCESS=BUSPIC_ACCESS
@@ -53,9 +54,11 @@
 	//
 	// The BUS Interrupt controller
 	//
-	icontrol #(15)	@$(PREFIX)i(@$(SLAVE.BUS.CLOCK.WIRE), 1'b0,
-			@$(SLAVE.PORTLIST),
-			bus_int_vector, w_bus_int);
+	icontrol #(15)
+	@$(PREFIX)i(
+		@$(SLAVE.BUS.CLOCK.WIRE), 1'b0,
+		@$(SLAVE.PORTLIST),
+		bus_int_vector, w_bus_int);
 @MAIN.ALT=
 @REGS.N=1
 @REGS.0= 0 R_PIC PIC
