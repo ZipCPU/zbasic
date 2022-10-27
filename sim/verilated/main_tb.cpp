@@ -53,29 +53,25 @@
 #include "design.h"
 #include "regdefs.h"
 #include "testb.h"
-#include "dbluartsim.h"
-#include "byteswap.h"
-#include "flashsim.h"
 #include "zipelf.h"
 
+#include "byteswap.h"
+#include "dbluartsim.h"
 #include "sdspisim.h"
+#include "flashsim.h"
 //
 // SIM.DEFINES
 //
 // This tag is useful fr pasting in any #define values that
 // might then control the simulation following.
 //
-#ifndef VVAR
-#ifdef  NEW_VERILATOR
-#define VVAR(A) main__DOT_ ## A
-#else
-#define VVAR(A) v__DOT_ ## A
-#endif
-#endif
-
-#define	block_ram	VVAR(_bkrami__DOT__mem)
 #ifndef	VVAR
-#ifdef	NEW_VERILATOR
+#ifdef	ROOT_VERILATOR
+
+#include "Vmain___024root.h"
+#define	VVAR(A)	rootp->main__DOT_ ## A
+
+#elif	defined(NEW_VERILATOR)
 #define	VVAR(A)	main__DOT_ ## A
 #else
 #define	VVAR(A)	v__DOT_ ## A
@@ -93,7 +89,11 @@
 #define	cpu_gie		CPUVAR(_SET_GIE__DOT__r_gie)
 #define	cpu_iflags	CPUVAR(_w_iflags)
 #define	cpu_uflags	CPUVAR(_w_uflags)
+#ifdef	ROOT_VERILATOR
+#define	cpu_regs	CPUVAR(_regset.m_storage)
+#else
 #define	cpu_regs	CPUVAR(_regset)
+#endif
 #define	cpu_cmd_addr	VVAR(_swic__DOT__cmd_addr)
 #define	cpu_bus_err	CPUVAR(_bus_err)
 #define	cpu_ibus_err	CPUVAR(_ibus_err_flag)
@@ -119,6 +119,15 @@
 #define	cpu_wr_reg_id	CPUVAR(_wr_reg_id)
 #define	cpu_wr_gpreg	CPUVAR(_wr_gpreg_vl)
 
+#ifndef VVAR
+#ifdef  NEW_VERILATOR
+#define VVAR(A) main__DOT_ ## A
+#else
+#define VVAR(A) v__DOT_ ## A
+#endif
+#endif
+
+#define	block_ram	VVAR(_bkrami__DOT__mem)
 
 #ifndef	VVAR
 #ifdef	NEW_VERILATOR
@@ -163,14 +172,14 @@ public:
 		// If you have any simulation components, create a
 		// SIM.DEFNS tag to have those components defined here
 		// as part of the main_tb.cpp function.
-	DBLUARTSIM	*m_wbu;
-#ifdef	FLASH_ACCESS
-	FLASHSIM	*m_flash;
-#endif // FLASH_ACCESS
 	int	m_cpu_bombed;
+	DBLUARTSIM	*m_wbu;
 #ifdef	SDSPI_ACCESS
 	SDSPISIM	m_sdcard;
 #endif // SDSPI_ACCESS
+#ifdef	FLASH_ACCESS
+	FLASHSIM	*m_flash;
+#endif // FLASH_ACCESS
 	MAINTB(void) {
 		// SIM.INIT
 		//
@@ -178,19 +187,19 @@ public:
 		// create a SIM.INIT tag.  That tag's value will be pasted
 		// here.
 		//
+		// From zip
+		m_cpu_bombed = 0;
 		// From wbu
 		m_wbu = new DBLUARTSIM();
 		m_wbu->setup(100);
-		// From flash
-#ifdef	FLASH_ACCESS
-		m_flash = new FLASHSIM(FLASHLGLEN, false, 0, 6);
-#endif // FLASH_ACCESS
-		// From zip
-		m_cpu_bombed = 0;
 		// From sdcard
 #ifdef	SDSPI_ACCESS
 		m_sdcard.debug(false);
 #endif	// SDSPI_ACCESS
+		// From flash
+#ifdef	FLASH_ACCESS
+		m_flash = new FLASHSIM(FLASHLGLEN, false, 0, 6);
+#endif // FLASH_ACCESS
 	}
 
 	void	reset(void) {
@@ -236,16 +245,6 @@ public:
 		//
 		// SIM.TICK tags go here for SIM.CLOCK=clk
 		//
-		// SIM.TICK from wbu
-		m_core->i_wbu_uart_rx = (*m_wbu)(m_core->o_wbu_uart_tx);
-		// SIM.TICK from flash
-#ifdef	FLASH_ACCESS
-		m_core->i_qspi_dat = m_flash->simtick(
-			m_core->o_qspi_cs_n,
-			m_core->o_qspi_sck,
-			m_core->o_qspi_dat,
-			m_core->o_qspi_mod);
-#endif // FLASH_ACCESS
 		// SIM.TICK from zip
 #ifdef	INCLUDE_ZIPCPU
 		// ZipCPU Sim instruction support
@@ -265,6 +264,8 @@ public:
 		}
 #endif	// INCLUDE_ZIPCPU
 
+		// SIM.TICK from wbu
+		m_core->i_wbu_uart_rx = (*m_wbu)(m_core->o_wbu_uart_tx);
 		// SIM.TICK from sdcard
 #ifdef	SDSPI_ACCESS
 		m_core->i_sd_data = m_sdcard((m_core->o_sd_data&8)?1:0,
@@ -273,6 +274,14 @@ public:
 		m_core->i_sd_data |= (m_core->o_sd_data&0x0e);
 		m_core->i_sd_detect = 1;
 #endif	// SDSPI_ACCESS
+		// SIM.TICK from flash
+#ifdef	FLASH_ACCESS
+		m_core->i_qspi_dat = m_flash->simtick(
+			m_core->o_qspi_cs_n,
+			m_core->o_qspi_sck,
+			m_core->o_qspi_dat,
+			m_core->o_qspi_mod);
+#endif // FLASH_ACCESS
 		writeout = false;
 		//
 		// SIM.DBGCONDITION

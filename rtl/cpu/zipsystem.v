@@ -212,17 +212,21 @@ module	zipsystem(i_clk, i_reset,
 			IMPLEMENT_LOCK=1;
 	parameter	RESET_DURATION = 0;
 	localparam	// Derived parameters
+			// Verilator lint_off UNUSED
 			PHYSICAL_ADDRESS_WIDTH=ADDRESS_WIDTH,
+			// Verilator lint_on  UNUSED
 			PAW=ADDRESS_WIDTH,
 `ifdef	OPT_MMU
 			VIRTUAL_ADDRESS_WIDTH=30,
 `else
 			VIRTUAL_ADDRESS_WIDTH=PAW,
 `endif
+			// Verilator lint_off UNUSED
 			LGTLBSZ = 6,
 			VAW=VIRTUAL_ADDRESS_WIDTH;
 
 	localparam	AW=ADDRESS_WIDTH;
+	// Verilator lint_on  UNUSED
 	input	wire	i_clk, i_reset;
 	// Wishbone master
 	output	wire		o_wb_cyc, o_wb_stb, o_wb_we;

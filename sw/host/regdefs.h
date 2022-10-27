@@ -108,20 +108,6 @@
 //
 // @REGDEFS.H.INSERT for masters
 // @REGDEFS.H.INSERT for peripherals
-// Flash control constants
-#define	QSPI_FLASH	// This core and hardware support a Quad SPI flash
-#define	SZPAGEB		256
-#define	PGLENB		256
-#define	SZPAGEW		64
-#define	PGLENW		64
-#define	NPAGES		256
-#define	SECTORSZB	(NPAGES * SZPAGEB)	// In bytes, not words!!
-#define	SECTORSZW	(NPAGES * SZPAGEW)	// In words
-#define	NSECTORS	64
-#define	SECTOROF(A)	((A) & (-1<<16))
-#define	SUBSECTOROF(A)	((A) & (-1<<12))
-#define	PAGEOF(A)	((A) & (-1<<8))
-
 
 #define	CPU_GO		0x0000
 #define	CPU_RESET	0x0040
@@ -141,6 +127,20 @@
 
 #define	RESET_ADDRESS	0x01400000
 
+
+// Flash control constants
+#define	QSPI_FLASH	// This core and hardware support a Quad SPI flash
+#define	SZPAGEB		256
+#define	PGLENB		256
+#define	SZPAGEW		64
+#define	PGLENW		64
+#define	NPAGES		256
+#define	SECTORSZB	(NPAGES * SZPAGEB)	// In bytes, not words!!
+#define	SECTORSZW	(NPAGES * SZPAGEW)	// In words
+#define	NSECTORS	64
+#define	SECTOROF(A)	((A) & (-1<<16))
+#define	SUBSECTOROF(A)	((A) & (-1<<12))
+#define	PAGEOF(A)	((A) & (-1<<8))
 
 // @REGDEFS.H.INSERT from the top level
 typedef	struct {

@@ -39,25 +39,25 @@
 ################################################################################
 ##
 ##
+ZIPCPUD := cpu
+ZIPCPU  := $(addprefix $(ZIPCPUD)/,zipcpu.v cpuops.v pfcache.v pipemem.v pfcache.v idecode.v wbpriarbiter.v zipsystem.v zipcounter.v zipjiffies.v ziptimer.v wbdmac.v icontrol.v wbwatchdog.v busdelay.v cpudefs.v)
+BKRAM := memdev.v
+
+WBUBUSD := wbubus
+WBUBUS  := $(addprefix $(WBUBUSD)/,wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v wbudecompress.v wbudeword.v wbuexec.v wbuidleint.v wbuinput.v wbuoutput.v wbureadcw.v wbusixchar.v wbutohex.v wbconsole.v)
+SDSPID := sdspi
+SDSPI  := $(addprefix $(SDSPID)/,sdspi.v llsdspi.v spicmd.v spirxdata.v spitxdata.v)
+RTCD := rtc
+RTC  := $(addprefix $(RTCD)/,rtclight.v rtcbare.v rtcalarm.v rtcstopwatch.v rtctimer.v)
 CONSOLED := wbuart
 CONSOLE  := $(addprefix $(CONSOLED)/,txuartlite.v rxuartlite.v ufifo.v)
+BUSPICD := cpu
+BUSPIC  := $(addprefix $(BUSPICD)/,icontrol.v)
+RTCDATED := rtc
+RTCDATE  := $(addprefix $(RTCDATED)/,rtcdate.v)
 GPIO := wbgpio.v
 
 FLASH := qflexpress.v
 
-WBUBUSD := wbubus
-WBUBUS  := $(addprefix $(WBUBUSD)/,wbuconsole.v wbufifo.v wbucompactlines.v wbucompress.v wbudecompress.v wbudeword.v wbuexec.v wbuidleint.v wbuinput.v wbuoutput.v wbureadcw.v wbusixchar.v wbutohex.v wbconsole.v)
-BUSPICD := cpu
-BUSPIC  := $(addprefix $(BUSPICD)/,icontrol.v)
-RTCD := rtc
-RTC  := $(addprefix $(RTCD)/,rtclight.v rtcbare.v rtcalarm.v rtcstopwatch.v rtctimer.v)
-BKRAM := memdev.v
-
-ZIPCPUD := cpu
-ZIPCPU  := $(addprefix $(ZIPCPUD)/,zipcpu.v cpuops.v pfcache.v pipemem.v pfcache.v idecode.v wbpriarbiter.v zipsystem.v zipcounter.v zipjiffies.v ziptimer.v wbdmac.v icontrol.v wbwatchdog.v busdelay.v cpudefs.v)
-RTCDATED := rtc
-RTCDATE  := $(addprefix $(RTCDATED)/,rtcdate.v)
-SDSPID := sdspi
-SDSPI  := $(addprefix $(SDSPID)/,sdspi.v llsdspi.v spicmd.v spirxdata.v spitxdata.v)
-VFLIST := main.v  $(CONSOLE) $(GPIO) $(FLASH) $(WBUBUS) $(BUSPIC) $(RTC) $(BKRAM) $(ZIPCPU) $(RTCDATE) $(SDSPI)
-AUTOVDIRS :=  -y wbuart -y wbubus -y cpu -y rtc -y sdspi
+VFLIST := main.v  $(ZIPCPU) $(BKRAM) $(WBUBUS) $(SDSPI) $(RTC) $(CONSOLE) $(BUSPIC) $(RTCDATE) $(GPIO) $(FLASH)
+AUTOVDIRS :=  -y cpu -y wbubus -y sdspi -y rtc -y wbuart

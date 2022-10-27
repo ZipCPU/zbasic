@@ -81,8 +81,10 @@ module	wbarbiter(i_clk, i_reset,
 	parameter			DW=32, AW=32;
 	parameter			SCHEME="ALTERNATING";
 	parameter	[0:0]		OPT_ZERO_ON_IDLE = 1'b0;
+	// Verilator lint_off UNUSED
 	parameter			F_MAX_STALL = 3;
 	parameter			F_MAX_ACK_DELAY = 3;
+	// Verilator lint_on  UNUSED
 `ifdef	FORMAL
 	parameter			F_LGDEPTH=3;
 `endif

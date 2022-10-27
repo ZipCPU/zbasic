@@ -41,6 +41,10 @@
 //
 //
 `default_nettype	none
+////////////////////////////////////////////////////////////////////////////////
+//
+// Macro defines
+// {{{
 //
 //
 // Here is a list of defines which may be used, post auto-design
@@ -55,16 +59,16 @@
 // First, the independent access fields for any bus masters
 `define	WBUBUS_MASTER
 // And then for the independent peripherals
-`define	BUSCONSOLE_ACCESS
-`define	GPIO_ACCESS
-`define	VERSION_ACCESS
-`define	BUSPIC_ACCESS
-`define	RTC_ACCESS
-`define	BKRAM_ACCESS
-`define	FLASH_ACCESS
 `define	INCLUDE_ZIPCPU
-`define	PWRCOUNT_ACCESS
+`define	BKRAM_ACCESS
+`define	VERSION_ACCESS
 `define	SDSPI_ACCESS
+`define	RTC_ACCESS
+`define	BUSCONSOLE_ACCESS
+`define	BUSPIC_ACCESS
+`define	PWRCOUNT_ACCESS
+`define	GPIO_ACCESS
+`define	FLASH_ACCESS
 //
 //
 // The list of those things that have @DEPENDS tags
@@ -75,22 +79,26 @@
 // Any core with both an @ACCESS and a @DEPENDS tag will show up here.
 // The @DEPENDS tag will turn into a series of ifdef's, with the @ACCESS
 // being defined only if all of the ifdef's are true//
-`ifdef	RTC_ACCESS
-`define	RTCDATE_ACCESS
-`endif	// RTC_ACCESS
+// Deplist for @$(PREFIX)=flashcfg
 `ifdef	FLASH_ACCESS
 `define	FLASHCFG_ACCESS
 `endif	// FLASH_ACCESS
+// Deplist for @$(PREFIX)=rtcdate
+`ifdef	RTC_ACCESS
+`define	RTCDATE_ACCESS
+`endif	// RTC_ACCESS
 //
 // End of dependency list
 //
 //
+// }}}
+////////////////////////////////////////////////////////////////////////////////
 //
 // Any include files
-//
+// {{{
 // These are drawn from anything with a MAIN.INCLUDE definition.
 `include "builddate.v"
-//
+// }}}
 //
 // Finally, we define our main module itself.  We start with the list of
 // I/O ports, or wires, passed into (or out of) the main function.
@@ -99,36 +107,26 @@
 // from the fields given by @MAIN.PORTLIST
 //
 module	main(i_clk, i_reset,
-		// GPIO ports
-		i_gpio, o_gpio,
+	// {{{
+		i_cpu_reset,
 		// UART/host to wishbone interface
 		i_wbu_uart_rx, o_wbu_uart_tx,
-		// The Universal QSPI Flash
-		o_qspi_cs_n, o_qspi_sck, o_qspi_dat, i_qspi_dat, o_qspi_mod,
-		i_cpu_reset,
 		// The SD-Card wires
-		o_sd_sck, o_sd_cmd, o_sd_data, i_sd_cmd, i_sd_data, i_sd_detect);
+		o_sd_sck, o_sd_cmd, o_sd_data, i_sd_cmd, i_sd_data, i_sd_detect,
+		// GPIO ports
+		i_gpio, o_gpio,
+		// The Universal QSPI Flash
+		o_qspi_cs_n, o_qspi_sck, o_qspi_dat, i_qspi_dat, o_qspi_mod
+	// }}}
+	);
+////////////////////////////////////////////////////////////////////////////////
 //
 // Any parameter definitions
-//
+// {{{
 // These are drawn from anything with a MAIN.PARAM definition.
 // As they aren't connected to the toplevel at all, it would
 // be best to use localparam over parameter, but here we don't
 // check
-	//
-	// WBUBUS parameters
-	//
-	// Baudrate :   1000000
-	// Clock    : 100000000
-	localparam [23:0] BUSUART = 24'h64;	//   1000000 baud
-	localparam	DBGBUSBITS = $clog2(BUSUART);
-	//
-	// Maximum command is 6 bytes, where each byte takes 10 baud clocks
-	// and each baud clock requires DBGBUSBITS to represent.  Here,
-	// we'll add one more for good measure.
-	localparam	DBGBUSWATCHDOG_RAW = DBGBUSBITS + 9;
-	localparam	DBGBUSWATCHDOG = (DBGBUSWATCHDOG_RAW > 19)
-				? DBGBUSWATCHDOG_RAW : 19;
 	//
 	//
 	// Variables/definitions needed by the ZipCPU BUS master
@@ -149,6 +147,20 @@ module	main(i_clk, i_reset,
 	// A boolean, indicating whether or not the ZipCPU be halted on startup?
 	localparam	ZIP_START_HALTED=1'b1;
 	//
+	// WBUBUS parameters
+	//
+	// Baudrate :   1000000
+	// Clock    : 100000000
+	localparam [23:0] BUSUART = 24'h64;	//   1000000 baud
+	localparam	DBGBUSBITS = $clog2(BUSUART);
+	//
+	// Maximum command is 6 bytes, where each byte takes 10 baud clocks
+	// and each baud clock requires DBGBUSBITS to represent.  Here,
+	// we'll add one more for good measure.
+	localparam	DBGBUSWATCHDOG_RAW = DBGBUSBITS + 9;
+	localparam	DBGBUSWATCHDOG = (DBGBUSWATCHDOG_RAW > 19)
+				? DBGBUSWATCHDOG_RAW : 19;
+	//
 	// Initial calendar DATE
 	//
 `ifdef	VERSION_ACCESS
@@ -156,7 +168,11 @@ module	main(i_clk, i_reset,
 `else
 	parameter	INITIAL_DATE = 30'h20000101;
 `endif
+// }}}
+////////////////////////////////////////////////////////////////////////////////
 //
+// Port declarations
+// {{{
 // The next step is to declare all of the various ports that were just
 // listed above.  
 //
@@ -167,18 +183,9 @@ module	main(i_clk, i_reset,
 	// verilator lint_off UNUSED
 	input	wire		i_reset;
 	// verilator lint_on UNUSED
-	localparam	NGPI = 11, NGPO=11;
-	// GPIO ports
-	input		[(NGPI-1):0]	i_gpio;
-	output	wire	[(NGPO-1):0]	o_gpio;
+	input	wire		i_cpu_reset;
 	input	wire		i_wbu_uart_rx;
 	output	wire		o_wbu_uart_tx;
-	// The Universal QSPI flash
-	output	wire		o_qspi_cs_n, o_qspi_sck;
-	output	wire	[3:0]	o_qspi_dat;
-	input	wire	[3:0]	i_qspi_dat;
-	output	wire	[1:0]	o_qspi_mod;
-	input	wire		i_cpu_reset;
 	// SD-Card declarations
 	output	wire		o_sd_sck, o_sd_cmd;
 	output	wire	[3:0]	o_sd_data;
@@ -187,41 +194,54 @@ module	main(i_clk, i_reset,
 	input	wire	[3:0]	i_sd_data;
 	// verilator lint_on  UNUSED
 	input	wire		i_sd_detect;
-	// Make Verilator happy ... defining bus wires for lots of components
-	// often ends up with unused wires lying around.  We'll turn off
-	// Ver1lator's lint warning here that checks for unused wires.
+	localparam	NGPI = 11, NGPO=11;
+	// GPIO ports
+	input		[(NGPI-1):0]	i_gpio;
+	output	wire	[(NGPO-1):0]	o_gpio;
+	// The Universal QSPI flash
+	output	wire		o_qspi_cs_n, o_qspi_sck;
+	output	wire	[3:0]	o_qspi_dat;
+	input	wire	[3:0]	i_qspi_dat;
+	output	wire	[1:0]	o_qspi_mod;
+// }}}
+	// Make Verilator happy
+	// {{{
+	// Defining bus wires for lots of components often ends up with unused
+	// wires lying around.  We'll turn off Ver1lator's lint warning
+	// here that checks for unused wires.
+	// }}}
 	// verilator lint_off UNUSED
-
-
-
+	////////////////////////////////////////////////////////////////////////
 	//
 	// Declaring interrupt lines
-	//
+	// {{{
 	// These declarations come from the various components values
 	// given under the @INT.<interrupt name>.WIRE key.
 	//
-	wire	uarttxf_int;	// uart.INT.UARTTXF.WIRE
-	wire	uartrxf_int;	// uart.INT.UARTRXF.WIRE
-	wire	uarttx_int;	// uart.INT.UARTTX.WIRE
-	wire	uartrx_int;	// uart.INT.UARTRX.WIRE
-	wire	gpio_int;	// gpio.INT.GPIO.WIRE
-	wire	w_bus_int;	// buspic.INT.BUS.WIRE
-	wire	rtc_int;	// rtc.INT.RTC.WIRE
 	wire	zip_cpu_int;	// zip.INT.ZIP.WIRE
 	wire	sdcard_int;	// sdcard.INT.SDCARD.WIRE
-
-
+	wire	rtc_int;	// rtc.INT.RTC.WIRE
+	wire	uartrxf_int;	// uart.INT.UARTRXF.WIRE
+	wire	uarttx_int;	// uart.INT.UARTTX.WIRE
+	wire	uarttxf_int;	// uart.INT.UARTTXF.WIRE
+	wire	uartrx_int;	// uart.INT.UARTRX.WIRE
+	wire	w_bus_int;	// buspic.INT.BUS.WIRE
+	wire	gpio_int;	// gpio.INT.GPIO.WIRE
+	// }}}
+	////////////////////////////////////////////////////////////////////////
 	//
 	// Component declarations
-	//
+	// {{{
 	// These declarations come from the @MAIN.DEFNS keys found in the
 	// various components comprising the design.
 	//
-	// Console definitions
-	wire		w_console_rx_stb, w_console_tx_stb, w_console_busy;
-	wire	[6:0]	w_console_rx_data, w_console_tx_data;
-	wire	[31:0]	uart_debug;
-	wire	sd_reset;
+	// ZipSystem/ZipCPU connection definitions
+	// All we define here is a set of scope wires
+	wire	[31:0]	zip_debug;
+	wire		zip_trigger;
+	wire	[ZIP_INTS-1:0] zip_int_vector;
+// BUILDTIME doesnt need to include builddate.v a second time
+// `include "builddate.v"
 	//
 	//
 	// UART interface
@@ -244,50 +264,42 @@ module	main(i_clk, i_reset,
 	wire		zip_dbg_stall, zip_dbg_ack;
 	wire	[31:0]	zip_dbg_data;
 `endif
+	wire[31:0]	sdspi_debug;
 	// This clock step is designed to match 100000000 Hz
 	localparam	[31:0]	RTC_CLKSTEP = 32'h002af31d;
 	wire	rtc_ppd;
 	wire	ck_pps;
+	// Console definitions
+	wire		w_console_rx_stb, w_console_tx_stb, w_console_busy;
+	wire	[6:0]	w_console_rx_data, w_console_tx_data;
+	wire	[31:0]	uart_debug;
+	reg	[24-1:0]	r_buserr_addr;
+	reg	[31:0]	r_pwrcount_data;
+	wire	sd_reset;
 	// Definitions for the flash debug port
 	wire		flash_dbg_trigger;
 	wire	[31:0]	flash_debug;
-// BUILDTIME doesnt need to include builddate.v a second time
-// `include "builddate.v"
-	reg	[24-1:0]	r_buserr_addr;
-	// ZipSystem/ZipCPU connection definitions
-	// All we define here is a set of scope wires
-	wire	[31:0]	zip_debug;
-	wire		zip_trigger;
-	wire	[ZIP_INTS-1:0] zip_int_vector;
-	reg	[31:0]	r_pwrcount_data;
-	wire[31:0]	sdspi_debug;
 
-
+// }}}
+	////////////////////////////////////////////////////////////////////////
 	//
 	// Declaring interrupt vector wires
-	//
+	// {{{
 	// These declarations come from the various components having
 	// PIC and PIC.MAX keys.
 	//
-	wire	[14:0]	bus_int_vector;
 	wire	[14:0]	sys_int_vector;
 	wire	[14:0]	alt_int_vector;
+	wire	[14:0]	bus_int_vector;
+	// }}}
+	////////////////////////////////////////////////////////////////////////
 	//
-	//
-	// Define bus wires
-	//
-	//
+	// Declare bus signals
+	// {{{
+	////////////////////////////////////////////////////////////////////////
 
 	// Bus wb
-	// Wishbone definitions for bus wb, component wbu_arbiter
-	// Verilator lint_off UNUSED
-	wire		wb_wbu_arbiter_cyc, wb_wbu_arbiter_stb, wb_wbu_arbiter_we;
-	wire	[22:0]	wb_wbu_arbiter_addr;
-	wire	[31:0]	wb_wbu_arbiter_data;
-	wire	[3:0]	wb_wbu_arbiter_sel;
-	wire		wb_wbu_arbiter_stall, wb_wbu_arbiter_ack, wb_wbu_arbiter_err;
-	wire	[31:0]	wb_wbu_arbiter_idata;
-	// Verilator lint_on UNUSED
+	// {{{
 	// Wishbone definitions for bus wb, component zip
 	// Verilator lint_off UNUSED
 	wire		wb_zip_cyc, wb_zip_stb, wb_zip_we;
@@ -296,6 +308,15 @@ module	main(i_clk, i_reset,
 	wire	[3:0]	wb_zip_sel;
 	wire		wb_zip_stall, wb_zip_ack, wb_zip_err;
 	wire	[31:0]	wb_zip_idata;
+	// Verilator lint_on UNUSED
+	// Wishbone definitions for bus wb, component wbu_arbiter
+	// Verilator lint_off UNUSED
+	wire		wb_wbu_arbiter_cyc, wb_wbu_arbiter_stb, wb_wbu_arbiter_we;
+	wire	[22:0]	wb_wbu_arbiter_addr;
+	wire	[31:0]	wb_wbu_arbiter_data;
+	wire	[3:0]	wb_wbu_arbiter_sel;
+	wire		wb_wbu_arbiter_stall, wb_wbu_arbiter_ack, wb_wbu_arbiter_err;
+	wire	[31:0]	wb_wbu_arbiter_idata;
 	// Verilator lint_on UNUSED
 	// Wishbone definitions for bus wb(SIO), component buildtime
 	// Verilator lint_off UNUSED
@@ -423,7 +444,9 @@ module	main(i_clk, i_reset,
 	wire		wb_flash_stall, wb_flash_ack, wb_flash_err;
 	wire	[31:0]	wb_flash_idata;
 	// Verilator lint_on UNUSED
+	// }}}
 	// Bus wbu
+	// {{{
 	// Wishbone definitions for bus wbu, component wbu
 	// Verilator lint_off UNUSED
 	wire		wbu_cyc, wbu_stb, wbu_we;
@@ -451,13 +474,15 @@ module	main(i_clk, i_reset,
 	wire		wbu_zip_stall, wbu_zip_ack, wbu_zip_err;
 	wire	[31:0]	wbu_zip_idata;
 	// Verilator lint_on UNUSED
-
+	// }}}
+	// }}}
+	////////////////////////////////////////////////////////////////////////
 	//
-	// Peripheral address decoding
-	//
+	// Peripheral address decoding, bus handling
+	// {{{
 	//
 	// BUS-LOGIC for wb
-	//
+	// {{{
 	//
 	// wb Bus logic to handle SINGLE slaves
 	//
@@ -573,44 +598,44 @@ module	main(i_clk, i_reset,
 	wb_xbar(
 		.i_clk(i_clk), .i_reset(i_reset),
 		.i_mcyc({
-			wb_zip_cyc,
-			wb_wbu_arbiter_cyc
+			wb_wbu_arbiter_cyc,
+			wb_zip_cyc
 		}),
 		.i_mstb({
-			wb_zip_stb,
-			wb_wbu_arbiter_stb
+			wb_wbu_arbiter_stb,
+			wb_zip_stb
 		}),
 		.i_mwe({
-			wb_zip_we,
-			wb_wbu_arbiter_we
+			wb_wbu_arbiter_we,
+			wb_zip_we
 		}),
 		.i_maddr({
-			wb_zip_addr,
-			wb_wbu_arbiter_addr
+			wb_wbu_arbiter_addr,
+			wb_zip_addr
 		}),
 		.i_mdata({
-			wb_zip_data,
-			wb_wbu_arbiter_data
+			wb_wbu_arbiter_data,
+			wb_zip_data
 		}),
 		.i_msel({
-			wb_zip_sel,
-			wb_wbu_arbiter_sel
+			wb_wbu_arbiter_sel,
+			wb_zip_sel
 		}),
 		.o_mstall({
-			wb_zip_stall,
-			wb_wbu_arbiter_stall
+			wb_wbu_arbiter_stall,
+			wb_zip_stall
 		}),
 		.o_mack({
-			wb_zip_ack,
-			wb_wbu_arbiter_ack
+			wb_wbu_arbiter_ack,
+			wb_zip_ack
 		}),
 		.o_mdata({
-			wb_zip_idata,
-			wb_wbu_arbiter_idata
+			wb_wbu_arbiter_idata,
+			wb_zip_idata
 		}),
 		.o_merr({
-			wb_zip_err,
-			wb_wbu_arbiter_err
+			wb_wbu_arbiter_err,
+			wb_zip_err
 		}),
 		// Slave connections
 		.o_scyc({
@@ -705,9 +730,11 @@ module	main(i_clk, i_reset,
 		})
 		);
 
+	// End of bus logic for wb
+	// }}}
 	//
 	// BUS-LOGIC for wbu
-	//
+	// {{{
 	//
 	// No class SINGLE peripherals on the "wbu" bus
 	//
@@ -814,9 +841,13 @@ module	main(i_clk, i_reset,
 		})
 		);
 
+	// End of bus logic for wbu
+	// }}}
+	// }}}
+	////////////////////////////////////////////////////////////////////////
 	//
 	// Declare the interrupt busses
-	//
+	// {{{
 	// Interrupt busses are defined by anything with a @PIC tag.
 	// The @PIC.BUS tag defines the name of the wire bus below,
 	// while the @PIC.MAX tag determines the size of the bus width.
@@ -828,6 +859,40 @@ module	main(i_clk, i_reset,
 	// exists, then your interrupt will be assigned to the position given
 	// by the ID# in that tag.
 	//
+	assign	sys_int_vector = {
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0,
+		uarttxf_int,
+		uartrxf_int,
+		sdcard_int,
+		w_bus_int,
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0
+	};
+	assign	alt_int_vector = {
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0,
+		uartrx_int,
+		uarttx_int,
+		rtc_int,
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0,
+		1'b0
+	};
 	assign	bus_int_vector = {
 		1'b0,
 		1'b0,
@@ -842,45 +907,17 @@ module	main(i_clk, i_reset,
 		1'b0,
 		1'b0,
 		1'b0,
-		sdcard_int,
-		gpio_int
+		gpio_int,
+		sdcard_int
 	};
-	assign	sys_int_vector = {
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0,
-		sdcard_int,
-		uartrxf_int,
-		uarttxf_int,
-		w_bus_int,
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0
-	};
-	assign	alt_int_vector = {
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0,
-		rtc_int,
-		uartrx_int,
-		uarttx_int,
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0,
-		1'b0
-	};
-
-
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////
+	//
+	// @MAIN.INSERT and @MAIN.ALT
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////
 	//
 	//
 	// Now we turn to defining all of the parts and pieces of what
@@ -895,89 +932,104 @@ module	main(i_clk, i_reset,
 	// or making sure all of the various interrupt wires are set to
 	// zero if the component is not included.
 	//
-	assign	wb_wbu_arbiter_cyc  = wbu_wbu_arbiter_cyc;
-	assign	wb_wbu_arbiter_stb  = wbu_wbu_arbiter_stb;
-	assign	wb_wbu_arbiter_we   = wbu_wbu_arbiter_we;
-	assign	wb_wbu_arbiter_addr = wbu_wbu_arbiter_addr[23-1:0];
-	assign	wb_wbu_arbiter_data = wbu_wbu_arbiter_data;
-	assign	wb_wbu_arbiter_sel  = wbu_wbu_arbiter_sel;
+`ifdef	INCLUDE_ZIPCPU
+	// {{{
 	//
-	assign	wbu_wbu_arbiter_stall = wb_wbu_arbiter_stall;
-	assign	wbu_wbu_arbiter_ack   = wb_wbu_arbiter_ack;
-	assign	wbu_wbu_arbiter_idata = wb_wbu_arbiter_idata;
-	assign	wbu_wbu_arbiter_err   = wb_wbu_arbiter_err;
-
-`ifdef	BUSCONSOLE_ACCESS
-	wbconsole #(.LGFLEN(6)) console(i_clk, 1'b0,
-			wb_uart_cyc, wb_uart_stb, wb_uart_we,
-			wb_uart_addr[2-1:0],
-			wb_uart_data, // 32 bits wide
-			wb_uart_sel,  // 32/8 bits wide
-		wb_uart_stall, wb_uart_ack, wb_uart_idata,
-			w_console_tx_stb, w_console_tx_data, w_console_busy,
-			w_console_rx_stb, w_console_rx_data,
-			uartrx_int, uarttx_int, uartrxf_int, uarttxf_int,
-			uart_debug);
-`else	// BUSCONSOLE_ACCESS
+	//
+	// The ZipCPU/ZipSystem BUS master
+	//
+	//
+	assign	zip_int_vector = { alt_int_vector[14:8], sys_int_vector[14:6] };
+	zipsystem #(.RESET_ADDRESS(RESET_ADDRESS),
+			.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH),
+			.LGICACHE(12),.LGDCACHE(12),
+			.START_HALTED(ZIP_START_HALTED),
+			.RESET_DURATION(20),
+			.EXTERNAL_INTERRUPTS(ZIP_INTS))
+		swic(i_clk, (i_reset)||(i_cpu_reset),
+			// Zippys wishbone interface
+			wb_zip_cyc, wb_zip_stb, wb_zip_we,
+			wb_zip_addr[23-1:0],
+			wb_zip_data, // 32 bits wide
+			wb_zip_sel,  // 32/8 bits wide
+		wb_zip_stall, wb_zip_ack, wb_zip_idata,wb_zip_err,
+			zip_int_vector, zip_cpu_int,
+			// Debug wishbone interface
+			wbu_zip_cyc, wbu_zip_stb, wbu_zip_we,
+			wbu_zip_addr[1-1:0],
+			wbu_zip_data, // 32 bits wide
+			wbu_zip_sel,  // 32/8 bits wide
+		wbu_zip_stall, wbu_zip_ack, wbu_zip_idata,
+			zip_debug);
+	assign	zip_trigger = zip_debug[31];
+	// }}}
+`else	// INCLUDE_ZIPCPU
+	// {{{
+	// Null bus master
+	// {{{
+	// }}}
+	// Null bus slave
+	// {{{
 
 	//
-	// In the case that there is no wb_uart peripheral
+	// In the case that there is no wbu_zip peripheral
+	// responding on the wbu bus
+	assign	wbu_zip_ack   = 1'b0;
+	assign	wbu_zip_err   = (wbu_zip_stb);
+	assign	wbu_zip_stall = 0;
+	assign	wbu_zip_idata = 0;
+
+	// }}}
+	// Null interrupt definitions
+	// {{{
+	assign	zip_cpu_int = 1'b0;	// zip.INT.ZIP.WIRE
+	// }}}
+	// }}}
+`endif	// INCLUDE_ZIPCPU
+
+	assign	wb_buildtime_idata = `BUILDTIME;
+	assign	wb_buildtime_ack = wb_buildtime_stb;
+	assign	wb_buildtime_stall = 1'b0;
+`ifdef	BKRAM_ACCESS
+	// {{{
+	memdev #(.LGMEMSZ(20), .EXTRACLOCK(1))
+		bkrami(i_clk, i_reset,
+			wb_bkram_cyc, wb_bkram_stb, wb_bkram_we,
+			wb_bkram_addr[18-1:0],
+			wb_bkram_data, // 32 bits wide
+			wb_bkram_sel,  // 32/8 bits wide
+		wb_bkram_stall, wb_bkram_ack, wb_bkram_idata);
+	// }}}
+`else	// BKRAM_ACCESS
+	// {{{
+	// Null bus slave
+	// {{{
+
+	//
+	// In the case that there is no wb_bkram peripheral
 	// responding on the wb bus
-	assign	wb_uart_ack   = 1'b0;
-	assign	wb_uart_err   = (wb_uart_stb);
-	assign	wb_uart_stall = 0;
-	assign	wb_uart_idata = 0;
+	assign	wb_bkram_ack   = 1'b0;
+	assign	wb_bkram_err   = (wb_bkram_stb);
+	assign	wb_bkram_stall = 0;
+	assign	wb_bkram_idata = 0;
 
-	assign	uarttxf_int = 1'b0;	// uart.INT.UARTTXF.WIRE
-	assign	uartrxf_int = 1'b0;	// uart.INT.UARTRXF.WIRE
-	assign	uarttx_int = 1'b0;	// uart.INT.UARTTX.WIRE
-	assign	uartrx_int = 1'b0;	// uart.INT.UARTRX.WIRE
-`endif	// BUSCONSOLE_ACCESS
-
-`ifdef	GPIO_ACCESS
-	//
-	// GPIO
-	//
-	// This interface should allow us to control up to 16 GPIO inputs, and
-	// another 16 GPIO outputs.  The interrupt trips when any of the inputs
-	// changes.  (Sorry, which input isn't (yet) selectable.)
-	//
-	localparam	INITIAL_GPIO = 11'h0;
-	wbgpio	#(NGPI, NGPO, INITIAL_GPIO)
-		gpioi(i_clk, wb_gpio_cyc, wb_gpio_stb, wb_gpio_we,
-			wb_gpio_data, // 32 bits wide
-			wb_gpio_sel,  // 32/8 bits wide
-		wb_gpio_stall, wb_gpio_ack, wb_gpio_idata,
-			i_gpio, o_gpio, gpio_int);
-
-	assign	sd_reset = o_gpio[0];
-`else	// GPIO_ACCESS
-	assign	gpio_int = 1'b0;	// gpio.INT.GPIO.WIRE
-`endif	// GPIO_ACCESS
+	// }}}
+	// }}}
+`endif	// BKRAM_ACCESS
 
 `ifdef	VERSION_ACCESS
+	// {{{
 	assign	wb_version_idata = `DATESTAMP;
 	assign	wb_version_ack = wb_version_stb;
 	assign	wb_version_stall = 1'b0;
+	// }}}
 `else	// VERSION_ACCESS
+	// {{{
+	// }}}
 `endif	// VERSION_ACCESS
 
-`ifdef	FLASHCFG_ACCESS
-	// The Flash control interface is defined by the flash instantiation
-	// hence we don't need to do anything to define it here.
-`else	// FLASHCFG_ACCESS
-
-	//
-	// In the case that there is no wb_flashcfg peripheral
-	// responding on the wb bus
-	assign	wb_flashcfg_ack   = 1'b0;
-	assign	wb_flashcfg_err   = (wb_flashcfg_stb);
-	assign	wb_flashcfg_stall = 0;
-	assign	wb_flashcfg_idata = 0;
-
-`endif	// FLASHCFG_ACCESS
-
 `ifdef	WBUBUS_MASTER
+	// {{{
 	// The Host USB interface, to be used by the WB-UART bus
 	rxuartlite	#(.TIMER_BITS(DBGBUSBITS),
 				.CLOCKS_PER_BAUD(BUSUART[DBGBUSBITS-1:0]))
@@ -1018,24 +1070,59 @@ module	main(i_clk, i_reset,
 			wbubus_dbg[0]);
 	assign	wbu_sel = 4'hf;
 	assign	wbu_addr = wbu_tmp_addr[(24-1):0];
+	// }}}
 `else	// WBUBUS_MASTER
+	// {{{
+	// Null bus master
+	// {{{
+	// }}}
+	// }}}
 `endif	// WBUBUS_MASTER
 
-`ifdef	BUSPIC_ACCESS
+`ifdef	SDSPI_ACCESS
+	// {{{
+	// SPI mapping
+	wire	w_sd_cs_n, w_sd_mosi, w_sd_miso;
+
+	sdspi	sdcardi(i_clk, sd_reset,
+		wb_sdcard_cyc, wb_sdcard_stb, wb_sdcard_we,
+			wb_sdcard_addr[2-1:0],
+			wb_sdcard_data, // 32 bits wide
+			wb_sdcard_sel,  // 32/8 bits wide
+		wb_sdcard_stall, wb_sdcard_ack, wb_sdcard_idata,
+		w_sd_cs_n, o_sd_sck, w_sd_mosi, w_sd_miso, i_sd_detect,
+		sdcard_int, 1'b1, sdspi_debug);
+
+	assign	w_sd_miso = i_sd_data[0];
+	assign	o_sd_data = { w_sd_cs_n, 3'b111 };
+	assign	o_sd_cmd  = w_sd_mosi;
+	// }}}
+`else	// SDSPI_ACCESS
+	// {{{
+	assign	o_sd_sck   = 1'b1;
+	assign	o_sd_cmd   = 1'b1;
+	assign	o_sd_data  = 4'hf;
+	// Null bus slave
+	// {{{
+
 	//
-	// The BUS Interrupt controller
-	//
-	icontrol #(15)	buspici(i_clk, 1'b0,
-			wb_buspic_cyc, wb_buspic_stb, wb_buspic_we,
-			wb_buspic_data, // 32 bits wide
-			wb_buspic_sel,  // 32/8 bits wide
-		wb_buspic_stall, wb_buspic_ack, wb_buspic_idata,
-			bus_int_vector, w_bus_int);
-`else	// BUSPIC_ACCESS
-	assign	w_bus_int = 1'b0;	// buspic.INT.BUS.WIRE
-`endif	// BUSPIC_ACCESS
+	// In the case that there is no wb_sdcard peripheral
+	// responding on the wb bus
+	assign	wb_sdcard_ack   = 1'b0;
+	assign	wb_sdcard_err   = (wb_sdcard_stb);
+	assign	wb_sdcard_stall = 0;
+	assign	wb_sdcard_idata = 0;
+
+	// }}}
+	// Null interrupt definitions
+	// {{{
+	assign	sdcard_int = 1'b0;	// sdcard.INT.SDCARD.WIRE
+	// }}}
+	// }}}
+`endif	// SDSPI_ACCESS
 
 `ifdef	RTC_ACCESS
+	// {{{
 	rtclight #(.DEFAULT_SPEED(32'h2af31d),
 		.OPT_TIMER(1'b1),
 		.OPT_STOPWATCH(1'b1),
@@ -1047,8 +1134,12 @@ module	main(i_clk, i_reset,
 			wb_rtc_sel,  // 32/8 bits wide
 		wb_rtc_stall, wb_rtc_ack, wb_rtc_idata,
 		rtc_int, ck_pps, rtc_ppd);
+	// }}}
 `else	// RTC_ACCESS
+	// {{{
 	assign	ck_pps = 1'b0;
+	// Null bus slave
+	// {{{
 
 	//
 	// In the case that there is no wb_rtc peripheral
@@ -1058,30 +1149,185 @@ module	main(i_clk, i_reset,
 	assign	wb_rtc_stall = 0;
 	assign	wb_rtc_idata = 0;
 
+	// }}}
+	// Null interrupt definitions
+	// {{{
 	assign	rtc_int = 1'b0;	// rtc.INT.RTC.WIRE
+	// }}}
+	// }}}
 `endif	// RTC_ACCESS
 
-`ifdef	BKRAM_ACCESS
-	memdev #(.LGMEMSZ(20), .EXTRACLOCK(1))
-		bkrami(i_clk, i_reset,
-			wb_bkram_cyc, wb_bkram_stb, wb_bkram_we,
-			wb_bkram_addr[18-1:0],
-			wb_bkram_data, // 32 bits wide
-			wb_bkram_sel,  // 32/8 bits wide
-		wb_bkram_stall, wb_bkram_ack, wb_bkram_idata);
-`else	// BKRAM_ACCESS
+`ifdef	BUSCONSOLE_ACCESS
+	// {{{
+	wbconsole #(.LGFLEN(6)) console(i_clk, 1'b0,
+			wb_uart_cyc, wb_uart_stb, wb_uart_we,
+			wb_uart_addr[2-1:0],
+			wb_uart_data, // 32 bits wide
+			wb_uart_sel,  // 32/8 bits wide
+		wb_uart_stall, wb_uart_ack, wb_uart_idata,
+			w_console_tx_stb, w_console_tx_data, w_console_busy,
+			w_console_rx_stb, w_console_rx_data,
+			uartrx_int, uarttx_int, uartrxf_int, uarttxf_int,
+			uart_debug);
+	// }}}
+`else	// BUSCONSOLE_ACCESS
+	// {{{
+	// Null bus slave
+	// {{{
 
 	//
-	// In the case that there is no wb_bkram peripheral
+	// In the case that there is no wb_uart peripheral
 	// responding on the wb bus
-	assign	wb_bkram_ack   = 1'b0;
-	assign	wb_bkram_err   = (wb_bkram_stb);
-	assign	wb_bkram_stall = 0;
-	assign	wb_bkram_idata = 0;
+	assign	wb_uart_ack   = 1'b0;
+	assign	wb_uart_err   = (wb_uart_stb);
+	assign	wb_uart_stall = 0;
+	assign	wb_uart_idata = 0;
 
-`endif	// BKRAM_ACCESS
+	// }}}
+	// Null interrupt definitions
+	// {{{
+	assign	uartrxf_int = 1'b0;	// uart.INT.UARTRXF.WIRE
+	assign	uarttx_int = 1'b0;	// uart.INT.UARTTX.WIRE
+	assign	uarttxf_int = 1'b0;	// uart.INT.UARTTXF.WIRE
+	assign	uartrx_int = 1'b0;	// uart.INT.UARTRX.WIRE
+	// }}}
+	// }}}
+`endif	// BUSCONSOLE_ACCESS
+
+`ifdef	BUSPIC_ACCESS
+	// {{{
+	//
+	// The BUS Interrupt controller
+	//
+	icontrol #(15)	buspici(i_clk, 1'b0,
+			wb_buspic_cyc, wb_buspic_stb, wb_buspic_we,
+			wb_buspic_data, // 32 bits wide
+			wb_buspic_sel,  // 32/8 bits wide
+		wb_buspic_stall, wb_buspic_ack, wb_buspic_idata,
+			bus_int_vector, w_bus_int);
+	// }}}
+`else	// BUSPIC_ACCESS
+	// {{{
+	// Null interrupt definitions
+	// {{{
+	assign	w_bus_int = 1'b0;	// buspic.INT.BUS.WIRE
+	// }}}
+	// }}}
+`endif	// BUSPIC_ACCESS
+
+	always @(posedge i_clk)
+	if (wb_zip_err)
+	begin
+		r_buserr_addr <= 0;
+		r_buserr_addr[23-1:0] <= wb_zip_addr[23-1:0];
+	end else if (wbu_err)
+	begin
+		r_buserr_addr <= 0;
+		r_buserr_addr[24-1:0] <= wbu_addr[24-1:0];
+	end
+	assign	wb_buserr_stall= 1'b0;
+	assign	wb_buserr_ack  = wb_buserr_stb;
+	assign	wb_buserr_idata = { {(30-24){1'b0}},
+			r_buserr_addr, 2'b00 };
+`ifdef	PWRCOUNT_ACCESS
+	// {{{
+	initial	r_pwrcount_data = 32'h0;
+	always @(posedge i_clk)
+	if (r_pwrcount_data[31])
+		r_pwrcount_data[30:0] <= r_pwrcount_data[30:0] + 1'b1;
+	else
+		r_pwrcount_data[31:0] <= r_pwrcount_data[31:0] + 1'b1;
+
+	assign	wb_pwrcount_stall = 1'b0;
+	assign	wb_pwrcount_ack   = wb_pwrcount_stb;
+	assign	wb_pwrcount_idata = r_pwrcount_data;
+	// }}}
+`else	// PWRCOUNT_ACCESS
+	// {{{
+	// }}}
+`endif	// PWRCOUNT_ACCESS
+
+	assign	wb_wbu_arbiter_cyc  = wbu_wbu_arbiter_cyc;
+	assign	wb_wbu_arbiter_stb  = wbu_wbu_arbiter_stb;
+	assign	wb_wbu_arbiter_we   = wbu_wbu_arbiter_we;
+	assign	wb_wbu_arbiter_addr = wbu_wbu_arbiter_addr[23-1:0];
+	assign	wb_wbu_arbiter_data = wbu_wbu_arbiter_data;
+	assign	wb_wbu_arbiter_sel  = wbu_wbu_arbiter_sel;
+	//
+	assign	wbu_wbu_arbiter_stall = wb_wbu_arbiter_stall;
+	assign	wbu_wbu_arbiter_ack   = wb_wbu_arbiter_ack;
+	assign	wbu_wbu_arbiter_idata = wb_wbu_arbiter_idata;
+	assign	wbu_wbu_arbiter_err   = wb_wbu_arbiter_err;
+
+`ifdef	RTCDATE_ACCESS
+	// {{{
+	//
+	// The Calendar DATE
+	//
+	rtcdate	#(.INITIAL_DATE(INITIAL_DATE[29:0]))
+	rtcdatei(i_clk, rtc_ppd,
+		wb_rtcdate_cyc, wb_rtcdate_stb, wb_rtcdate_we,
+			wb_rtcdate_data, // 32 bits wide
+			wb_rtcdate_sel,  // 32/8 bits wide
+		wb_rtcdate_stall, wb_rtcdate_ack, wb_rtcdate_idata);
+	// }}}
+`else	// RTCDATE_ACCESS
+	// {{{
+	// }}}
+`endif	// RTCDATE_ACCESS
+
+`ifdef	GPIO_ACCESS
+	// {{{
+	//
+	// GPIO
+	//
+	// This interface should allow us to control up to 16 GPIO inputs, and
+	// another 16 GPIO outputs.  The interrupt trips when any of the inputs
+	// changes.  (Sorry, which input isn't (yet) selectable.)
+	//
+	localparam	INITIAL_GPIO = 11'h0;
+	wbgpio	#(NGPI, NGPO, INITIAL_GPIO)
+		gpioi(i_clk, wb_gpio_cyc, wb_gpio_stb, wb_gpio_we,
+			wb_gpio_data, // 32 bits wide
+			wb_gpio_sel,  // 32/8 bits wide
+		wb_gpio_stall, wb_gpio_ack, wb_gpio_idata,
+			i_gpio, o_gpio, gpio_int);
+
+	assign	sd_reset = o_gpio[0];
+	// }}}
+`else	// GPIO_ACCESS
+	// {{{
+	// Null interrupt definitions
+	// {{{
+	assign	gpio_int = 1'b0;	// gpio.INT.GPIO.WIRE
+	// }}}
+	// }}}
+`endif	// GPIO_ACCESS
+
+`ifdef	FLASHCFG_ACCESS
+	// {{{
+	// The Flash control interface is defined by the flash instantiation
+	// hence we don't need to do anything to define it here.
+	// }}}
+`else	// FLASHCFG_ACCESS
+	// {{{
+	// Null bus slave
+	// {{{
+
+	//
+	// In the case that there is no wb_flashcfg peripheral
+	// responding on the wb bus
+	assign	wb_flashcfg_ack   = 1'b0;
+	assign	wb_flashcfg_err   = (wb_flashcfg_stb);
+	assign	wb_flashcfg_stall = 0;
+	assign	wb_flashcfg_idata = 0;
+
+	// }}}
+	// }}}
+`endif	// FLASHCFG_ACCESS
 
 `ifdef	FLASH_ACCESS
+	// {{{
 	qflexpress #(.LGFLASHSZ(24), .OPT_CLKDIV(1),
 		.OPT_ENDIANSWAP(0),
 		.NDUMMY(6), .RDDELAY(0),
@@ -1106,7 +1352,9 @@ module	main(i_clk, i_reset,
 		wb_flashcfg_stall, wb_flashcfg_ack, wb_flashcfg_idata,
 			o_qspi_sck, o_qspi_cs_n, o_qspi_mod, o_qspi_dat, i_qspi_dat,
 			flash_dbg_trigger, flash_debug);
+	// }}}
 `else	// FLASH_ACCESS
+	// {{{
 	assign	o_qspi_sck  = 1'b1;
 	assign	o_qspi_cs_n = 1'b1;
 	assign	o_qspi_mod  = 2'b01;
@@ -1114,6 +1362,8 @@ module	main(i_clk, i_reset,
 	// Verilator lint_off UNUSED
 	wire	flash_unused = &{ 1'b0, i_qspi_dat };
 	// Verilator lint_on UNUSED
+	// Null bus slave
+	// {{{
 
 	//
 	// In the case that there is no wb_flash peripheral
@@ -1123,126 +1373,9 @@ module	main(i_clk, i_reset,
 	assign	wb_flash_stall = 0;
 	assign	wb_flash_idata = 0;
 
+	// }}}
+	// }}}
 `endif	// FLASH_ACCESS
 
-	assign	wb_buildtime_idata = `BUILDTIME;
-	assign	wb_buildtime_ack = wb_buildtime_stb;
-	assign	wb_buildtime_stall = 1'b0;
-	always @(posedge i_clk)
-	if (wb_zip_err)
-	begin
-		r_buserr_addr <= 0;
-		r_buserr_addr[23-1:0] <= wb_zip_addr[23-1:0];
-	end else if (wbu_err)
-	begin
-		r_buserr_addr <= 0;
-		r_buserr_addr[24-1:0] <= wbu_addr[24-1:0];
-	end
-	assign	wb_buserr_stall= 1'b0;
-	assign	wb_buserr_ack  = wb_buserr_stb;
-	assign	wb_buserr_idata = { {(30-24){1'b0}},
-			r_buserr_addr, 2'b00 };
-`ifdef	INCLUDE_ZIPCPU
-	//
-	//
-	// The ZipCPU/ZipSystem BUS master
-	//
-	//
-	assign	zip_int_vector = { alt_int_vector[14:8], sys_int_vector[14:6] };
-	zipsystem #(.RESET_ADDRESS(RESET_ADDRESS),
-			.ADDRESS_WIDTH(ZIP_ADDRESS_WIDTH),
-			.LGICACHE(12),.LGDCACHE(12),
-			.START_HALTED(ZIP_START_HALTED),
-			.RESET_DURATION(20),
-			.EXTERNAL_INTERRUPTS(ZIP_INTS))
-		swic(i_clk, (i_reset)||(i_cpu_reset),
-			// Zippys wishbone interface
-			wb_zip_cyc, wb_zip_stb, wb_zip_we,
-			wb_zip_addr[23-1:0],
-			wb_zip_data, // 32 bits wide
-			wb_zip_sel,  // 32/8 bits wide
-		wb_zip_stall, wb_zip_ack, wb_zip_idata,wb_zip_err,
-			zip_int_vector, zip_cpu_int,
-			// Debug wishbone interface
-			wbu_zip_cyc, wbu_zip_stb, wbu_zip_we,
-			wbu_zip_addr[1-1:0],
-			wbu_zip_data, // 32 bits wide
-			wbu_zip_sel,  // 32/8 bits wide
-		wbu_zip_stall, wbu_zip_ack, wbu_zip_idata,
-			zip_debug);
-	assign	zip_trigger = zip_debug[31];
-`else	// INCLUDE_ZIPCPU
-
-	//
-	// In the case that there is no wbu_zip peripheral
-	// responding on the wbu bus
-	assign	wbu_zip_ack   = 1'b0;
-	assign	wbu_zip_err   = (wbu_zip_stb);
-	assign	wbu_zip_stall = 0;
-	assign	wbu_zip_idata = 0;
-
-	assign	zip_cpu_int = 1'b0;	// zip.INT.ZIP.WIRE
-`endif	// INCLUDE_ZIPCPU
-
-`ifdef	PWRCOUNT_ACCESS
-	initial	r_pwrcount_data = 32'h0;
-	always @(posedge i_clk)
-	if (r_pwrcount_data[31])
-		r_pwrcount_data[30:0] <= r_pwrcount_data[30:0] + 1'b1;
-	else
-		r_pwrcount_data[31:0] <= r_pwrcount_data[31:0] + 1'b1;
-
-	assign	wb_pwrcount_stall = 1'b0;
-	assign	wb_pwrcount_ack   = wb_pwrcount_stb;
-	assign	wb_pwrcount_idata = r_pwrcount_data;
-`else	// PWRCOUNT_ACCESS
-`endif	// PWRCOUNT_ACCESS
-
-`ifdef	RTCDATE_ACCESS
-	//
-	// The Calendar DATE
-	//
-	rtcdate	#(.INITIAL_DATE(INITIAL_DATE[29:0]))
-	rtcdatei(i_clk, rtc_ppd,
-		wb_rtcdate_cyc, wb_rtcdate_stb, wb_rtcdate_we,
-			wb_rtcdate_data, // 32 bits wide
-			wb_rtcdate_sel,  // 32/8 bits wide
-		wb_rtcdate_stall, wb_rtcdate_ack, wb_rtcdate_idata);
-`else	// RTCDATE_ACCESS
-`endif	// RTCDATE_ACCESS
-
-`ifdef	SDSPI_ACCESS
-	// SPI mapping
-	wire	w_sd_cs_n, w_sd_mosi, w_sd_miso;
-
-	sdspi	sdcardi(i_clk, sd_reset,
-		wb_sdcard_cyc, wb_sdcard_stb, wb_sdcard_we,
-			wb_sdcard_addr[2-1:0],
-			wb_sdcard_data, // 32 bits wide
-			wb_sdcard_sel,  // 32/8 bits wide
-		wb_sdcard_stall, wb_sdcard_ack, wb_sdcard_idata,
-		w_sd_cs_n, o_sd_sck, w_sd_mosi, w_sd_miso, i_sd_detect,
-		sdcard_int, 1'b1, sdspi_debug);
-
-	assign	w_sd_miso = i_sd_data[0];
-	assign	o_sd_data = { w_sd_cs_n, 3'b111 };
-	assign	o_sd_cmd  = w_sd_mosi;
-`else	// SDSPI_ACCESS
-	assign	o_sd_sck   = 1'b1;
-	assign	o_sd_cmd   = 1'b1;
-	assign	o_sd_data  = 4'hf;
-
-	//
-	// In the case that there is no wb_sdcard peripheral
-	// responding on the wb bus
-	assign	wb_sdcard_ack   = 1'b0;
-	assign	wb_sdcard_err   = (wb_sdcard_stb);
-	assign	wb_sdcard_stall = 0;
-	assign	wb_sdcard_idata = 0;
-
-	assign	sdcard_int = 1'b0;	// sdcard.INT.SDCARD.WIRE
-`endif	// SDSPI_ACCESS
-
-
-
+	// }}}
 endmodule // main.v

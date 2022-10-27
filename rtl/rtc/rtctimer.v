@@ -42,8 +42,10 @@ module	rtctimer(i_clk, i_reset,
 		i_sub_ck, i_wr, i_data, i_valid, i_zero,
 		o_data, o_interrupt);
 	parameter	LGSUBCK = 2;
+	// Verilator lint_off UNUSED
 	parameter [0:0] 	OPT_PREVALIDATED_INPUT = 1'b0;
 	parameter [21:0]	OPT_FIXED_INTERVAL = 0;
+	// Verilator lint_on  UNUSED
 	//
 	input	wire		i_clk, i_reset;
 	//

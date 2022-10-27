@@ -95,6 +95,7 @@ module	sdspi(i_clk, i_sd_reset,
 				SDSPI_FIFO_A_ADDR = 2'b10,
 				SDSPI_FIFO_B_ADDR = 2'b11;
 
+				// Verilator lint_off  UNUSED
 	localparam [1:0]	SDSPI_EXPECT_R1   = 2'b00,
 				SDSPI_EXPECT_R1B  = 2'b01,
 				SDSPI_EXPECT_R3   = 2'b10;
@@ -106,6 +107,7 @@ module	sdspi(i_clk, i_sd_reset,
 				SDSPI_RSP_WAIT_WHILE_BUSY =3'h5,// Read from device
 				SDSPI_RSP_RDCOMPLETE = 3'h6,
 				SDSPI_RSP_WRITING    = 3'h7; // Read from device, write into FIFO
+				// Verilator lint_on  UNUSED
 	localparam	BLKBASE = 16;
 	//
 	//
@@ -133,7 +135,9 @@ module	sdspi(i_clk, i_sd_reset,
 	// Command register bit definitions
 	//
 	localparam	CARD_REMOVED_BIT= 18,
+			// Verilator lint_off UNUSED
 			CRCERR_BIT	= 16,
+			// Verilator lint_on  UNUSED
 			ERR_BIT		= 15,
 			FIFO_ID_BIT	= 12,
 			USE_FIFO_BIT	= 11,

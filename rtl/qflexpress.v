@@ -147,15 +147,17 @@ module	qflexpress(i_clk, i_reset,
 	//
 	localparam [4:0]	CFG_MODE =	12;
 	localparam [4:0]	QSPEED_BIT = 	11;
-	localparam [4:0]	DSPEED_BIT = 	10; // Not supported
+	// localparam [4:0]	DSPEED_BIT = 	10; // Not supported
 	localparam [4:0]	DIR_BIT	= 	 9;
 	localparam [4:0]	USER_CS_n = 	 8;
 	//
 	localparam [1:0]	NORMAL_SPI = 	2'b00;
 	localparam [1:0]	QUAD_WRITE = 	2'b10;
 	localparam [1:0]	QUAD_READ = 	2'b11;
+	// Verilator lint_off UNUSED
 	// localparam [7:0] DIO_READ_CMD = 8'hbb;
 	localparam [7:0] QIO_READ_CMD = OPT_ADDR32 ? 8'hec : 8'heb;
+	// Verilator lint_on  UNUSED
 	//
 	localparam	AW=LGFLASHSZ-2;
 	localparam	DW=32;

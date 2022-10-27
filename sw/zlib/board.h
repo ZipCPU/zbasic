@@ -62,43 +62,7 @@
 #endif // INCLUDE_ZIPCPU
 
 
-typedef struct  CONSOLE_S {
-	unsigned	u_setup;
-	unsigned	u_fifo;
-	unsigned	u_rx, u_tx;
-} CONSOLE;
-
-#define	_uart_txbusy	((_uart->u_fifo & 0x10000)==0)
-
-
-//
-// GPIO input wires
-//
-#define	GPIO_IN(WIRE)	(((WIRE)>>16)&1)
-//
-// GPIO output wires
-//
-#define	GPIO_SET(WIRE)	(((WIRE)<<16)|(WIRE))
-#define	GPIO_CLR(WIRE)	 ((WIRE)<<16)
-//
-//
-
-
-#define BUSPIC(X) (1<<X)
-
-
-typedef	struct	RTCLIGHT_S	{
-	unsigned	r_clock, r_stopwatch, r_timer, r_alarm;
-} RTCLIGHT;
-
-
-#define	CLKFREQHZ	100000000
-
-
 #define	SYSPIC(A)	(1<<(A))
-
-
-#define	ALTPIC(A)	(1<<(A))
 
 
 #define	SDSPI_SETAUX	0x0000ff
@@ -126,40 +90,68 @@ typedef	struct SDSPI_S {
 } SDSPI;
 
 
-#ifdef	BUSCONSOLE_ACCESS
-#define	_BOARD_HAS_BUSCONSOLE
-static volatile CONSOLE *const _uart = ((CONSOLE *)0x00600000);
-#endif	// BUSCONSOLE_ACCESS
-#ifdef	GPIO_ACCESS
-#define	_BOARD_HAS_GPIO
-static volatile unsigned *const _gpio = ((unsigned *)0x00a0000c);
-#endif	// GPIO_ACCESS
-#ifdef	VERSION_ACCESS
-#define	_BOARD_HAS_VERSION
-static volatile unsigned *const _version = ((unsigned *)0x00a00018);
-#endif	// VERSION_ACCESS
-#ifdef	FLASHCFG_ACCESS
-#define	_BOARD_HAS_FLASHCFG
-static volatile unsigned * const _flashcfg = ((unsigned *)(0x00200000));
-#endif	// FLASHCFG_ACCESS
-#ifdef	BUSPIC_ACCESS
-#define	_BOARD_HAS_BUSPIC
-static volatile unsigned *const _buspic = ((unsigned *)0x00a00008);
-#endif	// BUSPIC_ACCESS
-#ifdef	RTC_ACCESS
-#define	_BOARD_HAS_RTC
-static volatile RTCLIGHT *const _rtc = ((RTCLIGHT *)0x00800000);
-#endif	// RTC_ACCESS
+#define	ALTPIC(A)	(1<<(A))
+
+
+#define	CLKFREQHZ	100000000
+
+
+typedef	struct	RTCLIGHT_S	{
+	unsigned	r_clock, r_stopwatch, r_timer, r_alarm;
+} RTCLIGHT;
+
+
+typedef struct  CONSOLE_S {
+	unsigned	u_setup;
+	unsigned	u_fifo;
+	unsigned	u_rx, u_tx;
+} CONSOLE;
+
+#define	_uart_txbusy	((_uart->u_fifo & 0x10000)==0)
+
+
+#define BUSPIC(X) (1<<X)
+
+
+//
+// GPIO input wires
+//
+#define	GPIO_IN(WIRE)	(((WIRE)>>16)&1)
+//
+// GPIO output wires
+//
+#define	GPIO_SET(WIRE)	(((WIRE)<<16)|(WIRE))
+#define	GPIO_CLR(WIRE)	 ((WIRE)<<16)
+//
+//
+
+
+#define	_BOARD_HAS_BUILDTIME
+static volatile unsigned *const _buildtime = ((unsigned *)0x00a00000);
 #ifdef	BKRAM_ACCESS
 #define	_BOARD_HAS_BKRAM
 extern char	_bkram[0x00100000];
 #endif	// BKRAM_ACCESS
-#ifdef	FLASH_ACCESS
-#define	_BOARD_HAS_FLASH
-extern int _flash[1];
-#endif	// FLASH_ACCESS
-#define	_BOARD_HAS_BUILDTIME
-static volatile unsigned *const _buildtime = ((unsigned *)0x00a00000);
+#ifdef	VERSION_ACCESS
+#define	_BOARD_HAS_VERSION
+static volatile unsigned *const _version = ((unsigned *)0x00a00018);
+#endif	// VERSION_ACCESS
+#ifdef	SDSPI_ACCESS
+#define	_BOARD_HAS_SDSPI
+static volatile SDSPI *const _sdcard = ((SDSPI *)0x00400000);
+#endif	// SDSPI_ACCESS
+#ifdef	RTC_ACCESS
+#define	_BOARD_HAS_RTC
+static volatile RTCLIGHT *const _rtc = ((RTCLIGHT *)0x00800000);
+#endif	// RTC_ACCESS
+#ifdef	BUSCONSOLE_ACCESS
+#define	_BOARD_HAS_BUSCONSOLE
+static volatile CONSOLE *const _uart = ((CONSOLE *)0x00600000);
+#endif	// BUSCONSOLE_ACCESS
+#ifdef	BUSPIC_ACCESS
+#define	_BOARD_HAS_BUSPIC
+static volatile unsigned *const _buspic = ((unsigned *)0x00a00008);
+#endif	// BUSPIC_ACCESS
 #define	_BOARD_HAS_BUSERR
 static volatile unsigned *const _buserr = ((unsigned *)0x00a00004);
 #ifdef	PWRCOUNT_ACCESS
@@ -169,16 +161,21 @@ static volatile unsigned *const _pwrcount = ((unsigned *)0x00a00010);
 #define	_BOARD_HAS_RTCDATE
 static volatile unsigned *const _rtcdate = ((unsigned *)10485780);
 #endif	// RTCDATE_ACCESS
-#ifdef	SDSPI_ACCESS
-#define	_BOARD_HAS_SDSPI
-static volatile SDSPI *const _sdcard = ((SDSPI *)0x00400000);
-#endif	// SDSPI_ACCESS
+#ifdef	GPIO_ACCESS
+#define	_BOARD_HAS_GPIO
+static volatile unsigned *const _gpio = ((unsigned *)0x00a0000c);
+#endif	// GPIO_ACCESS
+#ifdef	FLASHCFG_ACCESS
+#define	_BOARD_HAS_FLASHCFG
+static volatile unsigned * const _flashcfg = ((unsigned *)(0x00200000));
+#endif	// FLASHCFG_ACCESS
+#ifdef	FLASH_ACCESS
+#define	_BOARD_HAS_FLASH
+extern int _flash[1];
+#endif	// FLASH_ACCESS
 //
 // Interrupt assignments (3 PICs)
 //
-// PIC: buspic
-#define	BUSPIC_GPIO	BUSPIC(0)
-#define	BUSPIC_SDCARD	BUSPIC(1)
 // PIC: syspic
 #define	SYSPIC_DMAC	SYSPIC(0)
 #define	SYSPIC_JIFFIES	SYSPIC(1)
@@ -187,9 +184,9 @@ static volatile SDSPI *const _sdcard = ((SDSPI *)0x00400000);
 #define	SYSPIC_TMA	SYSPIC(4)
 #define	SYSPIC_ALT	SYSPIC(5)
 #define	SYSPIC_BUS	SYSPIC(6)
-#define	SYSPIC_UARTTXF	SYSPIC(7)
+#define	SYSPIC_SDCARD	SYSPIC(7)
 #define	SYSPIC_UARTRXF	SYSPIC(8)
-#define	SYSPIC_SDCARD	SYSPIC(9)
+#define	SYSPIC_UARTTXF	SYSPIC(9)
 // PIC: altpic
 #define	ALTPIC_UIC	ALTPIC(0)
 #define	ALTPIC_UOC	ALTPIC(1)
@@ -199,7 +196,10 @@ static volatile SDSPI *const _sdcard = ((SDSPI *)0x00400000);
 #define	ALTPIC_MOC	ALTPIC(5)
 #define	ALTPIC_MPC	ALTPIC(6)
 #define	ALTPIC_MTC	ALTPIC(7)
-#define	ALTPIC_UARTTX	ALTPIC(8)
-#define	ALTPIC_UARTRX	ALTPIC(9)
-#define	ALTPIC_RTC	ALTPIC(10)
+#define	ALTPIC_RTC	ALTPIC(8)
+#define	ALTPIC_UARTTX	ALTPIC(9)
+#define	ALTPIC_UARTRX	ALTPIC(10)
+// PIC: buspic
+#define	BUSPIC_SDCARD	BUSPIC(0)
+#define	BUSPIC_GPIO	BUSPIC(1)
 #endif	// BOARD_H

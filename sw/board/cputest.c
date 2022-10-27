@@ -82,7 +82,7 @@
 
 unsigned	zip_ucc(void);
 unsigned	zip_cc(void);
-void		zip_save_context(int *);
+void		zip_save_context(void *);
 void		zip_halt(void);
 
 

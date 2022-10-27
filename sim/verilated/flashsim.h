@@ -111,7 +111,7 @@ public:
 	void	load(const unsigned addr, const char *fname);
 	void	load(const uint32_t offset, const char *data, const uint32_t len);
 	bool	write_protect(void) { return ((m_sreg & QSPIF_WEL_FLAG)==0); }
-	bool	write_in_progress(void) { return ((m_sreg | QSPIF_WIP_FLAG)!=0); }
+	bool	write_in_progress(void) { return ((m_sreg & QSPIF_WIP_FLAG)!=0); }
 	bool	xip_mode(void) { return (QSPIF_QUAD_READ_IDLE == m_state); }
 	bool	deep_sleep(bool newval);
 	bool	deep_sleep(void) const;

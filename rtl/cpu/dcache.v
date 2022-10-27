@@ -92,9 +92,11 @@ module	dcache(i_clk, i_reset, i_clear, i_pipe_stb, i_lock,
 	localparam	AW = ADDRESS_WIDTH; // Just for ease of notation below
 	localparam	CS = LGCACHELEN; // Number of bits in a cache address
 	localparam	LS = CS-LGNLINES; // Bits to spec position w/in cline
+	// Verilator lint_off UNUSED
 	parameter	F_LGDEPTH=1 + (((!OPT_PIPE)||(LS > OPT_FIFO_DEPTH))
 					? LS : OPT_FIFO_DEPTH);
 	localparam	LGAUX = 3; // log_2 of the maximum number of piped data
+	// Verilator lint_on  UNUSED
 	localparam	DW = 32; // Bus data width
 	localparam	DP = OPT_FIFO_DEPTH;
 	//
@@ -174,7 +176,7 @@ module	dcache(i_clk, i_reset, i_clear, i_pipe_stb, i_lock,
 
 	wire	raw_cachable_address;
 
-	iscachable chkaddress(i_addr[AW+1:2], raw_cachable_address);
+	iscachable chkaddress({ i_addr[AW+1:2], 2'b00 }, raw_cachable_address);
 
 	assign	w_cachable = ((!OPT_LOCAL_BUS)||(i_addr[(DW-1):(DW-8)]!=8'hff))
 		&&((!i_lock)||(!OPT_LOCK))&&(raw_cachable_address);

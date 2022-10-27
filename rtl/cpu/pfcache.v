@@ -68,9 +68,12 @@ module	pfcache(i_clk, i_reset, i_new_pc, i_clear_cache,
 			i_wb_stall, i_wb_ack, i_wb_err, i_wb_data,
 			o_illegal
 		);
-	parameter	LGCACHELEN = 12, ADDRESS_WIDTH=30,
+	parameter	LGCACHELEN = 12,
+			ADDRESS_WIDTH=30,
 			LGLINES=8; // Log of the number of separate cache lines
+			// Verilator lint_off UNUSED
 	localparam	CACHELEN=(1<<LGCACHELEN); //Wrd Size of our cache memory
+			// Verilator lint_on  UNUSED
 	localparam	CW=LGCACHELEN;	// Short hand for LGCACHELEN
 	localparam	LS=LGCACHELEN-LGLINES; // Size of a cache line
 	localparam	BUSW = 32;	// Number of data lines on the bus

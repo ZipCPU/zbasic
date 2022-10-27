@@ -52,7 +52,7 @@ VDEFS   := $(shell ./vversion.sh)
 VINCD   := $(VROOT)/include
 VINC	:= -I$(VINCD) -I$(VINCD)/vltstd -I$(VOBJDR)
 INCS	:= -I../../sw/host -I$(RTLD) $(VINC)
-CFLAGS	:= -Og -g -Wall $(INCS)
+CFLAGS	:= -Og -g -Wall -faligned-new $(INCS)
 # CFLAGS	:= -Og -g -Wall $(INCS) -faligned-new
 #
 # A list of our sources and headers

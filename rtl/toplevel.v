@@ -56,16 +56,66 @@
 // also appear in this list
 //
 module	toplevel(i_clk,
-		// GPIO ports
-		i_gpio, o_gpio,
-		// UART/host to wishbone interface
-		i_wbu_uart_rx, o_wbu_uart_tx,
-		// Top level Quad-SPI I/O ports
-		o_qspi_cs_n, io_qspi_dat,
 		// A reset wire for the ZipCPU
 		i_cpu_resetn,
+		// UART/host to wishbone interface
+		i_wbu_uart_rx, o_wbu_uart_tx,
 		// SD Card
-		o_sd_sck, io_sd_cmd, io_sd, i_sd_cd);
+		o_sd_sck, io_sd_cmd, io_sd, i_sd_cd,
+		// GPIO ports
+		i_gpio, o_gpio,
+		// Top level Quad-SPI I/O ports
+		o_qspi_cs_n, io_qspi_dat);
+	//
+	// Declaring any top level parameters.
+	//
+	// These declarations just copy data from the @TOP.PARAM key,
+	// or from the @MAIN.PARAM key if @TOP.PARAM is absent.  For
+	// those peripherals that don't do anything at the top level,
+	// the @MAIN.PARAM key should be sufficient, so the @TOP.PARAM
+	// key may be left undefined.
+	//
+	//
+	//
+	// Variables/definitions needed by the ZipCPU BUS master
+	//
+	//
+	// A 32-bit address indicating where the ZipCPU should start running
+	// from
+	localparam	RESET_ADDRESS = 20971520;
+	//
+	// The number of valid bits on the bus
+	localparam	ZIP_ADDRESS_WIDTH = 23; // Zip-CPU address width
+	//
+	// Number of ZipCPU interrupts
+	localparam	ZIP_INTS = 16;
+	//
+	// ZIP_START_HALTED
+	//
+	// A boolean, indicating whether or not the ZipCPU be halted on startup?
+	localparam	ZIP_START_HALTED=1'b1;
+	//
+	// WBUBUS parameters
+	//
+	// Baudrate :   1000000
+	// Clock    : 100000000
+	localparam [23:0] BUSUART = 24'h64;	//   1000000 baud
+	localparam	DBGBUSBITS = $clog2(BUSUART);
+	//
+	// Maximum command is 6 bytes, where each byte takes 10 baud clocks
+	// and each baud clock requires DBGBUSBITS to represent.  Here,
+	// we'll add one more for good measure.
+	localparam	DBGBUSWATCHDOG_RAW = DBGBUSBITS + 9;
+	localparam	DBGBUSWATCHDOG = (DBGBUSWATCHDOG_RAW > 19)
+				? DBGBUSWATCHDOG_RAW : 19;
+	//
+	// Initial calendar DATE
+	//
+`ifdef	VERSION_ACCESS
+	parameter	INITIAL_DATE = `DATESTAMP;
+`else
+	parameter	INITIAL_DATE = 30'h20000101;
+`endif
 	//
 	// Declaring our input and output ports.  We listed these above,
 	// now we are declaring them here.
@@ -79,23 +129,23 @@ module	toplevel(i_clk,
 	// We start with any @CLOCK.TOP keys
 	//
 	input	wire		i_clk;
-	// GPIO wires
-	localparam	NGPI = 11, NGPO=11;
-	// GPIO ports
-	input	wire	[(11-1):0]	i_gpio;
-	output	wire	[(11-1):0]	o_gpio;
-	input	wire		i_wbu_uart_rx;
-	output	wire		o_wbu_uart_tx;
-	// Quad SPI flash
-	output	wire		o_qspi_cs_n;
-	inout	wire	[3:0]	io_qspi_dat;
 	// A reset wire for the ZipCPU
 	input	wire		i_cpu_resetn;
+	input	wire		i_wbu_uart_rx;
+	output	wire		o_wbu_uart_tx;
 	// SD Card
 	output	wire		o_sd_sck;
 	inout	wire		io_sd_cmd;
 	inout	wire	[3:0]	io_sd;
 	input	wire		i_sd_cd;
+	// GPIO wires
+	localparam	NGPI = 11, NGPO=11;
+	// GPIO ports
+	input	wire	[(11-1):0]	i_gpio;
+	output	wire	[(11-1):0]	o_gpio;
+	// Quad SPI flash
+	output	wire		o_qspi_cs_n;
+	inout	wire	[3:0]	io_qspi_dat;
 
 
 	//
@@ -104,15 +154,15 @@ module	toplevel(i_clk,
 	// These declarations just copy data from the @TOP.DEFNS key
 	// within the component data files.
 	//
-	wire		w_qspi_sck, w_qspi_cs_n;
-	wire	[1:0]	qspi_bmod;
-	wire	[3:0]	qspi_dat;
-	wire		s_clk, s_reset;
 	wire		w_sd_cmd;
 	wire	[3:0]	w_sd_data;
 
 	wire		i_sd_cmd;
 	wire	[3:0]	i_sd;
+	wire		s_clk, s_reset;
+	wire		w_qspi_sck, w_qspi_cs_n;
+	wire	[1:0]	qspi_bmod;
+	wire	[3:0]	qspi_dat;
 
 
 	//
@@ -131,16 +181,16 @@ module	toplevel(i_clk,
 	//
 
 	main	thedesign(s_clk, s_reset,
-		// GPIO wires
-		i_gpio, o_gpio,
-		// UART/host to wishbone interface
-		i_wbu_uart_rx, o_wbu_uart_tx,
-		// Quad SPI flash
-		w_qspi_cs_n, w_qspi_sck, qspi_dat, io_qspi_dat, qspi_bmod,
 		// Reset wire for the ZipCPU
 		(!i_cpu_resetn),
+		// UART/host to wishbone interface
+		i_wbu_uart_rx, o_wbu_uart_tx,
 		// SD Card
-		o_sd_sck, w_sd_cmd, w_sd_data, io_sd_cmd, io_sd, i_sd_cd);
+		o_sd_sck, w_sd_cmd, w_sd_data, io_sd_cmd, io_sd, i_sd_cd,
+		// GPIO wires
+		i_gpio, o_gpio,
+		// Quad SPI flash
+		w_qspi_cs_n, w_qspi_sck, qspi_dat, io_qspi_dat, qspi_bmod);
 
 
 	//
@@ -149,6 +199,32 @@ module	toplevel(i_clk,
 	// given by the @TOP.INSERT tag in our data files.
 	//
 
+
+	//
+	//
+	// Wires for setting up the SD Card Controller
+	//
+	//
+	// assign io_sd_cmd = w_sd_cmd ? 1'bz:1'b0;
+	// assign io_sd[0] = w_sd_data[0]? 1'bz:1'b0;
+	// assign io_sd[1] = w_sd_data[1]? 1'bz:1'b0;
+	// assign io_sd[2] = w_sd_data[2]? 1'bz:1'b0;
+	// assign io_sd[3] = w_sd_data[3]? 1'bz:1'b0;
+
+
+	// IOBUF sd_cmd_buf(.T(w_sd_cmd),.O(i_sd_cmd), .I(1'b0), .IO(io_sd_cmd));
+	IOBUF sd_dat0_bf(.T(1'b1),.O(i_sd[0]),.I(1'b1),.IO(io_sd[0]));
+	IOBUF sd_dat1_bf(.T(1'b1),.O(i_sd[1]),.I(1'b1),.IO(io_sd[1]));
+	IOBUF sd_dat2_bf(.T(1'b1),.O(i_sd[2]),.I(1'b1),.IO(io_sd[2]));
+	// IOBUF sd_dat3_bf(.T(w_sd_data[3]),.O(i_sd[3]),.I(1'b0),.IO(io_sd[3]));
+
+	IOBUF sd_cmd_buf(.T(1'b0),.O(i_sd_cmd), .I(w_sd_cmd), .IO(io_sd_cmd));
+	IOBUF sd_dat3_bf(.T(1'b0),.O(i_sd[3]),.I(w_sd_data[3]),.IO(io_sd[3]));
+	
+
+
+	assign	s_clk = i_clk;
+	assign	s_reset = 1'b0; // This design requires local, not global resets
 
 	//
 	//
@@ -219,32 +295,6 @@ module	toplevel(i_clk,
 	//	low allows the output of this pin to be as stated above.
 	.USRDONETS(1'b1)
 	);
-
-
-	assign	s_clk = i_clk;
-	assign	s_reset = 1'b0; // This design requires local, not global resets
-
-	//
-	//
-	// Wires for setting up the SD Card Controller
-	//
-	//
-	// assign io_sd_cmd = w_sd_cmd ? 1'bz:1'b0;
-	// assign io_sd[0] = w_sd_data[0]? 1'bz:1'b0;
-	// assign io_sd[1] = w_sd_data[1]? 1'bz:1'b0;
-	// assign io_sd[2] = w_sd_data[2]? 1'bz:1'b0;
-	// assign io_sd[3] = w_sd_data[3]? 1'bz:1'b0;
-
-
-	// IOBUF sd_cmd_buf(.T(w_sd_cmd),.O(i_sd_cmd), .I(1'b0), .IO(io_sd_cmd));
-	IOBUF sd_dat0_bf(.T(1'b1),.O(i_sd[0]),.I(1'b1),.IO(io_sd[0]));
-	IOBUF sd_dat1_bf(.T(1'b1),.O(i_sd[1]),.I(1'b1),.IO(io_sd[1]));
-	IOBUF sd_dat2_bf(.T(1'b1),.O(i_sd[2]),.I(1'b1),.IO(io_sd[2]));
-	// IOBUF sd_dat3_bf(.T(w_sd_data[3]),.O(i_sd[3]),.I(1'b0),.IO(io_sd[3]));
-
-	IOBUF sd_cmd_buf(.T(1'b0),.O(i_sd_cmd), .I(w_sd_cmd), .IO(io_sd_cmd));
-	IOBUF sd_dat3_bf(.T(1'b0),.O(i_sd[3]),.I(w_sd_data[3]),.IO(io_sd[3]));
-	
 
 
 

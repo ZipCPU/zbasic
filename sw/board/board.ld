@@ -48,7 +48,9 @@ MEMORY
 	* has a defined name in its @LD.NAME tag, it will be listed here
 	* under that name, otherwise it will be listed under it's
 	* @$(PREFIX) tag with an underscore prepended to it.  The permissions
-	* are given by the @LD.PERM tag.  If no permission tag exists, a
+	* are given by the @LD.PERM tag.  Allowable permissions include
+	* 'r' (read only), 'rx' (read and execute, but no writes),
+	* 'wx' (read, write, and execute).  If no permission tag exists, a
 	* permission of 'r' will be assumed.
 	*/
 	   bkram(wx) : ORIGIN = 0x00c00000, LENGTH = 0x00100000

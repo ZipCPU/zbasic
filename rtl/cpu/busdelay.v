@@ -71,7 +71,9 @@ module	busdelay(i_clk, i_reset,
 		o_dly_cyc, o_dly_stb, o_dly_we, o_dly_addr,o_dly_data,o_dly_sel,
 			i_dly_stall, i_dly_ack, i_dly_data, i_dly_err);
 	parameter		AW=32, DW=32;
+	// Verilator lint_off UNUSED
 	localparam		F_LGDEPTH=4;
+	// Verilator lint_on  UNUSED
 	parameter	 [0:0]	DELAY_STALL = 1;
 	input	wire			i_clk, i_reset;
 	// Input/master bus

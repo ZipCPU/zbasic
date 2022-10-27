@@ -53,7 +53,9 @@ module	wbconsole(i_clk, i_rst,
 		//
 		o_debug);
 	parameter [3:0]	LGFLEN = 4;
+	// Verilator lint_off UNUSED
 	parameter [0:0]	HARDWARE_FLOW_CONTROL_PRESENT = 1'b1;
+	// Verilator lint_on  UNUSED
 	// Perform a simple/quick bounds check on the log FIFO length, to make
 	// sure its within the bounds we can support with our current
 	// interface.

@@ -46,10 +46,11 @@ module	wbuexec(i_clk, i_reset, i_stb, i_codword, o_busy,
 		o_wb_cyc, o_wb_stb, o_wb_we, o_wb_addr, o_wb_data,
 			i_wb_stall, i_wb_ack, i_wb_err, i_wb_data,
 		o_stb, o_codword);
+	// Verilator lint_off UNUSED
 	parameter	AW = 32, DW = 32;
 	//
-	//
 	localparam [5:0]	END_OF_WRITE = 6'h2e;
+	// Verilator lint_on  UNUSED
 	localparam [1:0]	WB_IDLE			= 2'b00,
 				WB_READ_REQUEST		= 2'b01,
 				WB_WRITE_REQUEST	= 2'b10,
